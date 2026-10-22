@@ -1,0 +1,4 @@
+# Dependencias del Sistema Escolar - Villa Las Peñas
+streamlit
+supabase
+pandas
