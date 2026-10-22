@@ -1826,16 +1826,142 @@ elif st.session_state.current_module == 'atraso':
                     if "ultimo_rut_scroll_atraso" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_atraso = None
 
-                    # Si ya se guardó con éxito, mostramos pantalla estática de confirmación
+                    # Si ya se guardó con éxito, mostramos confirmación y justificativo térmico (8x8 cm)
                     if st.session_state.atraso_guardado_exito:
-                        st.success("✅ ¡Registro de Atraso guardado y sincronizado con éxito en la nube!")
-                        st.info("El registro ha sido procesado correctamente.")
-                        if st.button("« Finalizar y Volver al Dashboard", type="primary", key="btn_finalizar_atraso"):
-                            st.session_state.atraso_guardado_exito = False
-                            st.session_state.alumno_seleccionado_atraso = None
-                            st.session_state.ultimo_rut_scroll_atraso = None
-                            st.session_state.current_module = 'home'
-                            st.rerun()
+                        voucher = st.session_state.get('ultimo_voucher_atraso', {})
+                        v_nom = voucher.get('nombre', 'ALUMNO')
+                        v_cur = voucher.get('curso', '—')
+                        v_mot = voucher.get('motivo', 'Atraso')
+                        v_fec = voucher.get('fecha', datetime.date.today().strftime("%d/%m/%Y"))
+                        v_hor = voucher.get('hora', datetime.datetime.now().strftime("%H:%M"))
+
+                        st.success("✅ ¡Atraso registrado y justificativo térmico (8x8 cm) emitido con éxito!")
+
+                        # Voucher de 8 cm de ancho por 8 cm de alto con auto-print
+                        html_voucher = f"""
+                        <!DOCTYPE html>
+                        <html lang="es">
+                        <head>
+                        <meta charset="UTF-8">
+                        <style>
+                            @page {{
+                                size: 80mm 80mm;
+                                margin: 0mm;
+                            }}
+                            @media print {{
+                                html, body {{
+                                    width: 80mm !important;
+                                    height: 80mm !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    background: #fff !important;
+                                }}
+                                .ticket-wrap {{
+                                    width: 80mm !important;
+                                    height: 80mm !important;
+                                    max-width: 80mm !important;
+                                    max-height: 80mm !important;
+                                    margin: 0 !important;
+                                    padding: 4mm 5mm !important;
+                                    box-sizing: border-box !important;
+                                    border: none !important;
+                                    box-shadow: none !important;
+                                }}
+                            }}
+                            body {{
+                                font-family: 'Courier New', Courier, monospace, sans-serif;
+                                margin: 0;
+                                padding: 6px;
+                                background: #f8fafc;
+                            }}
+                            .ticket-wrap {{
+                                width: 78mm;
+                                height: 78mm;
+                                background: #fff;
+                                margin: 0 auto;
+                                padding: 4mm 5mm;
+                                box-sizing: border-box;
+                                border: 1px dashed #94a3b8;
+                                border-radius: 4px;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: space-between;
+                                color: #000;
+                            }}
+                            .t-title {{
+                                text-align: center;
+                                font-size: 16px;
+                                font-weight: 900;
+                                letter-spacing: 1px;
+                                border-bottom: 2px dashed #000;
+                                padding-bottom: 3px;
+                                margin-bottom: 4px;
+                            }}
+                            .t-body {{
+                                font-size: 12.5px;
+                                line-height: 1.35;
+                            }}
+                            .t-item {{
+                                margin-bottom: 2px;
+                                word-wrap: break-word;
+                            }}
+                            .t-footer {{
+                                text-align: center;
+                                font-size: 12px;
+                                font-weight: 700;
+                                border-top: 2px dashed #000;
+                                padding-top: 4px;
+                                margin-top: 3px;
+                            }}
+                        </style>
+                        </head>
+                        <body>
+                        <div class="ticket-wrap">
+                            <div class="t-title">JUSTIFICATIVO</div>
+                            <div class="t-body">
+                                <div class="t-item"><b>Nombre:</b> {v_nom}</div>
+                                <div class="t-item"><b>Curso:</b> {v_cur}</div>
+                                <div class="t-item"><b>Motivo:</b> {v_mot}</div>
+                                <div class="t-item"><b>Fecha:</b> {v_fec}</div>
+                                <div class="t-item"><b>Hora:</b> {v_hor}</div>
+                            </div>
+                            <div class="t-footer">Escuela Villa Las Peñas</div>
+                        </div>
+                        <script>
+                            // Disparo automático de impresión térmica (silencioso con --kiosk-printing)
+                            window.onload = function() {{
+                                setTimeout(function() {{
+                                    window.print();
+                                }}, 250);
+                            }};
+                        </script>
+                        </body>
+                        </html>
+                        """
+                        import streamlit.components.v1 as components
+                        components.html(html_voucher, height=265)
+
+                        c_b1, c_b2, c_b3 = st.columns([1.5, 1.4, 1.1])
+                        with c_b1:
+                            if st.button("➕ Registrar Otro Atraso", type="primary", key="btn_sig_atraso", use_container_width=True):
+                                st.session_state.atraso_guardado_exito = False
+                                st.session_state.alumno_seleccionado_atraso = None
+                                st.session_state.ultimo_rut_scroll_atraso = None
+                                st.session_state.pop("ultimo_voucher_atraso", None)
+                                if "txt_busqueda_atraso_botones" in st.session_state:
+                                    st.session_state["txt_busqueda_atraso_botones"] = ""
+                                st.rerun()
+                        with c_b2:
+                            if st.button("🖨️ Reimprimir Justificativo", key="btn_reimprimir_atraso", use_container_width=True):
+                                st.rerun()
+                        with c_b3:
+                            if st.button("🏠 Salir", key="btn_finalizar_atraso", use_container_width=True):
+                                st.session_state.atraso_guardado_exito = False
+                                st.session_state.alumno_seleccionado_atraso = None
+                                st.session_state.ultimo_rut_scroll_atraso = None
+                                st.session_state.pop("ultimo_voucher_atraso", None)
+                                st.session_state.current_module = 'home'
+                                st.rerun()
                     else:
                         # Buscador normal
                         busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key="txt_busqueda_atraso_botones").strip()
@@ -1954,6 +2080,7 @@ elif st.session_state.current_module == 'atraso':
                                         if not sheet_registros.row_values(1):
                                             sheet_registros.append_row(["Fecha", "Hora", "RUT", "Nombre", "Tipo", "Motivo", "Apoderado", "Vinculo", "Curso"])
 
+                                        curso_alumno_final = alumno.get('curso', '')
                                         sheet_registros.append_row([
                                             ahora.strftime("%Y-%m-%d"),
                                             ahora.strftime("%H:%M:%S"),
@@ -1963,8 +2090,17 @@ elif st.session_state.current_module == 'atraso':
                                             motivo_final,
                                             "",
                                             "",
-                                            alumno.get('curso', '')
+                                            curso_alumno_final
                                         ])
+
+                                        # Guardar datos del justificativo térmico de 8x8 cm
+                                        st.session_state.ultimo_voucher_atraso = {
+                                            'nombre': str(alumno['nombre']).strip().upper(),
+                                            'curso': str(curso_alumno_final).strip(),
+                                            'motivo': motivo_final,
+                                            'fecha': ahora.strftime("%d/%m/%Y"),
+                                            'hora': ahora.strftime("%H:%M")
+                                        }
                                         st.session_state.atraso_guardado_exito = True
                                         st.rerun()
                                     else:
