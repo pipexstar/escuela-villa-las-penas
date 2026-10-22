@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Entorno virtual
+venv/
+env/
+.venv/
+.env/
+
+# Credenciales y secretos — NUNCA subir a GitHub
+.streamlit/secrets.toml
+credenciales.json
+*.json
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos temporales
+*.log
+*.tmp
+*.bak
