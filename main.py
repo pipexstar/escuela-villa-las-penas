@@ -594,111 +594,238 @@ if st.session_state.user is None:
     st.stop()
 
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# MÓDULOS DE REPORTES INSTITUCIONALES (ATRASOS Y RETIROS)
+# ---------------------------------------------------------
+
+def cargar_datos_configuracion_reportes():
+    """Carga los parámetros institucionales oficiales desde la tabla de Configuración."""
+    conf_data = {}
+    try:
+        sc_conf = get_config_sheet()
+        if sc_conf:
+            recs = sc_conf.get_all_records()
+            for rc in recs:
+                k = str(rc.get('clave', rc.get('Clave', ''))).strip().lower()
+                v = str(rc.get('valor', rc.get('Valor', ''))).strip()
+                if k: conf_data[k] = v
+    except Exception:
+        pass
+
+    def parse_fecha(val_str, fallback):
+        if not val_str: return fallback
+        val_clean = str(val_str).strip()
+        for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
+            try:
+                return datetime.datetime.strptime(val_clean.split()[0], fmt).date()
+            except Exception:
+                pass
+        return fallback
+
+    hoy = datetime.date.today()
+    anio = hoy.year
+
+    nombre_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÑAS").upper()
+    rbd = conf_data.get("rbd", conf_data.get("rbd_colegio", "4410-5"))
+    ciudad = conf_data.get("ciudad", "Mulchén")
+    region = conf_data.get("region", "BÍOBÍO")
+    nombre_director = conf_data.get("nombre_director", "CÉSAR JULIÁN ROA SOTO").upper()
+    firma_b64 = conf_data.get("firma_director_b64", "")
+
+    # Fechas oficiales de semestre desde configuración (con inicio de clases 04-03-2026)
+    s1_ini = parse_fecha(conf_data.get("semestre_1_inicio"), datetime.date(anio, 3, 4))
+    s1_fin = parse_fecha(conf_data.get("semestre_1_fin"), datetime.date(anio, 6, 18))
+    s2_ini = parse_fecha(conf_data.get("semestre_2_inicio"), datetime.date(anio, 7, 6))
+    s2_fin = parse_fecha(conf_data.get("semestre_2_fin"), datetime.date(anio, 12, 11))
+
+    return {
+        "nombre_colegio": nombre_colegio,
+        "rbd": rbd,
+        "ciudad": ciudad,
+        "region": region,
+        "nombre_director": nombre_director,
+        "firma_b64": firma_b64,
+        "s1_ini": s1_ini,
+        "s1_fin": s1_fin,
+        "s2_ini": s2_ini,
+        "s2_fin": s2_fin
+    }
+
+
+def normalizar_fecha_chilena(val):
+    """Convierte cualquier formato de fecha a formato estándar chileno DD/MM/AAAA."""
+    s = str(val).strip()
+    if not s or s.lower() in ('nan', 'none', '—', ''):
+        return '—'
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            dt = datetime.datetime.strptime(s.split()[0], fmt)
+            return dt.strftime("%d/%m/%Y")
+        except Exception:
+            pass
+    return s
+
+
+def fecha_a_iso_comp(val):
+    """Convierte una fecha a formato YYYY-MM-DD para comparación estricta en filtros."""
+    s = str(val).strip()
+    if not s or s.lower() in ('nan', 'none', '—', ''):
+        return '1900-01-01'
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            dt = datetime.datetime.strptime(s.split()[0], fmt)
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    return s
+
+
+def estandarizar_motivo_general(val):
+    """Estandariza los motivos de atraso y retiro a la nomenclatura institucional."""
+    s = str(val).strip()
+    if not s or s.lower() in ('nan', 'none', '—', ''):
+        return 'Sin Motivo Especificado'
+    s_low = s.lower()
+    if 'dormid' in s_low or 'quedo dorm' in s_low:
+        return 'Se quedó dormido/a'
+    if 'medic' in s_low or 'dental' in s_low or 'doctor' in s_low or 'salud' in s_low or 'control' in s_low:
+        return 'Hora médica/dental'
+    if 'transporte' in s_low or 'furgon' in s_low or 'vehiculo' in s_low or 'micro' in s_low or 'locomocion' in s_low:
+        return 'Problema de transporte'
+    if 'clima' in s_low or 'lluvia' in s_low or 'temporal' in s_low:
+        return 'Clima / Lluvia intensa'
+    return s
+
+
+def resolver_curso_estandar(c_raw, rut_raw, alu_curso_map):
+    """Obtiene el curso oficial actual del alumno por RUT, o normaliza el texto antiguo."""
+    rut_norm = str(rut_raw).replace('.', '').strip().upper()
+    if rut_norm in alu_curso_map and alu_curso_map[rut_norm]:
+        return alu_curso_map[rut_norm]
+
+    c_s = str(c_raw).strip()
+    if not c_s or c_s.lower() in ('nan', 'none', '—', ''):
+        return '—'
+
+    k = extraer_clave_curso(c_s)
+    let = k[1].upper() if k[1] else 'A'
+    if k[0] == 'nt1': return f"NT1 {let}"
+    if k[0] == 'nt2': return f"NT2 {let}"
+    for num in range(1, 9):
+        if f"{num} basico" in k[0] or k[0].startswith(str(num)):
+            return f"{num}° Básico {let}"
+    return c_s
+
+
 def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
     st.markdown("### 📊 Reporte y Estadísticas de Atrasos")
-    st.caption("Consolidado para Inspectoría General y Dirección. Aplica filtros para analizar reiteraciones, tendencias y generar el informe institucional en PDF.")
+    st.caption("Consolidado para Dirección. Monitorea reiteraciones, estadísticas por curso y emite el informe formal en PDF.")
 
     if not sheet_registros:
         st.error("No se pudo conectar con la base de datos de registros.")
         return
 
     try:
+        conf = cargar_datos_configuracion_reportes()
         recs_reg = sheet_registros.get_all_records()
         df_reg_all = pd.DataFrame(recs_reg) if recs_reg else pd.DataFrame()
 
-        # Mapa de alumnos para autocompletar cursos si faltan
+        # Mapa oficial de alumnos para cruzar curso y nombre real por RUT
         df_alu_map = pd.DataFrame(sheet_alumnos.get_all_records()) if sheet_alumnos else pd.DataFrame()
         alu_curso_map = {}
         alu_nom_map = {}
-        cursos_disponibles = []
         if not df_alu_map.empty:
             df_alu_map.columns = [str(c).strip() for c in df_alu_map.columns]
             c_r = next((c for c in df_alu_map.columns if 'rut' in c.lower()), 'RUT')
             c_n = next((c for c in df_alu_map.columns if 'nomb' in c.lower()), 'Nombre')
             c_c = next((c for c in df_alu_map.columns if 'curs' in c.lower()), 'Curso')
             for _, row_a in df_alu_map.iterrows():
-                r_k = str(row_a[c_r]).strip().upper()
-                n_k = str(row_a[c_n]).replace('\xa0', ' ').strip().upper()
+                r_k = str(row_a[c_r]).replace('.', '').strip().upper()
                 c_k = str(row_a[c_c]).strip()
-                alu_curso_map[r_k] = c_k
-                alu_nom_map[r_k] = n_k
-                if c_k and c_k not in cursos_disponibles:
-                    cursos_disponibles.append(c_k)
-            cursos_disponibles = sorted(cursos_disponibles)
+                n_k = str(row_a[c_n]).replace('\xa0', ' ').strip()
+                if r_k:
+                    alu_curso_map[r_k] = c_k
+                    alu_nom_map[r_k] = n_k
+
+        # Cursos oficiales del sistema (fuente única de verdad)
+        cursos_oficiales = obtener_cursos_oficiales_sistema()
 
         if df_reg_all.empty:
-            st.info("ℹ️ No hay registros ingresados en el sistema.")
+            st.info("ℹ️ Aún no existen registros de atrasos en el sistema.")
             return
 
         df_reg_all.columns = [str(c).strip() for c in df_reg_all.columns]
-        col_t_r  = next((c for c in df_reg_all.columns if 'tipo' in c.lower()), 'Tipo')
-        col_f_r  = next((c for c in df_reg_all.columns if 'fecha' in c.lower()), 'Fecha')
-        col_h_r  = next((c for c in df_reg_all.columns if 'hora' in c.lower()), 'Hora')
-        col_rt_r = next((c for c in df_reg_all.columns if 'rut' in c.lower()), 'RUT')
-        col_nm_r = next((c for c in df_reg_all.columns if 'nomb' in c.lower()), 'Nombre')
-        col_m_r  = next((c for c in df_reg_all.columns if 'moti' in c.lower()), 'Motivo')
-        col_cr_r = next((c for c in df_reg_all.columns if 'curs' in c.lower()), 'Curso')
-
-        # Filtrar únicamente atrasos
-        df_atrasos = df_reg_all[df_reg_all[col_t_r].astype(str).str.strip().str.lower() == 'atraso'].copy()
+        c_tipo = next((c for c in df_reg_all.columns if 'tipo' in c.lower()), None)
+        if c_tipo:
+            df_atrasos = df_reg_all[df_reg_all[c_tipo].astype(str).str.strip().str.lower() == 'atraso'].copy()
+        else:
+            df_atrasos = df_reg_all.copy()
 
         if df_atrasos.empty:
-            st.info("ℹ️ Aún no hay atrasos registrados en el sistema.")
+            st.info("ℹ️ No hay atrasos registrados en el sistema.")
             return
 
-        def _obtener_curso_reg(row):
-            c_val = str(row.get(col_cr_r, '')).strip()
-            if not c_val or c_val.lower() in ('none', 'nan', ''):
-                return alu_curso_map.get(str(row.get(col_rt_r, '')).strip().upper(), "—")
-            return c_val
+        # Normalizar columnas
+        col_f = next((c for c in df_atrasos.columns if 'fech' in c.lower()), 'Fecha')
+        col_h = next((c for c in df_atrasos.columns if 'hora' in c.lower()), 'Hora')
+        col_nom = next((c for c in df_atrasos.columns if 'nomb' in c.lower()), 'Nombre')
+        col_r = next((c for c in df_atrasos.columns if 'rut' in c.lower()), 'RUT')
+        col_m = next((c for c in df_atrasos.columns if 'moti' in c.lower()), 'Motivo')
+        col_cur = next((c for c in df_atrasos.columns if 'curs' in c.lower()), 'Curso')
 
-        def _obtener_nom_reg(row):
-            n_val = str(row.get(col_nm_r, '')).replace('\xa0', ' ').strip()
-            if not n_val or n_val.lower() in ('none', 'nan', ''):
-                return alu_nom_map.get(str(row.get(col_rt_r, '')).strip().upper(), "—")
-            return n_val
+        df_atrasos['RUT_Clean'] = df_atrasos[col_r].astype(str).str.strip()
+        df_atrasos['Fecha_ISO'] = df_atrasos[col_f].apply(fecha_a_iso_comp)
+        df_atrasos['Fecha_Chilena'] = df_atrasos[col_f].apply(normalizar_fecha_chilena)
+        df_atrasos['Hora_Clean'] = df_atrasos[col_h].astype(str).str.strip()
+        df_atrasos['Motivo_Clean'] = df_atrasos[col_m].apply(estandarizar_motivo_general) if col_m in df_atrasos.columns else "Sin Motivo Especificado"
 
-        df_atrasos['Curso_Final'] = df_atrasos.apply(_obtener_curso_reg, axis=1)
-        df_atrasos['Nombre_Final'] = df_atrasos.apply(_obtener_nom_reg, axis=1)
-        df_atrasos['Fecha_Clean'] = df_atrasos[col_f_r].astype(str).str.strip()
-        df_atrasos['Hora_Clean'] = df_atrasos[col_h_r].astype(str).str.strip()
-        df_atrasos['RUT_Clean'] = df_atrasos[col_rt_r].astype(str).str.strip().str.upper()
-        df_atrasos['Motivo_Clean'] = df_atrasos[col_m_r].astype(str).str.strip()
+        def obtener_nombre(row):
+            n_raw = str(row[col_nom]).strip()
+            if n_raw and n_raw.lower() not in ('nan', 'none'): return n_raw
+            r_k = str(row['RUT_Clean']).replace('.', '').strip().upper()
+            return alu_nom_map.get(r_k, 'Sin Nombre')
 
-        # --- BARRA DE FILTROS ---
-        with st.expander("🔍 Filtros de Consulta", expanded=True):
-            f_col1, f_col2, f_col3, f_col4 = st.columns([1.5, 1.4, 2, 1.5])
-            
-            hoy_dt = datetime.date.today()
-            primer_dia_mes = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+        df_atrasos['Nombre_Final'] = df_atrasos.apply(obtener_nombre, axis=1)
+        df_atrasos['Curso_Final'] = df_atrasos.apply(
+            lambda r: resolver_curso_estandar(r.get(col_cur, ''), r['RUT_Clean'], alu_curso_map), axis=1
+        )
+
+        # --- SECCIÓN DE FILTROS ---
+        with st.expander("🔍 Filtros de Búsqueda y Rango Temporal", expanded=True):
+            f_col1, f_col2, f_col3, f_col4 = st.columns([1.6, 1.3, 1.4, 1.4])
 
             with f_col1:
-                periodo_opc = st.selectbox(
-                    "📅 Período:",
-                    ["Mes Actual", "Últimos 7 días", "Todo el Año", "Rango Personalizado"],
-                    key="rep_atraso_periodo_sel"
-                )
+                opciones_periodo = [
+                    "Primer Semestre (Inicio de Clases)",
+                    "Segundo Semestre",
+                    "Mes Actual",
+                    "Año Escolar Completo",
+                    "Rango Personalizado"
+                ]
+                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_atraso_periodo_sel")
+                hoy_dt = datetime.date.today()
 
-            if periodo_opc == "Mes Actual":
-                f_desde, f_hasta = primer_dia_mes, hoy_dt
-            elif periodo_opc == "Últimos 7 días":
-                f_desde, f_hasta = hoy_dt - datetime.timedelta(days=7), hoy_dt
-            elif periodo_opc == "Todo el Año":
-                f_desde, f_hasta = datetime.date(hoy_dt.year, 1, 1), hoy_dt
-            else:
-                with f_col1:
-                    rango_user = st.date_input(
-                        "Selecciona rango:",
-                        value=(primer_dia_mes, hoy_dt),
-                        key="rep_atraso_rango_user"
-                    )
-                    if isinstance(rango_user, (list, tuple)) and len(rango_user) == 2:
-                        f_desde, f_hasta = rango_user[0], rango_user[1]
-                    else:
-                        f_desde, f_hasta = primer_dia_mes, hoy_dt
+                if filtro_periodo == "Primer Semestre (Inicio de Clases)":
+                    f_desde = conf["s1_ini"]
+                    f_hasta = conf["s1_fin"]
+                elif filtro_periodo == "Segundo Semestre":
+                    f_desde = conf["s2_ini"]
+                    f_hasta = conf["s2_fin"]
+                elif filtro_periodo == "Mes Actual":
+                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Año Escolar Completo":
+                    f_desde = conf["s1_ini"]
+                    f_hasta = conf["s2_fin"]
+                else:
+                    c_d1, c_d2 = st.columns(2)
+                    with c_d1:
+                        f_desde = st.date_input("Desde:", value=conf["s1_ini"], key="rep_atraso_f_desde")
+                    with c_d2:
+                        f_hasta = st.date_input("Hasta:", value=hoy_dt, key="rep_atraso_f_hasta")
 
             with f_col2:
-                cursos_filtro = ["Todos los Cursos"] + [c for c in cursos_disponibles if c != "—"]
+                cursos_filtro = ["Todos los Cursos"] + cursos_oficiales
                 sel_curso_rep = st.selectbox("📚 Curso:", cursos_filtro, key="rep_atraso_curso_sel")
 
             with f_col3:
@@ -722,8 +849,8 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
         f_desde_s = f_desde.strftime("%Y-%m-%d")
         f_hasta_s = f_hasta.strftime("%Y-%m-%d")
         df_filtrado = df_filtrado[
-            (df_filtrado['Fecha_Clean'] >= f_desde_s) &
-            (df_filtrado['Fecha_Clean'] <= f_hasta_s)
+            (df_filtrado['Fecha_ISO'] >= f_desde_s) &
+            (df_filtrado['Fecha_ISO'] <= f_hasta_s)
         ]
 
         if sel_curso_rep != "Todos los Cursos":
@@ -738,7 +865,7 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
         if sel_motivo_rep != "Todos los Motivos":
             df_filtrado = df_filtrado[df_filtrado['Motivo_Clean'] == sel_motivo_rep]
 
-        df_filtrado = df_filtrado.sort_values(by=['Fecha_Clean', 'Hora_Clean'], ascending=[False, False])
+        df_filtrado = df_filtrado.sort_values(by=['Fecha_ISO', 'Hora_Clean'], ascending=[False, False])
 
         # --- TARJETAS DE MÉTRICAS (KPIs) ---
         total_atrasos_filt = len(df_filtrado)
@@ -769,548 +896,28 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
         with kpi4:
             st.metric("Curso con Mayor Registro", f"{curso_top}")
 
-        # Alerta Directiva de Reiteraciones
-        if cant_reiterados > 0:
-            st.warning(
-                f"⚠️ **Alerta de Inspectoría / Dirección:** Se registran **{cant_reiterados} estudiante(s)** con 3 o más atrasos en el período seleccionado. "
-                "Casos prioritarios para citación de apoderado según Reglamento de Convivencia Escolar."
-            )
-            with st.expander("📋 Ver nómina de estudiantes con reiteración"):
-                st.dataframe(
-                    alumnos_reiterados.sort_values(by='Total', ascending=False)[['Nombre_Final', 'Curso_Final', 'RUT_Clean', 'Total']].rename(
-                        columns={'Nombre_Final': 'Estudiante', 'Curso_Final': 'Curso', 'RUT_Clean': 'RUT', 'Total': 'N° Atrasos'}
-                    ),
-                    hide_index=True,
-                    use_container_width=True
-                )
-
-        st.write("---")
-
-        # --- TABLA DETALLADA ---
-        st.markdown(f"#### 📋 Registros de Atrasos Encontrados ({total_atrasos_filt})")
-        if df_filtrado.empty:
-            st.info("No se encontraron atrasos registrados con los filtros seleccionados.")
-        else:
-            df_vista = df_filtrado[['Fecha_Clean', 'Hora_Clean', 'RUT_Clean', 'Nombre_Final', 'Curso_Final', 'Motivo_Clean']].rename(
-                columns={
-                    'Fecha_Clean': 'Fecha',
-                    'Hora_Clean': 'Hora',
-                    'RUT_Clean': 'RUT',
-                    'Nombre_Final': 'Estudiante',
-                    'Curso_Final': 'Curso',
-                    'Motivo_Clean': 'Motivo'
-                }
-            )
-            st.dataframe(df_vista, hide_index=True, use_container_width=True)
-
-            # --- ACCIONES DE EXPORTACIÓN Y PDF ---
-            st.write("")
-            col_exp1, col_exp2 = st.columns([2.5, 3])
-
-            with col_exp1:
-                csv_data = df_vista.to_csv(index=False, sep=';', encoding='utf-8-sig')
-                st.download_button(
-                    label="📥 Descargar Planilla Excel (CSV)",
-                    data=csv_data,
-                    file_name=f"Reporte_Atrasos_{f_desde_s}_al_{f_hasta_s}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-
-            with col_exp2:
-                if "mostrar_doc_atraso" not in st.session_state:
-                    st.session_state.mostrar_doc_atraso = False
-
-                btn_txt = "👁️ Ocultar Informe Imprimible" if st.session_state.mostrar_doc_atraso else "🖨️ Generar Informe Formal (PDF / Imprimir)"
-                if st.button(btn_txt, type="primary", use_container_width=True, key="btn_toggle_pdf_atraso"):
-                    st.session_state.mostrar_doc_atraso = not st.session_state.mostrar_doc_atraso
-                    st.rerun()
-
-            # --- VISTA PREVIA IMPRIMIBLE DE DOCUMENTO OFICIAL ---
-            if st.session_state.get('mostrar_doc_atraso', False):
-                st.write("---")
-                st.markdown("### 📄 Vista Previa del Informe Institucional")
-                st.caption("Este documento cuenta con formato oficial para Dirección e Inspectoría General. Haz clic en el botón verde inferior para imprimirlo o guardarlo como PDF.")
-
-                conf_data = {}
-                try:
-                    sc_conf = get_config_sheet()
-                    if sc_conf:
-                        conf_recs = sc_conf.get_all_records()
-                        for rc in conf_recs:
-                            k = str(rc.get('Clave', '')).strip()
-                            v = str(rc.get('Valor', '')).strip()
-                            if k: conf_data[k] = v
-                except Exception:
-                    pass
-
-                dir_nombre = conf_data.get("nombre_director", "RUBÉN MARCOS QUEZADA BALBOA")
-                col_nombre_inst = conf_data.get("nombre_colegio", "ESCUELA BÁSICA VILLA LAS PEÑAS")
-                col_rbd = conf_data.get("rbd_colegio", "2489-9")
-
-                insignia_b64 = ""
-                if os.path.exists("insignia.png"):
-                    try:
-                        with open("insignia.png", "rb") as f_ins:
-                            insignia_b64 = base64.b64encode(f_ins.read()).decode()
-                    except Exception:
-                        pass
-
-                img_ins_tag = f'<img src="data:image/png;base64,{insignia_b64}" style="width:65px;height:auto;" />' if insignia_b64 else ''
-
-                filas_html = ""
-                for idx_r, (_, r_fila) in enumerate(df_filtrado.iterrows(), 1):
-                    bg_fila = "#f9fafb" if idx_r % 2 == 0 else "#ffffff"
-                    filas_html += f"""
-                    <tr style="background-color:{bg_fila};">
-                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;">{idx_r}</td>
-                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['Fecha_Clean']}</td>
-                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['Hora_Clean']}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:0.78rem;font-weight:600;">{r_fila['Nombre_Final']}</td>
-                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;">{r_fila['Curso_Final']}</td>
-                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['RUT_Clean']}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;color:#4b5563;">{r_fila['Motivo_Clean']}</td>
-                    </tr>
-                    """
-
-                hoy_str = hoy_dt.strftime("%d/%m/%Y")
-                rango_str = f"Desde {f_desde.strftime('%d/%m/%Y')} hasta {f_hasta.strftime('%d/%m/%Y')}"
-                curso_filtro_str = sel_curso_rep if sel_curso_rep != "Todos los Cursos" else "Todos los Cursos del Establecimiento"
-
-                html_informe_atrasos = f"""
-                <!DOCTYPE html>
-                <html lang="es">
-                <head>
-                <meta charset="UTF-8">
-                <style>
-                    @page {{
-                        size: letter portrait;
-                        margin: 12mm 14mm 12mm 14mm;
-                    }}
-                    @media print {{
-                        body {{ background: #fff !important; margin: 0 !important; padding: 0 !important; }}
-                        .no-print {{ display: none !important; }}
-                        .doc-container {{ box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }}
-                    }}
-                    body {{
-                        font-family: 'Segoe UI', Arial, sans-serif;
-                        color: #111827;
-                        background-color: #f3f4f6;
-                        margin: 0;
-                        padding: 10px;
-                    }}
-                    .doc-container {{
-                        background: #ffffff;
-                        max-width: 800px;
-                        margin: 0 auto;
-                        padding: 24px 30px;
-                        border: 1px solid #d1d5db;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-                    }}
-                    .btn-imprimir {{
-                        background-color: #008F39;
-                        color: white;
-                        padding: 10px 22px;
-                        border: none;
-                        border-radius: 6px;
-                        font-weight: 700;
-                        font-size: 0.90rem;
-                        cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 8px;
-                        margin-bottom: 16px;
-                        transition: background 0.2s;
-                    }}
-                    .btn-imprimir:hover {{
-                        background-color: #00732e;
-                    }}
-                    .header-doc {{
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        border-bottom: 2.5px solid #008F39;
-                        padding-bottom: 10px;
-                        margin-bottom: 14px;
-                    }}
-                    .header-text {{
-                        text-align: center;
-                        flex: 1;
-                    }}
-                    .school-title {{
-                        font-size: 1.15rem;
-                        font-weight: 800;
-                        color: #111827;
-                        letter-spacing: 0.3px;
-                    }}
-                    .school-sub {{
-                        font-size: 0.78rem;
-                        color: #4b5563;
-                        margin-top: 2px;
-                        font-weight: 600;
-                    }}
-                    .doc-title {{
-                        font-size: 1.05rem;
-                        font-weight: 800;
-                        color: #166534;
-                        text-align: center;
-                        margin: 12px 0 4px 0;
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                    }}
-                    .doc-subtitle {{
-                        font-size: 0.82rem;
-                        color: #4b5563;
-                        text-align: center;
-                        margin-bottom: 14px;
-                    }}
-                    .summary-box {{
-                        background: #f0fdf4;
-                        border: 1px solid #bbf7d0;
-                        border-radius: 6px;
-                        padding: 8px 14px;
-                        display: flex;
-                        justify-content: space-around;
-                        margin-bottom: 16px;
-                        font-size: 0.80rem;
-                    }}
-                    .summary-item b {{
-                        color: #166534;
-                        font-size: 0.92rem;
-                    }}
-                    table {{
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin-top: 8px;
-                    }}
-                    th {{
-                        background-color: #f0f7f2;
-                        color: #166534;
-                        padding: 6px 8px;
-                        font-size: 0.74rem;
-                        font-weight: 700;
-                        border-bottom: 1.5px solid #008F39;
-                        text-align: left;
-                    }}
-                    .firmas-section {{
-                        display: flex;
-                        justify-content: space-between;
-                        margin-top: 40px;
-                        padding-top: 10px;
-                    }}
-                    .firma-col {{
-                        width: 42%;
-                        text-align: center;
-                    }}
-                    .linea-firma {{
-                        border-top: 1px solid #374151;
-                        margin: 35px 20px 6px 20px;
-                    }}
-                    .firma-cargo {{
-                        font-size: 0.76rem;
-                        font-weight: 700;
-                        color: #111827;
-                    }}
-                    .firma-sub {{
-                        font-size: 0.68rem;
-                        color: #6b7280;
-                    }}
-                    .footer-text {{
-                        text-align: center;
-                        font-size: 0.68rem;
-                        color: #9ca3af;
-                        margin-top: 24px;
-                        border-top: 1px solid #f3f4f6;
-                        padding-top: 6px;
-                    }}
-                </style>
-                </head>
-                <body>
-                    <div class="no-print" style="text-align:center;margin-bottom:12px;">
-                        <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
-                    </div>
-                    <div class="doc-container">
-                        <div class="header-doc">
-                            <div style="width:75px;text-align:left;">{img_ins_tag}</div>
-                            <div class="header-text">
-                                <div class="school-title">{col_nombre_inst}</div>
-                                <div class="school-sub">RBD {col_rbd} · Mulchén, Región del Biobío</div>
-                                <div class="school-sub">Inspectoría General & Convivencia Escolar</div>
-                            </div>
-                            <div style="width:75px;"></div>
-                        </div>
-
-                        <div class="doc-title">Informe Oficial de Atrasos Escolares</div>
-                        <div class="doc-subtitle">
-                            <b>Período:</b> {rango_str} &nbsp;|&nbsp; <b>Alcance:</b> {curso_filtro_str}
-                        </div>
-
-                        <div class="summary-box">
-                            <div class="summary-item">Total Atrasos: <b>{total_atrasos_filt}</b></div>
-                            <div class="summary-item">Alumnos Registrados: <b>{alumnos_unicos}</b></div>
-                            <div class="summary-item">Casos Reiterados (≥3): <b>{cant_reiterados}</b></div>
-                            <div class="summary-item">Emisión: <b>{hoy_str}</b></div>
-                        </div>
-
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width:24px;text-align:center;">#</th>
-                                    <th style="width:75px;text-align:center;">Fecha</th>
-                                    <th style="width:65px;text-align:center;">Hora</th>
-                                    <th>Estudiante</th>
-                                    <th style="width:85px;text-align:center;">Curso</th>
-                                    <th style="width:85px;text-align:center;">RUT</th>
-                                    <th>Motivo Registrado</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filas_html}
-                            </tbody>
-                        </table>
-
-                        <div class="firmas-section">
-                            <div class="firma-col">
-                                <div class="linea-firma"></div>
-                                <div class="firma-cargo">INSPECTORÍA GENERAL</div>
-                                <div class="firma-sub">Control de Asistencia y Puntualidad</div>
-                            </div>
-                            <div class="firma-col">
-                                <div class="linea-firma"></div>
-                                <div class="firma-cargo">{dir_nombre}</div>
-                                <div class="firma-sub">Director(a) del Establecimiento</div>
-                            </div>
-                        </div>
-
-                        <div class="footer-text">
-                            Documento oficial generado automáticamente por el Sistema de Gestión Escolar — Escuela Villa Las Peñas.
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """
-                import streamlit.components.v1 as components
-                components.html(html_informe_atrasos, height=750, scrolling=True)
-
-    except Exception as e_rep:
-        st.error(f"Error al generar reporte de atrasos: {e_rep}")
-
-
-
-
-# ---------------------------------------------------------
-
-
-def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
-    st.markdown("### 📊 Reporte y Estadísticas de Salidas Anticipadas / Retiros")
-    st.caption("Consolidado institucional para Inspectoría General y Dirección. Monitorea retiros anticipados, apoderados autorizados, motivos y genera el informe oficial para respaldo en PDF.")
-
-    if not sheet_registros:
-        st.error("No se pudo conectar con la base de datos de registros.")
-        return
-
-    try:
-        recs_reg = sheet_registros.get_all_records()
-        df_reg_all = pd.DataFrame(recs_reg) if recs_reg else pd.DataFrame()
-
-        # Mapa de alumnos para autocompletar cursos si faltan
-        df_alu_map = pd.DataFrame(sheet_alumnos.get_all_records()) if sheet_alumnos else pd.DataFrame()
-        alu_curso_map = {}
-        alu_nom_map = {}
-        cursos_disponibles = []
-        if not df_alu_map.empty:
-            df_alu_map.columns = [str(c).strip() for c in df_alu_map.columns]
-            c_r = next((c for c in df_alu_map.columns if 'rut' in c.lower()), 'RUT')
-            c_n = next((c for c in df_alu_map.columns if 'nomb' in c.lower()), 'Nombre')
-            c_c = next((c for c in df_alu_map.columns if 'curs' in c.lower()), 'Curso')
-            for _, row_a in df_alu_map.iterrows():
-                r_k = str(row_a[c_r]).strip().upper()
-                n_k = str(row_a[c_n]).replace('\xa0', ' ').strip().upper()
-                c_k = str(row_a[c_c]).strip()
-                if r_k:
-                    alu_curso_map[r_k] = c_k
-                    alu_nom_map[r_k] = str(row_a[c_n]).strip()
-            cursos_disponibles = sorted(list(set(df_alu_map[c_c].dropna().astype(str).str.strip().unique())))
-            cursos_disponibles = [c for c in cursos_disponibles if c and c != "—"]
-
-        # Filtrar solo retiros
-        if df_reg_all.empty:
-            st.info("ℹ️ Aún no existen registros en el sistema.")
-            return
-
-        df_reg_all.columns = [str(c).strip() for c in df_reg_all.columns]
-        c_tipo = next((c for c in df_reg_all.columns if 'tipo' in c.lower()), None)
-        if c_tipo:
-            df_retiros = df_reg_all[df_reg_all[c_tipo].astype(str).str.strip().str.lower() == 'retiro'].copy()
-        else:
-            df_retiros = df_reg_all.copy()
-
-        if df_retiros.empty:
-            st.info("ℹ️ No hay retiros anticipados registrados hasta la fecha.")
-            return
-
-        # Normalizar columnas esenciales
-        col_f = next((c for c in df_retiros.columns if 'fech' in c.lower()), 'Fecha')
-        col_h = next((c for c in df_retiros.columns if 'hora' in c.lower()), 'Hora')
-        col_nom = next((c for c in df_retiros.columns if 'nomb' in c.lower()), 'Nombre')
-        col_r = next((c for c in df_retiros.columns if 'rut' in c.lower()), 'RUT')
-        col_m = next((c for c in df_retiros.columns if 'moti' in c.lower()), 'Motivo')
-        col_apod = next((c for c in df_retiros.columns if 'apod' in c.lower()), 'Apoderado')
-        col_vinc = next((c for c in df_retiros.columns if 'vinc' in c.lower() or 'paren' in c.lower()), 'Vinculo')
-        col_cur = next((c for c in df_retiros.columns if 'curs' in c.lower()), 'Curso')
-
-        df_retiros['Fecha_Clean'] = df_retiros[col_f].astype(str).str.strip()
-        df_retiros['Hora_Clean'] = df_retiros[col_h].astype(str).str.strip()
-        df_retiros['Nombre_Clean'] = df_retiros[col_nom].astype(str).str.strip()
-        df_retiros['RUT_Clean'] = df_retiros[col_r].astype(str).str.strip()
-        df_retiros['Motivo_Clean'] = df_retiros[col_m].astype(str).str.strip() if col_m in df_retiros.columns else "—"
-        df_retiros['Apoderado_Clean'] = df_retiros[col_apod].astype(str).str.strip() if col_apod in df_retiros.columns else "—"
-        df_retiros['Vinculo_Clean'] = df_retiros[col_vinc].astype(str).str.strip() if col_vinc in df_retiros.columns else "—"
-
-        # Autocompletar curso
-        def resolver_curso(row):
-            c_val = str(row.get(col_cur, '')).strip() if col_cur in df_retiros.columns else ''
-            if c_val and c_val != 'nan' and c_val != 'None' and c_val != '—':
-                return c_val
-            rut_k = str(row['RUT_Clean']).strip().upper()
-            return alu_curso_map.get(rut_k, '—')
-
-        def resolver_nombre(row):
-            n_val = str(row['Nombre_Clean']).strip()
-            if n_val and n_val != 'nan' and n_val != 'None':
-                return n_val
-            rut_k = str(row['RUT_Clean']).strip().upper()
-            return alu_nom_map.get(rut_k, 'Sin Nombre')
-
-        df_retiros['Curso_Final'] = df_retiros.apply(resolver_curso, axis=1)
-        df_retiros['Nombre_Final'] = df_retiros.apply(resolver_nombre, axis=1)
-
-        # --- SECCIÓN DE FILTROS ---
-        with st.expander("🔍 Filtros de Búsqueda y Rango Temporal", expanded=True):
-            f_col1, f_col2, f_col3, f_col4 = st.columns([1.5, 1.3, 1.4, 1.4])
-
-            with f_col1:
-                filtro_tiempo = st.selectbox(
-                    "📅 Período:",
-                    ["Mes Actual", "Últimos 7 días", "Todo el Año", "Rango Personalizado"],
-                    key="rep_retiro_periodo_sel"
-                )
-                hoy_dt = datetime.date.today()
-                if filtro_tiempo == "Mes Actual":
-                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
-                    f_hasta = hoy_dt
-                elif filtro_tiempo == "Últimos 7 días":
-                    f_desde = hoy_dt - datetime.timedelta(days=7)
-                    f_hasta = hoy_dt
-                elif filtro_tiempo == "Todo el Año":
-                    f_desde = datetime.date(hoy_dt.year, 1, 1)
-                    f_hasta = datetime.date(hoy_dt.year, 12, 31)
-                else:
-                    c_d1, c_d2 = st.columns(2)
-                    with c_d1:
-                        f_desde = st.date_input("Desde:", value=datetime.date(hoy_dt.year, hoy_dt.month, 1), key="rep_retiro_f_desde")
-                    with c_d2:
-                        f_hasta = st.date_input("Hasta:", value=hoy_dt, key="rep_retiro_f_hasta")
-
-            with f_col2:
-                cursos_filtro = ["Todos los Cursos"] + cursos_disponibles
-                sel_curso_rep = st.selectbox("📚 Curso:", cursos_filtro, key="rep_retiro_curso_sel")
-
-            with f_col3:
-                txt_alumno_rep = st.text_input(
-                    "👤 Alumno o Apoderado:",
-                    placeholder="Nombre, RUT o apoderado...",
-                    key="rep_retiro_alumno_txt"
-                ).strip().lower()
-
-            with f_col4:
-                motivos_disponibles = sorted(list(set(df_retiros['Motivo_Clean'].dropna().unique())))
-                sel_motivo_rep = st.selectbox(
-                    "📌 Motivo:",
-                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "—"],
-                    key="rep_retiro_motivo_sel"
-                )
-
-        # --- APLICAR FILTROS ---
-        df_filtrado = df_retiros.copy()
-
-        f_desde_s = f_desde.strftime("%Y-%m-%d")
-        f_hasta_s = f_hasta.strftime("%Y-%m-%d")
-        df_filtrado = df_filtrado[
-            (df_filtrado['Fecha_Clean'] >= f_desde_s) &
-            (df_filtrado['Fecha_Clean'] <= f_hasta_s)
-        ]
-
-        if sel_curso_rep != "Todos los Cursos":
-            df_filtrado = df_filtrado[df_filtrado['Curso_Final'] == sel_curso_rep]
-
-        if txt_alumno_rep:
-            df_filtrado = df_filtrado[
-                df_filtrado['Nombre_Final'].str.lower().str.contains(txt_alumno_rep) |
-                df_filtrado['RUT_Clean'].str.lower().str.contains(txt_alumno_rep) |
-                df_filtrado['Apoderado_Clean'].str.lower().str.contains(txt_alumno_rep)
-            ]
-
-        if sel_motivo_rep != "Todos los Motivos":
-            df_filtrado = df_filtrado[df_filtrado['Motivo_Clean'] == sel_motivo_rep]
-
-        df_filtrado = df_filtrado.sort_values(by=['Fecha_Clean', 'Hora_Clean'], ascending=[False, False])
-
-        # --- TARJETAS DE MÉTRICAS (KPIs) ---
-        total_retiros_filt = len(df_filtrado)
-        alumnos_unicos = df_filtrado['RUT_Clean'].nunique() if not df_filtrado.empty else 0
-
-        # Casos con reiteración
-        if not df_filtrado.empty:
-            conteo_alumnos = df_filtrado.groupby(['RUT_Clean', 'Nombre_Final', 'Curso_Final']).size().reset_index(name='Total')
-            alumnos_reiterados = conteo_alumnos[conteo_alumnos['Total'] >= 3]
-            cant_reiterados = len(alumnos_reiterados)
-
-            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != '—']
-            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "—"
-        else:
-            conteo_alumnos = pd.DataFrame()
-            alumnos_reiterados = pd.DataFrame()
-            cant_reiterados = 0
-            curso_top = "—"
-
-        st.write("")
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        with kpi1:
-            st.metric("Total Retiros", f"{total_retiros_filt}")
-        with kpi2:
-            st.metric("Alumnos Retirados", f"{alumnos_unicos}")
-        with kpi3:
-            st.metric("Reiteración (≥3)", f"{cant_reiterados}", delta="Atención" if cant_reiterados > 0 else None, delta_color="inverse")
-        with kpi4:
-            st.metric("Curso con Más Salidas", f"{curso_top}")
-
         # Alerta Directiva de Reiteración
         if cant_reiterados > 0:
             with st.container(border=True):
-                st.warning(f"⚠️ **Alerta Inspectoría General:** Existen **{cant_reiterados} alumno(s)** con 3 o más salidas anticipadas en este período.")
+                st.warning(f"⚠️ **Alerta Dirección:** Existen **{cant_reiterados} alumno(s)** con 3 o más atrasos acumulados en este período.")
                 cols_reit = st.columns(min(cant_reiterados, 3))
                 for idx_c, (_, r_reit) in enumerate(alumnos_reiterados.iterrows()):
                     with cols_reit[idx_c % len(cols_reit)]:
-                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>📚 {r_reit['Curso_Final']}<br>🔴 **{r_reit['Total']} retiros registrados**", unsafe_allow_html=True)
+                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>📚 {r_reit['Curso_Final']}<br>🔴 **{r_reit['Total']} atrasos acumulados**", unsafe_allow_html=True)
 
         st.write("---")
 
         if df_filtrado.empty:
-            st.info("💡 No se encontraron retiros con los filtros seleccionados.")
+            st.info("💡 No se encontraron atrasos registrados en el rango de fechas seleccionado.")
             return
 
         # --- VISTAS: TABLA Y REPORTE IMPRIMIBLE ---
         tab_tabla, tab_imprimible = st.tabs(["📋 Listado Detallado", "🖨️ Informe Oficial Imprimible / PDF"])
 
         with tab_tabla:
-            st.markdown(f"**Registros encontrados:** `{len(df_filtrado)}` salidas anticipadas")
-            df_mostrar = df_filtrado[[
-                'Fecha_Clean', 'Hora_Clean', 'Nombre_Final', 'Curso_Final',
-                'RUT_Clean', 'Motivo_Clean', 'Apoderado_Clean', 'Vinculo_Clean'
-            ]].copy()
-            df_mostrar.columns = ['Fecha', 'Hora', 'Alumno', 'Curso', 'RUT', 'Motivo', 'Apoderado que Retira', 'Parentesco']
+            st.markdown(f"**Registros encontrados:** `{len(df_filtrado)}` atrasos")
+            df_mostrar = df_filtrado[['Fecha_Chilena', 'Hora_Clean', 'Nombre_Final', 'Curso_Final', 'RUT_Clean', 'Motivo_Clean']].copy()
+            df_mostrar.columns = ['Fecha', 'Hora', 'Alumno', 'Curso', 'RUT', 'Motivo']
 
             st.dataframe(
                 df_mostrar,
@@ -1319,21 +926,19 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 height=380
             )
 
-            # Botón Descargar CSV
             csv_data = df_mostrar.to_csv(index=False, sep=";").encode('utf-8-sig')
             st.download_button(
-                label="📥 Descargar Base en CSV (Excel)",
+                label="📥 Descargar Planilla Excel (CSV)",
                 data=csv_data,
-                file_name=f"reporte_retiros_{f_desde_s}_al_{f_hasta_s}.csv",
+                file_name=f"Reporte_Atrasos_{f_desde.strftime('%d-%m-%Y')}_al_{f_hasta.strftime('%d-%m-%Y')}.csv",
                 mime="text/csv",
-                key="btn_csv_retiros"
+                key="btn_csv_atrasos"
             )
 
         with tab_imprimible:
             st.markdown("##### Vista Previa de Documento Oficial")
-            st.caption("Usa el botón a continuación para abrir el diálogo de impresión del navegador y guardar directamente en **PDF**.")
+            st.caption("Usa el botón para abrir el diálogo de impresión del navegador y guardar directamente en **PDF**.")
 
-            # Generar HTML Imprimible con Membrete Oficial
             insignia_b64 = ""
             if os.path.exists("insignia.png"):
                 try:
@@ -1342,22 +947,20 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 except Exception:
                     pass
 
-            img_ins_tag = f'<img src="data:image/png;base64,{insignia_b64}" style="width:65px;height:auto;" />' if insignia_b64 else ''
+            img_ins_tag = f'<img src="data:image/png;base64,{insignia_b64}" style="width:75px;height:auto;" />' if insignia_b64 else ''
 
             filas_html = ""
             for idx_r, (_, r_fila) in enumerate(df_filtrado.iterrows(), 1):
                 bg_fila = "#f9fafb" if idx_r % 2 == 0 else "#ffffff"
                 filas_html += f"""
                 <tr style="background-color:{bg_fila};">
-                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;">{idx_r}</td>
-                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;white-space:nowrap;">{r_fila['Fecha_Clean']}</td>
-                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;white-space:nowrap;">{r_fila['Hora_Clean']}</td>
-                    <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;font-weight:600;">{r_fila['Nombre_Final']}</td>
-                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;">{r_fila['Curso_Final']}</td>
-                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;white-space:nowrap;">{r_fila['RUT_Clean']}</td>
-                    <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;color:#374151;">{r_fila['Motivo_Clean']}</td>
-                    <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;font-weight:600;">{r_fila['Apoderado_Clean']}</td>
-                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;">{r_fila['Vinculo_Clean']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;">{idx_r}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['Fecha_Chilena']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['Hora_Clean']}</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:0.78rem;font-weight:600;">{r_fila['Nombre_Final']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;">{r_fila['Curso_Final']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['RUT_Clean']}</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;color:#4b5563;">{r_fila['Motivo_Clean']}</td>
                 </tr>
                 """
 
@@ -1365,20 +968,22 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
             rango_str = f"Desde {f_desde.strftime('%d/%m/%Y')} hasta {f_hasta.strftime('%d/%m/%Y')}"
             curso_filtro_str = sel_curso_rep if sel_curso_rep != "Todos los Cursos" else "Todos los Cursos del Establecimiento"
 
-            html_informe_retiros = f"""
+            firma_img_tag = f'<img src="data:image/png;base64,{conf["firma_b64"]}" style="height:62px;display:block;margin:0 auto 2px auto;" />' if conf["firma_b64"] else '<div style="height:50px;"></div>'
+
+            html_informe_atrasos = f"""
             <!DOCTYPE html>
             <html lang="es">
             <head>
             <meta charset="UTF-8">
             <style>
                 @page {{
-                    size: letter landscape;
-                    margin: 10mm 12mm 10mm 12mm;
+                    size: letter portrait;
+                    margin: 12mm 14mm 12mm 14mm;
                 }}
                 @media print {{
                     body {{ background: #fff !important; margin: 0 !important; padding: 0 !important; }}
                     .no-print {{ display: none !important; }}
-                    .doc-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }}
+                    .doc-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; }}
                 }}
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -1389,7 +994,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 }}
                 .doc-container {{
                     background: #ffffff;
-                    max-width: 950px;
+                    max-width: 820px;
                     margin: 0 auto;
                     padding: 24px 30px;
                     border: 1px solid #d1d5db;
@@ -1425,29 +1030,497 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 .header-left {{
                     display: flex;
                     align-items: center;
-                    gap: 14px;
+                    gap: 16px;
                 }}
-                .title-area h2 {{
+                .school-name {{
                     margin: 0;
                     color: #008F39;
-                    font-size: 1.15rem;
+                    font-size: 1.25rem;
                     font-weight: 800;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                 }}
-                .title-area p {{
-                    margin: 2px 0 0 0;
-                    color: #4b5563;
-                    font-size: 0.78rem;
+                .doc-title {{
+                    margin: 3px 0 0 0;
+                    color: #1f2937;
+                    font-size: 1.02rem;
+                    font-weight: 700;
+                    letter-spacing: 0.3px;
+                }}
+                .school-sub {{
+                    margin: 3px 0 0 0;
+                    color: #6b7280;
+                    font-size: 0.77rem;
                 }}
                 .header-right {{
                     text-align: right;
-                    font-size: 0.75rem;
+                    font-size: 0.76rem;
                     color: #6b7280;
                 }}
                 .metadata-box {{
                     display: grid;
-                    grid-template-columns: 2fr 1fr 1fr;
+                    grid-template-columns: 2fr 1.2fr 1fr;
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    padding: 8px 14px;
+                    margin-bottom: 14px;
+                    font-size: 0.78rem;
+                }}
+                .table-rep {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 8px;
+                }}
+                .table-rep th {{
+                    background-color: #f3f4f6;
+                    color: #1f2937;
+                    font-size: 0.73rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    padding: 6px 6px;
+                    border-top: 1px solid #d1d5db;
+                    border-bottom: 2px solid #9ca3af;
+                    text-align: left;
+                }}
+                .signatures {{
+                    display: flex;
+                    justify-content: center;
+                    margin-top: 40px;
+                    padding-top: 15px;
+                }}
+                .sig-box {{
+                    text-align: center;
+                    width: 290px;
+                    font-size: 0.78rem;
+                    color: #1f2937;
+                }}
+                .sig-line {{
+                    border-top: 1px solid #4b5563;
+                    margin-top: 4px;
+                    margin-bottom: 6px;
+                }}
+            </style>
+            </head>
+            <body>
+            <div class="doc-container">
+                <div class="no-print" style="text-align: right;">
+                    <button class="btn-imprimir" onclick="window.print()">
+                        🖨️ Imprimir / Guardar en PDF
+                    </button>
+                </div>
+
+                <div class="header-doc">
+                    <div class="header-left">
+                        {img_ins_tag}
+                        <div>
+                            <div class="school-name">{conf['nombre_colegio']}</div>
+                            <div class="doc-title">INFORME DE ATRASOS ESCOLARES</div>
+                            <div class="school-sub">RBD: {conf['rbd']} &nbsp;|&nbsp; Comuna: {conf['ciudad']} &nbsp;|&nbsp; Región del {conf['region']}</div>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <div><b>Fecha Emisión:</b> {hoy_str}</div>
+                        <div><b>Año Lectivo:</b> {hoy_dt.year}</div>
+                    </div>
+                </div>
+
+                <div class="metadata-box">
+                    <div><b>Período Analizado:</b> {rango_str}</div>
+                    <div><b>Curso:</b> {curso_filtro_str}</div>
+                    <div style="text-align:right;"><b>Total Atrasos:</b> {total_atrasos_filt}</div>
+                </div>
+
+                <table class="table-rep">
+                    <thead>
+                        <tr>
+                            <th style="width:30px;text-align:center;">#</th>
+                            <th style="width:75px;text-align:center;">Fecha</th>
+                            <th style="width:60px;text-align:center;">Hora</th>
+                            <th>Alumno</th>
+                            <th style="width:85px;text-align:center;">Curso</th>
+                            <th style="width:85px;text-align:center;">RUT</th>
+                            <th>Motivo del Atraso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_html}
+                    </tbody>
+                </table>
+
+                <div class="signatures">
+                    <div class="sig-box">
+                        {firma_img_tag}
+                        <div class="sig-line"></div>
+                        <b>{conf['nombre_director']}</b><br>
+                        <span>Director</span><br>
+                        <span style="font-size:0.72rem;color:#6b7280;">{conf['nombre_colegio']}</span>
+                    </div>
+                </div>
+            </div>
+            </body>
+            </html>
+            """
+            import streamlit.components.v1 as components
+            components.html(html_informe_atrasos, height=750, scrolling=True)
+
+    except Exception as e_rep:
+        st.error(f"Error al generar reporte de atrasos: {e_rep}")
+
+
+def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
+    st.markdown("### 📊 Reporte y Estadísticas de Salidas Anticipadas / Retiros")
+    st.caption("Consolidado para Dirección. Monitorea retiros anticipados, apoderados autorizados y emite el informe formal en PDF.")
+
+    if not sheet_registros:
+        st.error("No se pudo conectar con la base de datos de registros.")
+        return
+
+    try:
+        conf = cargar_datos_configuracion_reportes()
+        recs_reg = sheet_registros.get_all_records()
+        df_reg_all = pd.DataFrame(recs_reg) if recs_reg else pd.DataFrame()
+
+        # Mapa oficial de alumnos para cruzar curso y nombre real por RUT
+        df_alu_map = pd.DataFrame(sheet_alumnos.get_all_records()) if sheet_alumnos else pd.DataFrame()
+        alu_curso_map = {}
+        alu_nom_map = {}
+        if not df_alu_map.empty:
+            df_alu_map.columns = [str(c).strip() for c in df_alu_map.columns]
+            c_r = next((c for c in df_alu_map.columns if 'rut' in c.lower()), 'RUT')
+            c_n = next((c for c in df_alu_map.columns if 'nomb' in c.lower()), 'Nombre')
+            c_c = next((c for c in df_alu_map.columns if 'curs' in c.lower()), 'Curso')
+            for _, row_a in df_alu_map.iterrows():
+                r_k = str(row_a[c_r]).replace('.', '').strip().upper()
+                c_k = str(row_a[c_c]).strip()
+                n_k = str(row_a[c_n]).replace('\xa0', ' ').strip()
+                if r_k:
+                    alu_curso_map[r_k] = c_k
+                    alu_nom_map[r_k] = n_k
+
+        # Cursos oficiales del sistema (fuente única de verdad)
+        cursos_oficiales = obtener_cursos_oficiales_sistema()
+
+        if df_reg_all.empty:
+            st.info("ℹ️ Aún no existen registros de salidas anticipadas en el sistema.")
+            return
+
+        df_reg_all.columns = [str(c).strip() for c in df_reg_all.columns]
+        c_tipo = next((c for c in df_reg_all.columns if 'tipo' in c.lower()), None)
+        if c_tipo:
+            df_retiros = df_reg_all[df_reg_all[c_tipo].astype(str).str.strip().str.lower() == 'retiro'].copy()
+        else:
+            df_retiros = df_reg_all.copy()
+
+        if df_retiros.empty:
+            st.info("ℹ️ No hay retiros anticipados registrados hasta la fecha.")
+            return
+
+        # Normalizar columnas
+        col_f = next((c for c in df_retiros.columns if 'fech' in c.lower()), 'Fecha')
+        col_h = next((c for c in df_retiros.columns if 'hora' in c.lower()), 'Hora')
+        col_nom = next((c for c in df_retiros.columns if 'nomb' in c.lower()), 'Nombre')
+        col_r = next((c for c in df_retiros.columns if 'rut' in c.lower()), 'RUT')
+        col_m = next((c for c in df_retiros.columns if 'moti' in c.lower()), 'Motivo')
+        col_apod = next((c for c in df_retiros.columns if 'apod' in c.lower()), 'Apoderado')
+        col_vinc = next((c for c in df_retiros.columns if 'vinc' in c.lower() or 'paren' in c.lower()), 'Vinculo')
+        col_cur = next((c for c in df_retiros.columns if 'curs' in c.lower()), 'Curso')
+
+        df_retiros['RUT_Clean'] = df_retiros[col_r].astype(str).str.strip()
+        df_retiros['Fecha_ISO'] = df_retiros[col_f].apply(fecha_a_iso_comp)
+        df_retiros['Fecha_Chilena'] = df_retiros[col_f].apply(normalizar_fecha_chilena)
+        df_retiros['Hora_Clean'] = df_retiros[col_h].astype(str).str.strip()
+        df_retiros['Motivo_Clean'] = df_retiros[col_m].apply(estandarizar_motivo_general) if col_m in df_retiros.columns else "Sin Motivo Especificado"
+        df_retiros['Apoderado_Clean'] = df_retiros[col_apod].astype(str).str.strip() if col_apod in df_retiros.columns else "—"
+        df_retiros['Vinculo_Clean'] = df_retiros[col_vinc].astype(str).str.strip() if col_vinc in df_retiros.columns else "—"
+
+        def obtener_nombre(row):
+            n_raw = str(row[col_nom]).strip()
+            if n_raw and n_raw.lower() not in ('nan', 'none'): return n_raw
+            r_k = str(row['RUT_Clean']).replace('.', '').strip().upper()
+            return alu_nom_map.get(r_k, 'Sin Nombre')
+
+        df_retiros['Nombre_Final'] = df_retiros.apply(obtener_nombre, axis=1)
+        df_retiros['Curso_Final'] = df_retiros.apply(
+            lambda r: resolver_curso_estandar(r.get(col_cur, ''), r['RUT_Clean'], alu_curso_map), axis=1
+        )
+
+        # --- SECCIÓN DE FILTROS ---
+        with st.expander("🔍 Filtros de Búsqueda y Rango Temporal", expanded=True):
+            f_col1, f_col2, f_col3, f_col4 = st.columns([1.6, 1.3, 1.4, 1.4])
+
+            with f_col1:
+                opciones_periodo = [
+                    "Primer Semestre (Inicio de Clases)",
+                    "Segundo Semestre",
+                    "Mes Actual",
+                    "Año Escolar Completo",
+                    "Rango Personalizado"
+                ]
+                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_retiro_periodo_sel")
+                hoy_dt = datetime.date.today()
+
+                if filtro_periodo == "Primer Semestre (Inicio de Clases)":
+                    f_desde = conf["s1_ini"]
+                    f_hasta = conf["s1_fin"]
+                elif filtro_periodo == "Segundo Semestre":
+                    f_desde = conf["s2_ini"]
+                    f_hasta = conf["s2_fin"]
+                elif filtro_periodo == "Mes Actual":
+                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Año Escolar Completo":
+                    f_desde = conf["s1_ini"]
+                    f_hasta = conf["s2_fin"]
+                else:
+                    c_d1, c_d2 = st.columns(2)
+                    with c_d1:
+                        f_desde = st.date_input("Desde:", value=conf["s1_ini"], key="rep_retiro_f_desde")
+                    with c_d2:
+                        f_hasta = st.date_input("Hasta:", value=hoy_dt, key="rep_retiro_f_hasta")
+
+            with f_col2:
+                cursos_filtro = ["Todos los Cursos"] + cursos_oficiales
+                sel_curso_rep = st.selectbox("📚 Curso:", cursos_filtro, key="rep_retiro_curso_sel")
+
+            with f_col3:
+                txt_alumno_rep = st.text_input(
+                    "👤 Alumno o Apoderado:",
+                    placeholder="Nombre, RUT o apoderado...",
+                    key="rep_retiro_alumno_txt"
+                ).strip().lower()
+
+            with f_col4:
+                motivos_disponibles = sorted(list(set(df_retiros['Motivo_Clean'].dropna().unique())))
+                sel_motivo_rep = st.selectbox(
+                    "📌 Motivo:",
+                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "—"],
+                    key="rep_retiro_motivo_sel"
+                )
+
+        # --- APLICAR FILTROS ---
+        df_filtrado = df_retiros.copy()
+
+        f_desde_s = f_desde.strftime("%Y-%m-%d")
+        f_hasta_s = f_hasta.strftime("%Y-%m-%d")
+        df_filtrado = df_filtrado[
+            (df_filtrado['Fecha_ISO'] >= f_desde_s) &
+            (df_filtrado['Fecha_ISO'] <= f_hasta_s)
+        ]
+
+        if sel_curso_rep != "Todos los Cursos":
+            df_filtrado = df_filtrado[df_filtrado['Curso_Final'] == sel_curso_rep]
+
+        if txt_alumno_rep:
+            df_filtrado = df_filtrado[
+                df_filtrado['Nombre_Final'].str.lower().str.contains(txt_alumno_rep) |
+                df_filtrado['RUT_Clean'].str.lower().str.contains(txt_alumno_rep) |
+                df_filtrado['Apoderado_Clean'].str.lower().str.contains(txt_alumno_rep)
+            ]
+
+        if sel_motivo_rep != "Todos los Motivos":
+            df_filtrado = df_filtrado[df_filtrado['Motivo_Clean'] == sel_motivo_rep]
+
+        df_filtrado = df_filtrado.sort_values(by=['Fecha_ISO', 'Hora_Clean'], ascending=[False, False])
+
+        # --- TARJETAS DE MÉTRICAS (KPIs) ---
+        total_retiros_filt = len(df_filtrado)
+        alumnos_unicos = df_filtrado['RUT_Clean'].nunique() if not df_filtrado.empty else 0
+
+        # Casos con reiteración
+        if not df_filtrado.empty:
+            conteo_alumnos = df_filtrado.groupby(['RUT_Clean', 'Nombre_Final', 'Curso_Final']).size().reset_index(name='Total')
+            alumnos_reiterados = conteo_alumnos[conteo_alumnos['Total'] >= 3]
+            cant_reiterados = len(alumnos_reiterados)
+
+            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != '—']
+            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "—"
+        else:
+            conteo_alumnos = pd.DataFrame()
+            alumnos_reiterados = pd.DataFrame()
+            cant_reiterados = 0
+            curso_top = "—"
+
+        st.write("")
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1:
+            st.metric("Total Retiros", f"{total_retiros_filt}")
+        with kpi2:
+            st.metric("Alumnos Retirados", f"{alumnos_unicos}")
+        with kpi3:
+            st.metric("Reiteración (≥3)", f"{cant_reiterados}", delta="Atención" if cant_reiterados > 0 else None, delta_color="inverse")
+        with kpi4:
+            st.metric("Curso con Más Salidas", f"{curso_top}")
+
+        # Alerta Directiva de Reiteración
+        if cant_reiterados > 0:
+            with st.container(border=True):
+                st.warning(f"⚠️ **Alerta Dirección:** Existen **{cant_reiterados} alumno(s)** con 3 o más salidas anticipadas acumuladas en este período.")
+                cols_reit = st.columns(min(cant_reiterados, 3))
+                for idx_c, (_, r_reit) in enumerate(alumnos_reiterados.iterrows()):
+                    with cols_reit[idx_c % len(cols_reit)]:
+                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>📚 {r_reit['Curso_Final']}<br>🔴 **{r_reit['Total']} retiros registrados**", unsafe_allow_html=True)
+
+        st.write("---")
+
+        if df_filtrado.empty:
+            st.info("💡 No se encontraron retiros con los filtros seleccionados.")
+            return
+
+        # --- VISTAS: TABLA Y REPORTE IMPRIMIBLE ---
+        tab_tabla, tab_imprimible = st.tabs(["📋 Listado Detallado", "🖨️ Informe Oficial Imprimible / PDF"])
+
+        with tab_tabla:
+            st.markdown(f"**Registros encontrados:** `{len(df_filtrado)}` salidas anticipadas")
+            df_mostrar = df_filtrado[[
+                'Fecha_Chilena', 'Hora_Clean', 'Nombre_Final', 'Curso_Final',
+                'RUT_Clean', 'Motivo_Clean', 'Apoderado_Clean', 'Vinculo_Clean'
+            ]].copy()
+            df_mostrar.columns = ['Fecha', 'Hora', 'Alumno', 'Curso', 'RUT', 'Motivo', 'Apoderado que Retira', 'Parentesco']
+
+            st.dataframe(
+                df_mostrar,
+                use_container_width=True,
+                hide_index=True,
+                height=380
+            )
+
+            csv_data = df_mostrar.to_csv(index=False, sep=";").encode('utf-8-sig')
+            st.download_button(
+                label="📥 Descargar Base en CSV (Excel)",
+                data=csv_data,
+                file_name=f"Reporte_Retiros_{f_desde.strftime('%d-%m-%Y')}_al_{f_hasta.strftime('%d-%m-%Y')}.csv",
+                mime="text/csv",
+                key="btn_csv_retiros"
+            )
+
+        with tab_imprimible:
+            st.markdown("##### Vista Previa de Documento Oficial")
+            st.caption("Usa el botón para abrir el diálogo de impresión del navegador y guardar directamente en **PDF**.")
+
+            insignia_b64 = ""
+            if os.path.exists("insignia.png"):
+                try:
+                    with open("insignia.png", "rb") as f_ins:
+                        insignia_b64 = base64.b64encode(f_ins.read()).decode()
+                except Exception:
+                    pass
+
+            img_ins_tag = f'<img src="data:image/png;base64,{insignia_b64}" style="width:75px;height:auto;" />' if insignia_b64 else ''
+
+            filas_html = ""
+            for idx_r, (_, r_fila) in enumerate(df_filtrado.iterrows(), 1):
+                bg_fila = "#f9fafb" if idx_r % 2 == 0 else "#ffffff"
+                filas_html += f"""
+                <tr style="background-color:{bg_fila};">
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;">{idx_r}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;white-space:nowrap;">{r_fila['Fecha_Chilena']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;white-space:nowrap;">{r_fila['Hora_Clean']}</td>
+                    <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;font-weight:600;">{r_fila['Nombre_Final']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;">{r_fila['Curso_Final']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;white-space:nowrap;">{r_fila['RUT_Clean']}</td>
+                    <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;color:#374151;">{r_fila['Motivo_Clean']}</td>
+                    <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;font-weight:600;">{r_fila['Apoderado_Clean']}</td>
+                    <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.73rem;">{r_fila['Vinculo_Clean']}</td>
+                </tr>
+                """
+
+            hoy_str = hoy_dt.strftime("%d/%m/%Y")
+            rango_str = f"Desde {f_desde.strftime('%d/%m/%Y')} hasta {f_hasta.strftime('%d/%m/%Y')}"
+            curso_filtro_str = sel_curso_rep if sel_curso_rep != "Todos los Cursos" else "Todos los Cursos del Establecimiento"
+
+            firma_img_tag = f'<img src="data:image/png;base64,{conf["firma_b64"]}" style="height:62px;display:block;margin:0 auto 2px auto;" />' if conf["firma_b64"] else '<div style="height:50px;"></div>'
+
+            html_informe_retiros = f"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{
+                    size: letter landscape;
+                    margin: 10mm 12mm 10mm 12mm;
+                }}
+                @media print {{
+                    body {{ background: #fff !important; margin: 0 !important; padding: 0 !important; }}
+                    .no-print {{ display: none !important; }}
+                    .doc-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }}
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    color: #111827;
+                    background-color: #f3f4f6;
+                    margin: 0;
+                    padding: 12px;
+                }}
+                .doc-container {{
+                    background: #ffffff;
+                    max-width: 960px;
+                    margin: 0 auto;
+                    padding: 24px 30px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+                }}
+                .btn-imprimir {{
+                    background-color: #008F39;
+                    color: white;
+                    padding: 10px 22px;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: 700;
+                    font-size: 0.90rem;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 16px;
+                    transition: background 0.2s;
+                }}
+                .btn-imprimir:hover {{
+                    background-color: #00732e;
+                }}
+                .header-doc {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    border-bottom: 2px solid #008F39;
+                    padding-bottom: 10px;
+                    margin-bottom: 14px;
+                }}
+                .header-left {{
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                }}
+                .school-name {{
+                    margin: 0;
+                    color: #008F39;
+                    font-size: 1.25rem;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }}
+                .doc-title {{
+                    margin: 3px 0 0 0;
+                    color: #1f2937;
+                    font-size: 1.02rem;
+                    font-weight: 700;
+                    letter-spacing: 0.3px;
+                }}
+                .school-sub {{
+                    margin: 3px 0 0 0;
+                    color: #6b7280;
+                    font-size: 0.77rem;
+                }}
+                .header-right {{
+                    text-align: right;
+                    font-size: 0.76rem;
+                    color: #6b7280;
+                }}
+                .metadata-box {{
+                    display: grid;
+                    grid-template-columns: 2fr 1.2fr 1fr;
                     background: #f9fafb;
                     border: 1px solid #e5e7eb;
                     border-radius: 6px;
@@ -1473,17 +1546,20 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 }}
                 .signatures {{
                     display: flex;
-                    justify-content: space-around;
-                    margin-top: 36px;
-                    padding-top: 20px;
+                    justify-content: center;
+                    margin-top: 40px;
+                    padding-top: 15px;
                 }}
                 .sig-box {{
                     text-align: center;
-                    width: 240px;
-                    border-top: 1px solid #6b7280;
-                    padding-top: 6px;
-                    font-size: 0.75rem;
-                    color: #374151;
+                    width: 290px;
+                    font-size: 0.78rem;
+                    color: #1f2937;
+                }}
+                .sig-line {{
+                    border-top: 1px solid #4b5563;
+                    margin-top: 4px;
+                    margin-bottom: 6px;
                 }}
             </style>
             </head>
@@ -1498,14 +1574,15 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 <div class="header-doc">
                     <div class="header-left">
                         {img_ins_tag}
-                        <div class="title-area">
-                            <h2>Escuela Villa Las Peñas</h2>
-                            <p>Registro y Control de Salidas Anticipadas / Retiros de Alumnos</p>
+                        <div>
+                            <div class="school-name">{conf['nombre_colegio']}</div>
+                            <div class="doc-title">INFORME DE SALIDAS ANTICIPADAS Y RETIROS</div>
+                            <div class="school-sub">RBD: {conf['rbd']} &nbsp;|&nbsp; Comuna: {conf['ciudad']} &nbsp;|&nbsp; Región del {conf['region']}</div>
                         </div>
                     </div>
                     <div class="header-right">
                         <div><b>Fecha Emisión:</b> {hoy_str}</div>
-                        <div><b>RBD:</b> 3277-8</div>
+                        <div><b>Año Lectivo:</b> {hoy_dt.year}</div>
                     </div>
                 </div>
 
@@ -1519,14 +1596,14 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                     <thead>
                         <tr>
                             <th style="width:30px;text-align:center;">#</th>
-                            <th style="width:70px;text-align:center;">Fecha</th>
+                            <th style="width:75px;text-align:center;">Fecha</th>
                             <th style="width:55px;text-align:center;">Hora</th>
                             <th>Alumno</th>
-                            <th style="width:80px;text-align:center;">Curso</th>
-                            <th style="width:80px;text-align:center;">RUT</th>
+                            <th style="width:85px;text-align:center;">Curso</th>
+                            <th style="width:85px;text-align:center;">RUT</th>
                             <th>Motivo</th>
                             <th>Apoderado que Retira</th>
-                            <th style="width:75px;text-align:center;">Vínculo</th>
+                            <th style="width:80px;text-align:center;">Vínculo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1536,12 +1613,11 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
                 <div class="signatures">
                     <div class="sig-box">
-                        <b>Inspectoría General</b><br>
-                        Firma y Timbre
-                    </div>
-                    <div class="sig-box">
-                        <b>Dirección del Establecimiento</b><br>
-                        Firma y Timbre
+                        {firma_img_tag}
+                        <div class="sig-line"></div>
+                        <b>{conf['nombre_director']}</b><br>
+                        <span>Director</span><br>
+                        <span style="font-size:0.72rem;color:#6b7280;">{conf['nombre_colegio']}</span>
                     </div>
                 </div>
             </div>
@@ -1554,9 +1630,8 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
     except Exception as e_rep:
         st.error(f"Error al generar reporte de retiros: {e_rep}")
 
-
 # ---------------------------------------------------------
-# LÓGICA DE RENDERIZADO (USUARIO AUTENTICADO)
+# # LÓGICA DE RENDERIZADO (USUARIO AUTENTICADO)
 # ---------------------------------------------------------
 
 rol_user_actual = str(st.session_state.user.get('rol', '')).strip().lower()
