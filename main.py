@@ -594,6 +594,512 @@ if st.session_state.user is None:
     st.stop()
 
 # ---------------------------------------------------------
+def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
+    st.markdown("### 📊 Reporte y Estadísticas de Atrasos")
+    st.caption("Consolidado para Inspectoría General y Dirección. Aplica filtros para analizar reiteraciones, tendencias y generar el informe institucional en PDF.")
+
+    if not sheet_registros:
+        st.error("No se pudo conectar con la base de datos de registros.")
+        return
+
+    try:
+        recs_reg = sheet_registros.get_all_records()
+        df_reg_all = pd.DataFrame(recs_reg) if recs_reg else pd.DataFrame()
+
+        # Mapa de alumnos para autocompletar cursos si faltan
+        df_alu_map = pd.DataFrame(sheet_alumnos.get_all_records()) if sheet_alumnos else pd.DataFrame()
+        alu_curso_map = {}
+        alu_nom_map = {}
+        cursos_disponibles = []
+        if not df_alu_map.empty:
+            df_alu_map.columns = [str(c).strip() for c in df_alu_map.columns]
+            c_r = next((c for c in df_alu_map.columns if 'rut' in c.lower()), 'RUT')
+            c_n = next((c for c in df_alu_map.columns if 'nomb' in c.lower()), 'Nombre')
+            c_c = next((c for c in df_alu_map.columns if 'curs' in c.lower()), 'Curso')
+            for _, row_a in df_alu_map.iterrows():
+                r_k = str(row_a[c_r]).strip().upper()
+                n_k = str(row_a[c_n]).replace('\xa0', ' ').strip().upper()
+                c_k = str(row_a[c_c]).strip()
+                alu_curso_map[r_k] = c_k
+                alu_nom_map[r_k] = n_k
+                if c_k and c_k not in cursos_disponibles:
+                    cursos_disponibles.append(c_k)
+            cursos_disponibles = sorted(cursos_disponibles)
+
+        if df_reg_all.empty:
+            st.info("ℹ️ No hay registros ingresados en el sistema.")
+            return
+
+        df_reg_all.columns = [str(c).strip() for c in df_reg_all.columns]
+        col_t_r  = next((c for c in df_reg_all.columns if 'tipo' in c.lower()), 'Tipo')
+        col_f_r  = next((c for c in df_reg_all.columns if 'fecha' in c.lower()), 'Fecha')
+        col_h_r  = next((c for c in df_reg_all.columns if 'hora' in c.lower()), 'Hora')
+        col_rt_r = next((c for c in df_reg_all.columns if 'rut' in c.lower()), 'RUT')
+        col_nm_r = next((c for c in df_reg_all.columns if 'nomb' in c.lower()), 'Nombre')
+        col_m_r  = next((c for c in df_reg_all.columns if 'moti' in c.lower()), 'Motivo')
+        col_cr_r = next((c for c in df_reg_all.columns if 'curs' in c.lower()), 'Curso')
+
+        # Filtrar únicamente atrasos
+        df_atrasos = df_reg_all[df_reg_all[col_t_r].astype(str).str.strip().str.lower() == 'atraso'].copy()
+
+        if df_atrasos.empty:
+            st.info("ℹ️ Aún no hay atrasos registrados en el sistema.")
+            return
+
+        def _obtener_curso_reg(row):
+            c_val = str(row.get(col_cr_r, '')).strip()
+            if not c_val or c_val.lower() in ('none', 'nan', ''):
+                return alu_curso_map.get(str(row.get(col_rt_r, '')).strip().upper(), "—")
+            return c_val
+
+        def _obtener_nom_reg(row):
+            n_val = str(row.get(col_nm_r, '')).replace('\xa0', ' ').strip()
+            if not n_val or n_val.lower() in ('none', 'nan', ''):
+                return alu_nom_map.get(str(row.get(col_rt_r, '')).strip().upper(), "—")
+            return n_val
+
+        df_atrasos['Curso_Final'] = df_atrasos.apply(_obtener_curso_reg, axis=1)
+        df_atrasos['Nombre_Final'] = df_atrasos.apply(_obtener_nom_reg, axis=1)
+        df_atrasos['Fecha_Clean'] = df_atrasos[col_f_r].astype(str).str.strip()
+        df_atrasos['Hora_Clean'] = df_atrasos[col_h_r].astype(str).str.strip()
+        df_atrasos['RUT_Clean'] = df_atrasos[col_rt_r].astype(str).str.strip().str.upper()
+        df_atrasos['Motivo_Clean'] = df_atrasos[col_m_r].astype(str).str.strip()
+
+        # --- BARRA DE FILTROS ---
+        with st.expander("🔍 Filtros de Consulta", expanded=True):
+            f_col1, f_col2, f_col3, f_col4 = st.columns([1.5, 1.4, 2, 1.5])
+            
+            hoy_dt = datetime.date.today()
+            primer_dia_mes = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+
+            with f_col1:
+                periodo_opc = st.selectbox(
+                    "📅 Período:",
+                    ["Mes Actual", "Últimos 7 días", "Todo el Año", "Rango Personalizado"],
+                    key="rep_atraso_periodo_sel"
+                )
+
+            if periodo_opc == "Mes Actual":
+                f_desde, f_hasta = primer_dia_mes, hoy_dt
+            elif periodo_opc == "Últimos 7 días":
+                f_desde, f_hasta = hoy_dt - datetime.timedelta(days=7), hoy_dt
+            elif periodo_opc == "Todo el Año":
+                f_desde, f_hasta = datetime.date(hoy_dt.year, 1, 1), hoy_dt
+            else:
+                with f_col1:
+                    rango_user = st.date_input(
+                        "Selecciona rango:",
+                        value=(primer_dia_mes, hoy_dt),
+                        key="rep_atraso_rango_user"
+                    )
+                    if isinstance(rango_user, (list, tuple)) and len(rango_user) == 2:
+                        f_desde, f_hasta = rango_user[0], rango_user[1]
+                    else:
+                        f_desde, f_hasta = primer_dia_mes, hoy_dt
+
+            with f_col2:
+                cursos_filtro = ["Todos los Cursos"] + [c for c in cursos_disponibles if c != "—"]
+                sel_curso_rep = st.selectbox("📚 Curso:", cursos_filtro, key="rep_atraso_curso_sel")
+
+            with f_col3:
+                txt_alumno_rep = st.text_input(
+                    "👤 Alumno (Nombre o RUT):",
+                    placeholder="Buscar por nombre o RUT...",
+                    key="rep_atraso_alumno_txt"
+                ).strip().lower()
+
+            with f_col4:
+                motivos_disponibles = sorted(list(set(df_atrasos['Motivo_Clean'].dropna().unique())))
+                sel_motivo_rep = st.selectbox(
+                    "📌 Motivo:",
+                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "—"],
+                    key="rep_atraso_motivo_sel"
+                )
+
+        # --- APLICAR FILTROS ---
+        df_filtrado = df_atrasos.copy()
+
+        f_desde_s = f_desde.strftime("%Y-%m-%d")
+        f_hasta_s = f_hasta.strftime("%Y-%m-%d")
+        df_filtrado = df_filtrado[
+            (df_filtrado['Fecha_Clean'] >= f_desde_s) &
+            (df_filtrado['Fecha_Clean'] <= f_hasta_s)
+        ]
+
+        if sel_curso_rep != "Todos los Cursos":
+            df_filtrado = df_filtrado[df_filtrado['Curso_Final'] == sel_curso_rep]
+
+        if txt_alumno_rep:
+            df_filtrado = df_filtrado[
+                df_filtrado['Nombre_Final'].str.lower().str.contains(txt_alumno_rep) |
+                df_filtrado['RUT_Clean'].str.lower().str.contains(txt_alumno_rep)
+            ]
+
+        if sel_motivo_rep != "Todos los Motivos":
+            df_filtrado = df_filtrado[df_filtrado['Motivo_Clean'] == sel_motivo_rep]
+
+        df_filtrado = df_filtrado.sort_values(by=['Fecha_Clean', 'Hora_Clean'], ascending=[False, False])
+
+        # --- TARJETAS DE MÉTRICAS (KPIs) ---
+        total_atrasos_filt = len(df_filtrado)
+        alumnos_unicos = df_filtrado['RUT_Clean'].nunique() if not df_filtrado.empty else 0
+
+        # Casos con reiteración
+        if not df_filtrado.empty:
+            conteo_alumnos = df_filtrado.groupby(['RUT_Clean', 'Nombre_Final', 'Curso_Final']).size().reset_index(name='Total')
+            alumnos_reiterados = conteo_alumnos[conteo_alumnos['Total'] >= 3]
+            cant_reiterados = len(alumnos_reiterados)
+
+            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != '—']
+            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "—"
+        else:
+            conteo_alumnos = pd.DataFrame()
+            alumnos_reiterados = pd.DataFrame()
+            cant_reiterados = 0
+            curso_top = "—"
+
+        st.write("")
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1:
+            st.metric("Total Atrasos", f"{total_atrasos_filt}")
+        with kpi2:
+            st.metric("Alumnos Afectados", f"{alumnos_unicos}")
+        with kpi3:
+            st.metric("Reiteración (≥3)", f"{cant_reiterados}", delta="Prioridad Citación" if cant_reiterados > 0 else None, delta_color="inverse")
+        with kpi4:
+            st.metric("Curso con Mayor Registro", f"{curso_top}")
+
+        # Alerta Directiva de Reiteraciones
+        if cant_reiterados > 0:
+            st.warning(
+                f"⚠️ **Alerta de Inspectoría / Dirección:** Se registran **{cant_reiterados} estudiante(s)** con 3 o más atrasos en el período seleccionado. "
+                "Casos prioritarios para citación de apoderado según Reglamento de Convivencia Escolar."
+            )
+            with st.expander("📋 Ver nómina de estudiantes con reiteración"):
+                st.dataframe(
+                    alumnos_reiterados.sort_values(by='Total', ascending=False)[['Nombre_Final', 'Curso_Final', 'RUT_Clean', 'Total']].rename(
+                        columns={'Nombre_Final': 'Estudiante', 'Curso_Final': 'Curso', 'RUT_Clean': 'RUT', 'Total': 'N° Atrasos'}
+                    ),
+                    hide_index=True,
+                    use_container_width=True
+                )
+
+        st.write("---")
+
+        # --- TABLA DETALLADA ---
+        st.markdown(f"#### 📋 Registros de Atrasos Encontrados ({total_atrasos_filt})")
+        if df_filtrado.empty:
+            st.info("No se encontraron atrasos registrados con los filtros seleccionados.")
+        else:
+            df_vista = df_filtrado[['Fecha_Clean', 'Hora_Clean', 'RUT_Clean', 'Nombre_Final', 'Curso_Final', 'Motivo_Clean']].rename(
+                columns={
+                    'Fecha_Clean': 'Fecha',
+                    'Hora_Clean': 'Hora',
+                    'RUT_Clean': 'RUT',
+                    'Nombre_Final': 'Estudiante',
+                    'Curso_Final': 'Curso',
+                    'Motivo_Clean': 'Motivo'
+                }
+            )
+            st.dataframe(df_vista, hide_index=True, use_container_width=True)
+
+            # --- ACCIONES DE EXPORTACIÓN Y PDF ---
+            st.write("")
+            col_exp1, col_exp2 = st.columns([2.5, 3])
+
+            with col_exp1:
+                csv_data = df_vista.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                st.download_button(
+                    label="📥 Descargar Planilla Excel (CSV)",
+                    data=csv_data,
+                    file_name=f"Reporte_Atrasos_{f_desde_s}_al_{f_hasta_s}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+            with col_exp2:
+                if "mostrar_doc_atraso" not in st.session_state:
+                    st.session_state.mostrar_doc_atraso = False
+
+                btn_txt = "👁️ Ocultar Informe Imprimible" if st.session_state.mostrar_doc_atraso else "🖨️ Generar Informe Formal (PDF / Imprimir)"
+                if st.button(btn_txt, type="primary", use_container_width=True, key="btn_toggle_pdf_atraso"):
+                    st.session_state.mostrar_doc_atraso = not st.session_state.mostrar_doc_atraso
+                    st.rerun()
+
+            # --- VISTA PREVIA IMPRIMIBLE DE DOCUMENTO OFICIAL ---
+            if st.session_state.get('mostrar_doc_atraso', False):
+                st.write("---")
+                st.markdown("### 📄 Vista Previa del Informe Institucional")
+                st.caption("Este documento cuenta con formato oficial para Dirección e Inspectoría General. Haz clic en el botón verde inferior para imprimirlo o guardarlo como PDF.")
+
+                conf_data = {}
+                try:
+                    sc_conf = get_config_sheet()
+                    if sc_conf:
+                        conf_recs = sc_conf.get_all_records()
+                        for rc in conf_recs:
+                            k = str(rc.get('Clave', '')).strip()
+                            v = str(rc.get('Valor', '')).strip()
+                            if k: conf_data[k] = v
+                except Exception:
+                    pass
+
+                dir_nombre = conf_data.get("nombre_director", "RUBÉN MARCOS QUEZADA BALBOA")
+                col_nombre_inst = conf_data.get("nombre_colegio", "ESCUELA BÁSICA VILLA LAS PEÑAS")
+                col_rbd = conf_data.get("rbd_colegio", "2489-9")
+
+                insignia_b64 = ""
+                if os.path.exists("insignia.png"):
+                    try:
+                        with open("insignia.png", "rb") as f_ins:
+                            insignia_b64 = base64.b64encode(f_ins.read()).decode()
+                    except Exception:
+                        pass
+
+                img_ins_tag = f'<img src="data:image/png;base64,{insignia_b64}" style="width:65px;height:auto;" />' if insignia_b64 else ''
+
+                filas_html = ""
+                for idx_r, (_, r_fila) in enumerate(df_filtrado.iterrows(), 1):
+                    bg_fila = "#f9fafb" if idx_r % 2 == 0 else "#ffffff"
+                    filas_html += f"""
+                    <tr style="background-color:{bg_fila};">
+                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;">{idx_r}</td>
+                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['Fecha_Clean']}</td>
+                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['Hora_Clean']}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:0.78rem;font-weight:600;">{r_fila['Nombre_Final']}</td>
+                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;">{r_fila['Curso_Final']}</td>
+                        <td style="text-align:center;padding:5px 6px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;white-space:nowrap;">{r_fila['RUT_Clean']}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:0.75rem;color:#4b5563;">{r_fila['Motivo_Clean']}</td>
+                    </tr>
+                    """
+
+                hoy_str = hoy_dt.strftime("%d/%m/%Y")
+                rango_str = f"Desde {f_desde.strftime('%d/%m/%Y')} hasta {f_hasta.strftime('%d/%m/%Y')}"
+                curso_filtro_str = sel_curso_rep if sel_curso_rep != "Todos los Cursos" else "Todos los Cursos del Establecimiento"
+
+                html_informe_atrasos = f"""
+                <!DOCTYPE html>
+                <html lang="es">
+                <head>
+                <meta charset="UTF-8">
+                <style>
+                    @page {{
+                        size: letter portrait;
+                        margin: 12mm 14mm 12mm 14mm;
+                    }}
+                    @media print {{
+                        body {{ background: #fff !important; margin: 0 !important; padding: 0 !important; }}
+                        .no-print {{ display: none !important; }}
+                        .doc-container {{ box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }}
+                    }}
+                    body {{
+                        font-family: 'Segoe UI', Arial, sans-serif;
+                        color: #111827;
+                        background-color: #f3f4f6;
+                        margin: 0;
+                        padding: 10px;
+                    }}
+                    .doc-container {{
+                        background: #ffffff;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 24px 30px;
+                        border: 1px solid #d1d5db;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+                    }}
+                    .btn-imprimir {{
+                        background-color: #008F39;
+                        color: white;
+                        padding: 10px 22px;
+                        border: none;
+                        border-radius: 6px;
+                        font-weight: 700;
+                        font-size: 0.90rem;
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-bottom: 16px;
+                        transition: background 0.2s;
+                    }}
+                    .btn-imprimir:hover {{
+                        background-color: #00732e;
+                    }}
+                    .header-doc {{
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        border-bottom: 2.5px solid #008F39;
+                        padding-bottom: 10px;
+                        margin-bottom: 14px;
+                    }}
+                    .header-text {{
+                        text-align: center;
+                        flex: 1;
+                    }}
+                    .school-title {{
+                        font-size: 1.15rem;
+                        font-weight: 800;
+                        color: #111827;
+                        letter-spacing: 0.3px;
+                    }}
+                    .school-sub {{
+                        font-size: 0.78rem;
+                        color: #4b5563;
+                        margin-top: 2px;
+                        font-weight: 600;
+                    }}
+                    .doc-title {{
+                        font-size: 1.05rem;
+                        font-weight: 800;
+                        color: #166534;
+                        text-align: center;
+                        margin: 12px 0 4px 0;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }}
+                    .doc-subtitle {{
+                        font-size: 0.82rem;
+                        color: #4b5563;
+                        text-align: center;
+                        margin-bottom: 14px;
+                    }}
+                    .summary-box {{
+                        background: #f0fdf4;
+                        border: 1px solid #bbf7d0;
+                        border-radius: 6px;
+                        padding: 8px 14px;
+                        display: flex;
+                        justify-content: space-around;
+                        margin-bottom: 16px;
+                        font-size: 0.80rem;
+                    }}
+                    .summary-item b {{
+                        color: #166534;
+                        font-size: 0.92rem;
+                    }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 8px;
+                    }}
+                    th {{
+                        background-color: #f0f7f2;
+                        color: #166534;
+                        padding: 6px 8px;
+                        font-size: 0.74rem;
+                        font-weight: 700;
+                        border-bottom: 1.5px solid #008F39;
+                        text-align: left;
+                    }}
+                    .firmas-section {{
+                        display: flex;
+                        justify-content: space-between;
+                        margin-top: 40px;
+                        padding-top: 10px;
+                    }}
+                    .firma-col {{
+                        width: 42%;
+                        text-align: center;
+                    }}
+                    .linea-firma {{
+                        border-top: 1px solid #374151;
+                        margin: 35px 20px 6px 20px;
+                    }}
+                    .firma-cargo {{
+                        font-size: 0.76rem;
+                        font-weight: 700;
+                        color: #111827;
+                    }}
+                    .firma-sub {{
+                        font-size: 0.68rem;
+                        color: #6b7280;
+                    }}
+                    .footer-text {{
+                        text-align: center;
+                        font-size: 0.68rem;
+                        color: #9ca3af;
+                        margin-top: 24px;
+                        border-top: 1px solid #f3f4f6;
+                        padding-top: 6px;
+                    }}
+                </style>
+                </head>
+                <body>
+                    <div class="no-print" style="text-align:center;margin-bottom:12px;">
+                        <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+                    </div>
+                    <div class="doc-container">
+                        <div class="header-doc">
+                            <div style="width:75px;text-align:left;">{img_ins_tag}</div>
+                            <div class="header-text">
+                                <div class="school-title">{col_nombre_inst}</div>
+                                <div class="school-sub">RBD {col_rbd} · Mulchén, Región del Biobío</div>
+                                <div class="school-sub">Inspectoría General & Convivencia Escolar</div>
+                            </div>
+                            <div style="width:75px;"></div>
+                        </div>
+
+                        <div class="doc-title">Informe Oficial de Atrasos Escolares</div>
+                        <div class="doc-subtitle">
+                            <b>Período:</b> {rango_str} &nbsp;|&nbsp; <b>Alcance:</b> {curso_filtro_str}
+                        </div>
+
+                        <div class="summary-box">
+                            <div class="summary-item">Total Atrasos: <b>{total_atrasos_filt}</b></div>
+                            <div class="summary-item">Alumnos Registrados: <b>{alumnos_unicos}</b></div>
+                            <div class="summary-item">Casos Reiterados (≥3): <b>{cant_reiterados}</b></div>
+                            <div class="summary-item">Emisión: <b>{hoy_str}</b></div>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:24px;text-align:center;">#</th>
+                                    <th style="width:75px;text-align:center;">Fecha</th>
+                                    <th style="width:65px;text-align:center;">Hora</th>
+                                    <th>Estudiante</th>
+                                    <th style="width:85px;text-align:center;">Curso</th>
+                                    <th style="width:85px;text-align:center;">RUT</th>
+                                    <th>Motivo Registrado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filas_html}
+                            </tbody>
+                        </table>
+
+                        <div class="firmas-section">
+                            <div class="firma-col">
+                                <div class="linea-firma"></div>
+                                <div class="firma-cargo">INSPECTORÍA GENERAL</div>
+                                <div class="firma-sub">Control de Asistencia y Puntualidad</div>
+                            </div>
+                            <div class="firma-col">
+                                <div class="linea-firma"></div>
+                                <div class="firma-cargo">{dir_nombre}</div>
+                                <div class="firma-sub">Director(a) del Establecimiento</div>
+                            </div>
+                        </div>
+
+                        <div class="footer-text">
+                            Documento oficial generado automáticamente por el Sistema de Gestión Escolar — Escuela Villa Las Peñas.
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+                import streamlit.components.v1 as components
+                components.html(html_informe_atrasos, height=750, scrolling=True)
+
+    except Exception as e_rep:
+        st.error(f"Error al generar reporte de atrasos: {e_rep}")
+
+
+
+
+# ---------------------------------------------------------
 # LÓGICA DE RENDERIZADO (USUARIO AUTENTICADO)
 # ---------------------------------------------------------
 
@@ -759,189 +1265,198 @@ elif st.session_state.current_module == 'atraso':
     st.write("---")
     
     sheet_alumnos, sheet_registros, sheet_notas, sheet_funcionarios, sheet_asignaciones = get_sheets()
-    
-    if sheet_alumnos:
-        try:
-            df_alumnos = pd.DataFrame(sheet_alumnos.get_all_records())
-            
-            if not df_alumnos.empty:
-                import unicodedata
-                import streamlit.components.v1 as components
 
-                def normalizar_texto(texto):
-                    t = str(texto).replace('\xa0', ' ')
-                    t = "".join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
-                    return " ".join(t.lower().split())
+    tab_reg_atraso, tab_rep_atraso = st.tabs(["📝 Registrar Atraso", "📊 Reportes y Estadísticas"])
 
-                # Estandarizar columnas de manera ultra-robusta (para soportar singular/plural, mayúsculas/minúsculas)
-                df_alumnos.columns = [str(c).strip() for c in df_alumnos.columns]
-                col_nombre = next((c for c in df_alumnos.columns if 'nomb' in c.lower()), 'NOMBRES')
-                col_curso = next((c for c in df_alumnos.columns if 'curs' in c.lower()), 'CURSO')
-                col_rut = next((c for c in df_alumnos.columns if 'rut' in c.lower()), 'RUT')
+    with tab_reg_atraso:
 
-                # Variable de control para saber si ya se guardó
-                if "atraso_guardado_exito" not in st.session_state:
-                    st.session_state.atraso_guardado_exito = False
-                if "ultimo_rut_scroll_atraso" not in st.session_state:
-                    st.session_state.ultimo_rut_scroll_atraso = None
+        if sheet_alumnos:
+            try:
+                df_alumnos = pd.DataFrame(sheet_alumnos.get_all_records())
 
-                # Si ya se guardó con éxito, mostramos pantalla estática de confirmación
-                if st.session_state.atraso_guardado_exito:
-                    st.success("✅ ¡Registro de Atraso guardado y sincronizado con éxito en la nube!")
-                    st.info("El registro ha sido procesado correctamente.")
-                    if st.button("« Finalizar y Volver al Dashboard", type="primary", key="btn_finalizar_atraso"):
+                if not df_alumnos.empty:
+                    import unicodedata
+                    import streamlit.components.v1 as components
+
+                    def normalizar_texto(texto):
+                        t = str(texto).replace('\xa0', ' ')
+                        t = "".join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
+                        return " ".join(t.lower().split())
+
+                    # Estandarizar columnas de manera ultra-robusta (para soportar singular/plural, mayúsculas/minúsculas)
+                    df_alumnos.columns = [str(c).strip() for c in df_alumnos.columns]
+                    col_nombre = next((c for c in df_alumnos.columns if 'nomb' in c.lower()), 'NOMBRES')
+                    col_curso = next((c for c in df_alumnos.columns if 'curs' in c.lower()), 'CURSO')
+                    col_rut = next((c for c in df_alumnos.columns if 'rut' in c.lower()), 'RUT')
+
+                    # Variable de control para saber si ya se guardó
+                    if "atraso_guardado_exito" not in st.session_state:
                         st.session_state.atraso_guardado_exito = False
-                        st.session_state.alumno_seleccionado_atraso = None
+                    if "ultimo_rut_scroll_atraso" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_atraso = None
-                        st.session_state.current_module = 'home'
-                        st.rerun()
-                else:
-                    # Buscador normal
-                    busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key="txt_busqueda_atraso_botones").strip()
 
-                    if "alumno_seleccionado_atraso" not in st.session_state:
-                        st.session_state.alumno_seleccionado_atraso = None
-
-                    if 'ultimo_input_atraso' not in st.session_state:
-                        st.session_state.ultimo_input_atraso = ""
-                    if busqueda_input != st.session_state.ultimo_input_atraso:
-                        st.session_state.alumno_seleccionado_atraso = None
-                        st.session_state.ultimo_input_atraso = busqueda_input
-
-                    # Filtro y ordenamiento por relevancia
-                    if busqueda_input and col_nombre in df_alumnos.columns:
-                        termino = normalizar_texto(busqueda_input)
-                        
-                        # Función interna ultra-blindada para celda única de nombre completo
-                        def calza_filtro_estricto(nombre_completo, rut_alumno):
-                            nombre_norm = normalizar_texto(nombre_completo)
-                            rut_norm = normalizar_texto(str(rut_alumno))
-                            
-                            if termino in rut_norm:
-                                return True
-                                
-                            # Si buscan múltiples palabras juntas, permitimos coincidencia de subcadena directa
-                            if len(termino.split()) > 1:
-                                return termino in nombre_norm
-                                
-                            palabras = nombre_norm.split()
-                            if not palabras:
-                                return False
-                                
-                            for i, palabra in enumerate(palabras):
-                                if len(palabras) >= 4:
-                                    if i == 1 or i == (len(palabras) - 1):
-                                        if not palabra.startswith(termino): 
-                                            continue 
-                                            
-                                if palabra.startswith(termino):
-                                    return True
-                            return False
-
-                        # Filtrado estricto
-                        mask_filtrado = df_alumnos.apply(lambda x: calza_filtro_estricto(x[col_nombre], x[col_rut]), axis=1)
-                        df_filtrado = df_alumnos[mask_filtrado].copy()
-                        
-                        if not df_filtrado.empty:
-                            st.write("### 👥 Seleccione al alumno correcto:")
-                            df_filtrado['NOMBRES_NORM'] = df_filtrado[col_nombre].apply(normalizar_texto)
-                            df_filtrado['EMPIEZA_CON'] = df_filtrado['NOMBRES_NORM'].str.startswith(termino)
-                            df_filtrado = df_filtrado.sort_values(by=['EMPIEZA_CON', col_nombre], ascending=[False, True])
-                            
-                            for idx, fila in df_filtrado.iterrows():
-                                v_nombre = fila[col_nombre]
-                                v_curso = fila.get(col_curso, 'N/A')
-                                v_rut = fila.get(col_rut, 'N/A')
-                                
-                                label_boton = f"👤 {v_nombre}  |  📌 {v_curso}  |  🆔 {v_rut}"
-                                if st.button(label_boton, key=f"btn_alumno_{v_rut}_{idx}", use_container_width=True):
-                                    st.session_state.alumno_seleccionado_atraso = {
-                                        'nombre': v_nombre,
-                                        'curso': v_curso,
-                                        'rut': v_rut
-                                    }
-                        else:
-                            st.warning("⚠️ No se encontraron alumnos con ese término.")
+                    # Si ya se guardó con éxito, mostramos pantalla estática de confirmación
+                    if st.session_state.atraso_guardado_exito:
+                        st.success("✅ ¡Registro de Atraso guardado y sincronizado con éxito en la nube!")
+                        st.info("El registro ha sido procesado correctamente.")
+                        if st.button("« Finalizar y Volver al Dashboard", type="primary", key="btn_finalizar_atraso"):
+                            st.session_state.atraso_guardado_exito = False
+                            st.session_state.alumno_seleccionado_atraso = None
+                            st.session_state.ultimo_rut_scroll_atraso = None
+                            st.session_state.current_module = 'home'
+                            st.rerun()
                     else:
-                        st.info("💡 Ingrese un término arriba para desplegar los alumnos.")
+                        # Buscador normal
+                        busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key="txt_busqueda_atraso_botones").strip()
 
-                    if st.session_state.alumno_seleccionado_atraso is not None:
-                        alumno = st.session_state.alumno_seleccionado_atraso
-                        
-                        # Marcador de destino invisible para Atrasos
-                        st.markdown("<div id='formulario_control_atraso'></div>", unsafe_allow_html=True)
-                        
-                        # Inyección de Scroll limpia usando st.empty() para forzar refresco
-                        placeholder_scroll = st.empty()
-                        with placeholder_scroll:
-                            components.html(
-                                f"""
-                                <script>
-                                    // RUT: {alumno['rut']}
-                                    window.parent.document.getElementById('formulario_control_atraso').scrollIntoView({{behavior: 'smooth'}});
-                                </script>
-                                """,
-                                height=0,
-                            )
-                        
-                        st.markdown("---")
-                        with st.container(border=True):
-                            st.success("### Ficha de Confirmación")
-                            st.write(f"**Nombre:** {alumno['nombre']}")
-                            st.write(f"**Curso:** {alumno['curso']}")
-                            st.write(f"**RUT:** {alumno['rut']}")
-                            st.write("---")
-                            
-                            # Selector de Motivos Estandarizado
-                            opciones_motivos = ["Seleccione un motivo...", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
-                            motivo_seleccionado = st.selectbox("Motivo del atraso:", opciones_motivos, key="select_motivo_atraso")
-                            
-                            motivo_final = ""
-                            if motivo_seleccionado == "Otro (Especificar)":
-                                motivo_final = st.text_input("Escriba el motivo específico:", key="txt_motivo_atraso_otro").strip()
-                            elif motivo_seleccionado != "Seleccione un motivo...":
-                                motivo_final = motivo_seleccionado
-                            
-                            # Habilitar/Deshabilitar botón de confirmación
-                            deshabilitar_boton = (motivo_seleccionado == "Seleccione un motivo...") or (motivo_seleccionado == "Otro (Especificar)" and not motivo_final)
-                            
-                            if st.button("Confirmar Registro de Atraso", type="primary", key="btn_guardar_atraso_botones", disabled=deshabilitar_boton):
-                                if sheet_registros:
-                                    ahora = datetime.datetime.now()
-                                    
-                                    # Asegurar encabezados si la hoja está vacía
-                                    if not sheet_registros.row_values(1):
-                                        sheet_registros.append_row(["Fecha", "Hora", "RUT", "Nombre", "Tipo", "Motivo", "Apoderado", "Vinculo", "Curso"])
-                                        
-                                    sheet_registros.append_row([
-                                        ahora.strftime("%Y-%m-%d"),
-                                        ahora.strftime("%H:%M:%S"),
-                                        alumno['rut'],
-                                        alumno['nombre'],
-                                        "Atraso",
-                                        motivo_final,
-                                        "",
-                                        "",
-                                        alumno.get('curso', '')
-                                    ])
-                                    st.session_state.atraso_guardado_exito = True
-                                    st.rerun()
-                                else:
-                                    st.error("Error al guardar en Google Sheets.")
-            else:
-                st.warning("La base de datos de alumnos está vacía.")
-        except Exception as e:
-            st.error(f"Error inesperado: {e}")
-    else:
-        st.error("Error al conectar con la base de datos.")
+                        if "alumno_seleccionado_atraso" not in st.session_state:
+                            st.session_state.alumno_seleccionado_atraso = None
 
-    st.write("")
-    if not st.session_state.get('atraso_guardado_exito', False):
-        if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_atraso_botones"):
-            st.session_state.alumno_seleccionado_atraso = None
-            st.session_state.ultimo_rut_scroll_atraso = None
-            navigate('home')
-            st.rerun()
+                        if 'ultimo_input_atraso' not in st.session_state:
+                            st.session_state.ultimo_input_atraso = ""
+                        if busqueda_input != st.session_state.ultimo_input_atraso:
+                            st.session_state.alumno_seleccionado_atraso = None
+                            st.session_state.ultimo_input_atraso = busqueda_input
+
+                        # Filtro y ordenamiento por relevancia
+                        if busqueda_input and col_nombre in df_alumnos.columns:
+                            termino = normalizar_texto(busqueda_input)
+
+                            # Función interna ultra-blindada para celda única de nombre completo
+                            def calza_filtro_estricto(nombre_completo, rut_alumno):
+                                nombre_norm = normalizar_texto(nombre_completo)
+                                rut_norm = normalizar_texto(str(rut_alumno))
+
+                                if termino in rut_norm:
+                                    return True
+
+                                # Si buscan múltiples palabras juntas, permitimos coincidencia de subcadena directa
+                                if len(termino.split()) > 1:
+                                    return termino in nombre_norm
+
+                                palabras = nombre_norm.split()
+                                if not palabras:
+                                    return False
+
+                                for i, palabra in enumerate(palabras):
+                                    if len(palabras) >= 4:
+                                        if i == 1 or i == (len(palabras) - 1):
+                                            if not palabra.startswith(termino): 
+                                                continue 
+
+                                    if palabra.startswith(termino):
+                                        return True
+                                return False
+
+                            # Filtrado estricto
+                            mask_filtrado = df_alumnos.apply(lambda x: calza_filtro_estricto(x[col_nombre], x[col_rut]), axis=1)
+                            df_filtrado = df_alumnos[mask_filtrado].copy()
+
+                            if not df_filtrado.empty:
+                                st.write("### 👥 Seleccione al alumno correcto:")
+                                df_filtrado['NOMBRES_NORM'] = df_filtrado[col_nombre].apply(normalizar_texto)
+                                df_filtrado['EMPIEZA_CON'] = df_filtrado['NOMBRES_NORM'].str.startswith(termino)
+                                df_filtrado = df_filtrado.sort_values(by=['EMPIEZA_CON', col_nombre], ascending=[False, True])
+
+                                for idx, fila in df_filtrado.iterrows():
+                                    v_nombre = fila[col_nombre]
+                                    v_curso = fila.get(col_curso, 'N/A')
+                                    v_rut = fila.get(col_rut, 'N/A')
+
+                                    label_boton = f"👤 {v_nombre}  |  📌 {v_curso}  |  🆔 {v_rut}"
+                                    if st.button(label_boton, key=f"btn_alumno_{v_rut}_{idx}", use_container_width=True):
+                                        st.session_state.alumno_seleccionado_atraso = {
+                                            'nombre': v_nombre,
+                                            'curso': v_curso,
+                                            'rut': v_rut
+                                        }
+                            else:
+                                st.warning("⚠️ No se encontraron alumnos con ese término.")
+                        else:
+                            st.info("💡 Ingrese un término arriba para desplegar los alumnos.")
+
+                        if st.session_state.alumno_seleccionado_atraso is not None:
+                            alumno = st.session_state.alumno_seleccionado_atraso
+
+                            # Marcador de destino invisible para Atrasos
+                            st.markdown("<div id='formulario_control_atraso'></div>", unsafe_allow_html=True)
+
+                            # Inyección de Scroll limpia usando st.empty() para forzar refresco
+                            placeholder_scroll = st.empty()
+                            with placeholder_scroll:
+                                components.html(
+                                    f"""
+                                    <script>
+                                        // RUT: {alumno['rut']}
+                                        window.parent.document.getElementById('formulario_control_atraso').scrollIntoView({{behavior: 'smooth'}});
+                                    </script>
+                                    """,
+                                    height=0,
+                                )
+
+                            st.markdown("---")
+                            with st.container(border=True):
+                                st.success("### Ficha de Confirmación")
+                                st.write(f"**Nombre:** {alumno['nombre']}")
+                                st.write(f"**Curso:** {alumno['curso']}")
+                                st.write(f"**RUT:** {alumno['rut']}")
+                                st.write("---")
+
+                                # Selector de Motivos Estandarizado
+                                opciones_motivos = ["Seleccione un motivo...", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
+                                motivo_seleccionado = st.selectbox("Motivo del atraso:", opciones_motivos, key="select_motivo_atraso")
+
+                                motivo_final = ""
+                                if motivo_seleccionado == "Otro (Especificar)":
+                                    motivo_final = st.text_input("Escriba el motivo específico:", key="txt_motivo_atraso_otro").strip()
+                                elif motivo_seleccionado != "Seleccione un motivo...":
+                                    motivo_final = motivo_seleccionado
+
+                                # Habilitar/Deshabilitar botón de confirmación
+                                deshabilitar_boton = (motivo_seleccionado == "Seleccione un motivo...") or (motivo_seleccionado == "Otro (Especificar)" and not motivo_final)
+
+                                if st.button("Confirmar Registro de Atraso", type="primary", key="btn_guardar_atraso_botones", disabled=deshabilitar_boton):
+                                    if sheet_registros:
+                                        ahora = datetime.datetime.now()
+
+                                        # Asegurar encabezados si la hoja está vacía
+                                        if not sheet_registros.row_values(1):
+                                            sheet_registros.append_row(["Fecha", "Hora", "RUT", "Nombre", "Tipo", "Motivo", "Apoderado", "Vinculo", "Curso"])
+
+                                        sheet_registros.append_row([
+                                            ahora.strftime("%Y-%m-%d"),
+                                            ahora.strftime("%H:%M:%S"),
+                                            alumno['rut'],
+                                            alumno['nombre'],
+                                            "Atraso",
+                                            motivo_final,
+                                            "",
+                                            "",
+                                            alumno.get('curso', '')
+                                        ])
+                                        st.session_state.atraso_guardado_exito = True
+                                        st.rerun()
+                                    else:
+                                        st.error("Error al guardar en Google Sheets.")
+                else:
+                    st.warning("La base de datos de alumnos está vacía.")
+            except Exception as e:
+                st.error(f"Error inesperado: {e}")
+        else:
+            st.error("Error al conectar con la base de datos.")
+
+        st.write("")
+        if not st.session_state.get('atraso_guardado_exito', False):
+            if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_atraso_botones"):
+                st.session_state.alumno_seleccionado_atraso = None
+                st.session_state.ultimo_rut_scroll_atraso = None
+                navigate('home')
+                st.rerun()
+
+
+
+    with tab_rep_atraso:
+        renderizar_reporte_atrasos(sheet_alumnos, sheet_registros)
 
 
 elif st.session_state.current_module == 'retiro':
