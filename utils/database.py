@@ -95,11 +95,43 @@ class SupabaseSheet:
     def update(self, values, range_name=None):
         """
         Compatibilidad con gspread sheet.update(values=[headers] + rows).
-        La primera fila se trata como encabezados; las siguientes como datos.
-        Si values tiene solo 1 fila (solo encabezados), no hace nada.
+        Si se pasa range_name y values tiene 1 fila, es una actualización de fila puntual.
         """
-        if not values or len(values) < 2:
+        if not values:
             return
+
+        # Caso 1: Actualización de fila individual (ej: sheet_notas.update(values=[fila_data], range_name='A5:P5'))
+        if len(values) == 1 and range_name:
+            row = values[0]
+            record = {}
+            for i, display_col in enumerate(self._cols):
+                db_col = self._d2db.get(display_col, display_col.lower())
+                if db_col == 'id':
+                    continue
+                val = row[i] if i < len(row) else None
+                if val is None or str(val).strip() in ('', 'nan', 'None', 'NaT', 'NULL'):
+                    record[db_col] = None
+                else:
+                    record[db_col] = val
+
+            try:
+                if self._table == 'notas':
+                    self._client.table(self._table).upsert(record, on_conflict='rut,asignatura,semestre').execute()
+                elif self._table == 'asistencia':
+                    self._client.table(self._table).upsert(record, on_conflict='fecha,curso,tipo').execute()
+                elif self._table == 'alumnos':
+                    self._client.table(self._table).upsert(record, on_conflict='rut').execute()
+                elif self._table == 'funcionarios':
+                    self._client.table(self._table).upsert(record, on_conflict='rut').execute()
+                else:
+                    self._client.table(self._table).insert(record).execute()
+            except Exception as e:
+                print(f"[SupabaseSheet] update single-row '{self._table}': {e}")
+            return
+
+        if len(values) < 2:
+            return
+
         headers = [str(h).strip() for h in values[0]]
         data_rows = values[1:]
         records = []

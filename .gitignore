@@ -35,3 +35,7 @@ desktop.ini
 *.log
 *.tmp
 *.bak
+*.xlsx
+*.csv
+scratch/
+
