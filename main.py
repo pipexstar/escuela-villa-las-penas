@@ -379,24 +379,12 @@ def obtener_cursos_oficiales_sistema():
 
 def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
     """
-    Obtiene el nombre del Profesor(a) Jefe del curso, primero desde Cursos y luego verificando Asignaturas.
+    Obtiene el nombre del Profesor(a) Jefe del curso directamente desde Cursos.
     """
     if not nom_curso:
         return "NO ASIGNADO"
 
-    # 1. Buscar en Asignaciones de Jefatura
-    if sheet_asignaciones:
-        try:
-            recs_asig = sheet_asignaciones.get_all_records()
-            for ra in recs_asig:
-                if calza_nombre_curso(ra.get("Curso", ""), nom_curso) and str(ra.get("Asignatura", "")).strip().upper() == "JEFATURA":
-                    prof_n = str(ra.get("Nombre_Profesor", "")).strip()
-                    if prof_n and prof_n != "— Sin Asignar —":
-                        return prof_n
-        except Exception:
-            pass
-
-    # 2. Buscar en catálogo de Cursos
+    # 1. Buscar en catálogo de Cursos (fuente principal y oficial)
     try:
         sheet_c = get_cursos_sheet()
         if sheet_c:
@@ -409,6 +397,18 @@ def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
                         return pj
     except Exception:
         pass
+
+    # 2. Respaldo en Asignaciones de Jefatura si existiese
+    if sheet_asignaciones:
+        try:
+            recs_asig = sheet_asignaciones.get_all_records()
+            for ra in recs_asig:
+                if calza_nombre_curso(ra.get("Curso", ""), nom_curso) and str(ra.get("Asignatura", "")).strip().upper() == "JEFATURA":
+                    prof_n = str(ra.get("Nombre_Profesor", "")).strip()
+                    if prof_n and prof_n != "— Sin Asignar —":
+                        return prof_n
+        except Exception:
+            pass
 
     return "NO ASIGNADO"
 
@@ -2173,28 +2173,7 @@ elif st.session_state.current_module == 'cursos':
                                                             sheet_cursos.update_cell(i_f, idx_rut + 1, rut_jefe)
                                                         break
 
-                                                # Sincronizar Jefatura en Asignaciones
-                                                if sheet_asignaciones:
-                                                    try:
-                                                        vals_asig = sheet_asignaciones.get_all_values()
-                                                        if vals_asig:
-                                                            filas_nuevas_asig = []
-                                                            for r_as in vals_asig[1:]:
-                                                                c_as = str(r_as[2]).strip() if len(r_as) > 2 else ""
-                                                                as_as = str(r_as[3]).strip() if len(r_as) > 3 else ""
-                                                                # Omitir la jefatura previa de este curso
-                                                                if not (c_as.lower() == val_nom_orig.lower() and as_as.upper() == "JEFATURA"):
-                                                                    filas_nuevas_asig.append(r_as)
-
-                                                            # Si hay profesor jefe asignado, añadir la fila de jefatura
-                                                            if ed_prof_jefe != "— Sin Asignar —" and rut_jefe:
-                                                                filas_nuevas_asig.append([rut_jefe, ed_prof_jefe, val_nom_orig, "JEFATURA"])
-
-                                                            sheet_asignaciones.clear()
-                                                            sheet_asignaciones.update(values=[vals_asig[0]] + filas_nuevas_asig)
-                                                    except Exception:
-                                                        pass
-
+                                                # La jefatura reside en la tabla Cursos, no en Asignaturas de clases
                                                 get_cursos_sheet.clear()
                                                 st.session_state.cursos_oficiales_cache = None
                                                 st.session_state.dict_cursos_cache = None
@@ -2282,12 +2261,6 @@ elif st.session_state.current_module == 'cursos':
                                     rut_jefe = profesores_jefes_dict.get(in_pj_nuevo, {}).get("rut", "")
                                     # Fila: Nombre, Letra, Profesor_Jefe, RUT_Profesor_Jefe
                                     sheet_cursos.append_row([nombre_curso_oficial, in_letra_sel, in_pj_nuevo, rut_jefe])
-
-                                    if in_pj_nuevo != "— Sin Asignar —" and rut_jefe and sheet_asignaciones:
-                                        try:
-                                            sheet_asignaciones.append_row([rut_jefe, in_pj_nuevo, nombre_curso_oficial, "JEFATURA"])
-                                        except Exception:
-                                            pass
 
                                     get_cursos_sheet.clear()
                                     st.session_state.cursos_oficiales_cache = None
@@ -2492,9 +2465,12 @@ elif st.session_state.current_module == 'notas':
                     col_c   = next((c for c in df_asig.columns if 'curs' in c.lower()), None)
                     col_a   = next((c for c in df_asig.columns if 'asig' in c.lower()), None)
                     if col_rut and col_c and col_a:
-                        df_mias = df_asig[df_asig[col_rut].astype(str).str.strip() == str(rut_usuario).strip()]
+                        df_mias = df_asig[
+                            (df_asig[col_rut].astype(str).str.strip() == str(rut_usuario).strip()) &
+                            (df_asig[col_a].astype(str).str.strip().str.upper() != 'JEFATURA')
+                        ]
                         cursos_permitidos = sorted(df_mias[col_c].unique().tolist())
-                        asigs_permitidas  = sorted(df_mias[col_a].unique().tolist())
+                        asigs_permitidas  = sorted([a for a in df_mias[col_a].unique().tolist() if str(a).strip().upper() != 'JEFATURA'])
             except Exception as e:
                 st.warning(f"No se pudieron cargar las asignaciones: {e}")
 
@@ -2506,6 +2482,9 @@ elif st.session_state.current_module == 'notas':
     ]
     if not asigs_permitidas:
         asigs_permitidas = ASIGNATURAS_DEFAULT
+
+    # Eliminar estrictamente JEFATURA de cualquier lista de asignaturas para notas
+    asigs_permitidas = [a for a in asigs_permitidas if str(a).strip().upper() != 'JEFATURA']
 
     if not cursos_permitidos:
         st.warning("⚠️ No tienes cursos asignados. Contacta al Administrador para configurar tus asignaciones docentes.")
@@ -2519,7 +2498,7 @@ elif st.session_state.current_module == 'notas':
     with col_s1:
         curso_sel = st.selectbox("📚 Curso:", cursos_permitidos, key="notas_curso_sel")
     with col_s2:
-        # Si el usuario es profesor, filtrar asignaturas por curso seleccionado
+        # Si el usuario es profesor, filtrar asignaturas por curso seleccionado (excluyendo JEFATURA)
         if not es_admin and sheet_asignaciones:
             try:
                 df_asig_tmp = pd.DataFrame(sheet_asignaciones.get_all_records())
@@ -2530,13 +2509,15 @@ elif st.session_state.current_module == 'notas':
                     if all([col_rut_t, col_c_t, col_a_t]):
                         df_filt = df_asig_tmp[
                             (df_asig_tmp[col_rut_t].astype(str).str.strip() == str(rut_usuario).strip()) &
-                            (df_asig_tmp[col_c_t].astype(str) == str(curso_sel))
+                            (df_asig_tmp[col_c_t].astype(str) == str(curso_sel)) &
+                            (df_asig_tmp[col_a_t].astype(str).str.strip().str.upper() != 'JEFATURA')
                         ]
-                        asigs_del_curso = sorted(df_filt[col_a_t].unique().tolist())
+                        asigs_del_curso = sorted([a for a in df_filt[col_a_t].unique().tolist() if str(a).strip().upper() != 'JEFATURA'])
                         if asigs_del_curso:
                             asigs_permitidas = asigs_del_curso
             except Exception:
                 pass
+        asigs_permitidas = [a for a in asigs_permitidas if str(a).strip().upper() != 'JEFATURA']
         asignatura_sel = st.selectbox("📖 Asignatura:", asigs_permitidas, key="notas_asig_sel")
     with col_s3:
         st.markdown("<p style='font-size:14px;margin-bottom:6px;font-weight:400'>🗓️ Semestre:</p>", unsafe_allow_html=True)
@@ -3621,10 +3602,10 @@ elif st.session_state.current_module == 'asignaciones':
                         if not df_act.empty:
                             col_c_act = next((c for c in df_act.columns if 'curs' in c.lower()), 'Curso')
                             col_a_act = next((c for c in df_act.columns if 'asig' in c.lower()), 'Asignatura')
-                            # Conservar todas las filas de otros cursos, más la fila de JEFATURA de este curso (gestionada en Cursos)
+                            # Conservar todas las filas de otros cursos (omitiendo cualquier residuo de JEFATURA)
                             df_otros_cursos = df_act[
-                                (df_act[col_c_act].astype(str).str.strip() != str(curso_seleccionado).strip()) |
-                                (df_act[col_a_act].astype(str).str.strip().str.upper() == 'JEFATURA')
+                                (df_act[col_c_act].astype(str).str.strip() != str(curso_seleccionado).strip()) &
+                                (df_act[col_a_act].astype(str).str.strip().str.upper() != 'JEFATURA')
                             ].copy()
                         else:
                             df_otros_cursos = pd.DataFrame(columns=["RUT_Profesor", "Nombre_Profesor", "Curso", "Asignatura"])
