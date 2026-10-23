@@ -833,24 +833,28 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
             with f_col1:
                 opciones_periodo = [
+                    "Hoy (Día Actual)",
+                    "Mes Actual",
                     "Primer Semestre (Inicio de Clases)",
                     "Segundo Semestre",
-                    "Mes Actual",
                     "Año Escolar Completo",
                     "Rango Personalizado"
                 ]
                 filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_atraso_periodo_sel")
-                hoy_dt = datetime.date.today()
+                hoy_dt = obtener_ahora_chile().date()
 
-                if filtro_periodo == "Primer Semestre (Inicio de Clases)":
+                if filtro_periodo == "Hoy (Día Actual)":
+                    f_desde = hoy_dt
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Mes Actual":
+                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Primer Semestre (Inicio de Clases)":
                     f_desde = conf["s1_ini"]
                     f_hasta = conf["s1_fin"]
                 elif filtro_periodo == "Segundo Semestre":
                     f_desde = conf["s2_ini"]
                     f_hasta = conf["s2_fin"]
-                elif filtro_periodo == "Mes Actual":
-                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
-                    f_hasta = hoy_dt
                 elif filtro_periodo == "Año Escolar Completo":
                     f_desde = conf["s1_ini"]
                     f_hasta = conf["s2_fin"]
@@ -1288,24 +1292,28 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
             with f_col1:
                 opciones_periodo = [
+                    "Hoy (Día Actual)",
+                    "Mes Actual",
                     "Primer Semestre (Inicio de Clases)",
                     "Segundo Semestre",
-                    "Mes Actual",
                     "Año Escolar Completo",
                     "Rango Personalizado"
                 ]
                 filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_retiro_periodo_sel")
-                hoy_dt = datetime.date.today()
+                hoy_dt = obtener_ahora_chile().date()
 
-                if filtro_periodo == "Primer Semestre (Inicio de Clases)":
+                if filtro_periodo == "Hoy (Día Actual)":
+                    f_desde = hoy_dt
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Mes Actual":
+                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Primer Semestre (Inicio de Clases)":
                     f_desde = conf["s1_ini"]
                     f_hasta = conf["s1_fin"]
                 elif filtro_periodo == "Segundo Semestre":
                     f_desde = conf["s2_ini"]
                     f_hasta = conf["s2_fin"]
-                elif filtro_periodo == "Mes Actual":
-                    f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
-                    f_hasta = hoy_dt
                 elif filtro_periodo == "Año Escolar Completo":
                     f_desde = conf["s1_ini"]
                     f_hasta = conf["s2_fin"]
@@ -1861,132 +1869,11 @@ elif st.session_state.current_module == 'atraso':
                     if "ultimo_rut_scroll_atraso" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_atraso = None
 
-                    # Emisión e impresión térmica silenciosa en segundo plano
+                    # Confirmación de registro de atraso
                     if st.session_state.get('ultimo_voucher_atraso'):
                         voucher = st.session_state.pop('ultimo_voucher_atraso')
                         v_nom = voucher.get('nombre', 'ALUMNO')
                         v_cur = voucher.get('curso', '—')
-                        v_mot = voucher.get('motivo', 'Atraso')
-                        v_fec = voucher.get('fecha', '')
-                        v_hor = voucher.get('hora', '')
-
-                        html_voucher = f"""
-                        <!DOCTYPE html>
-                        <html lang="es">
-                        <head>
-                        <meta charset="UTF-8">
-                        <style>
-                            @page {{
-                                size: 80mm 80mm;
-                                margin: 0mm;
-                            }}
-                            @media print {{
-                                html, body {{
-                                    width: 80mm !important;
-                                    height: 80mm !important;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                    background: #fff !important;
-                                    color: #000 !important;
-                                }}
-                                .ticket-wrap {{
-                                    width: 76mm !important;
-                                    height: 76mm !important;
-                                    margin: 2mm auto !important;
-                                    padding: 3mm 4mm !important;
-                                    box-sizing: border-box !important;
-                                    border: none !important;
-                                }}
-                            }}
-                            body {{
-                                font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
-                                margin: 0;
-                                padding: 0;
-                                background: #fff;
-                                color: #000;
-                                -webkit-print-color-adjust: exact;
-                            }}
-                            .ticket-wrap {{
-                                width: 76mm;
-                                height: 76mm;
-                                margin: 2mm auto;
-                                padding: 3mm 4mm;
-                                box-sizing: border-box;
-                                display: flex;
-                                flex-direction: column;
-                                justify-content: space-between;
-                            }}
-                            .t-title {{
-                                text-align: center;
-                                font-size: 19px;
-                                font-weight: 900;
-                                letter-spacing: 1px;
-                                border-bottom: 2px dashed #000;
-                                padding-bottom: 3px;
-                                margin-bottom: 3px;
-                            }}
-                            .t-body {{
-                                font-size: 15px;
-                                line-height: 1.35;
-                                font-weight: 700;
-                            }}
-                            .t-item {{
-                                margin-bottom: 3px;
-                                word-wrap: break-word;
-                            }}
-                            .t-label {{
-                                font-weight: 900;
-                                display: inline-block;
-                                min-width: 65px;
-                            }}
-                            .t-footer {{
-                                text-align: center;
-                                font-size: 13px;
-                                font-weight: 900;
-                                border-top: 2px dashed #000;
-                                padding-top: 3px;
-                                margin-top: 3px;
-                            }}
-                        </style>
-                        </head>
-                        <body>
-                        <div class="ticket-wrap">
-                            <div class="t-title">JUSTIFICATIVO</div>
-                            <div class="t-body">
-                                <div class="t-item"><span class="t-label">Nombre:</span> {v_nom}</div>
-                                <div class="t-item"><span class="t-label">Curso:</span> {v_cur}</div>
-                                <div class="t-item"><span class="t-label">Motivo:</span> {v_mot}</div>
-                                <div class="t-item"><span class="t-label">Fecha:</span> <span id="t-fec-val">{v_fec}</span></div>
-                                <div class="t-item"><span class="t-label">Hora:</span> <span id="t-hor-val">{v_hor}</span></div>
-                            </div>
-                            <div class="t-footer">Escuela Villa Las Peñas</div>
-                        </div>
-                        <script>
-                            try {{
-                                var d = new Date();
-                                var hh = String(d.getHours()).padStart(2, '0');
-                                var mm = String(d.getMinutes()).padStart(2, '0');
-                                var elemHora = document.getElementById('t-hor-val');
-                                if (elemHora) {{ elemHora.textContent = hh + ':' + mm; }}
-
-                                var dd = String(d.getDate()).padStart(2, '0');
-                                var mes = String(d.getMonth() + 1).padStart(2, '0');
-                                var yyyy = d.getFullYear();
-                                var elemFec = document.getElementById('t-fec-val');
-                                if (elemFec) {{ elemFec.textContent = dd + '/' + mes + '/' + yyyy; }}
-                            }} catch(e) {{}}
-
-                            window.onload = function() {{
-                                setTimeout(function() {{
-                                    window.print();
-                                }}, 150);
-                            }};
-                        </script>
-                        </body>
-                        </html>
-                        """
-                        import streamlit.components.v1 as components
-                        components.html(html_voucher, height=1)
                         st.success(f"✅ ¡Atraso registrado para **{v_nom}** ({v_cur})! Justificativo emitido a la ticketera.")
 
                     # Buscador normal
