@@ -1877,24 +1877,25 @@ elif st.session_state.current_module == 'atraso':
                         <meta charset="UTF-8">
                         <style>
                             @page {{
-                                size: 80mm auto;
+                                size: 80mm 80mm;
                                 margin: 0mm;
                             }}
                             @media print {{
                                 html, body {{
                                     width: 80mm !important;
+                                    height: 80mm !important;
                                     margin: 0 !important;
                                     padding: 0 !important;
                                     background: #fff !important;
                                     color: #000 !important;
                                 }}
                                 .ticket-wrap {{
-                                    width: 74mm !important;
-                                    margin: 0 auto !important;
-                                    padding: 2mm 1mm !important;
+                                    width: 76mm !important;
+                                    height: 76mm !important;
+                                    margin: 2mm auto !important;
+                                    padding: 3mm 4mm !important;
                                     box-sizing: border-box !important;
                                     border: none !important;
-                                    display: block !important;
                                 }}
                             }}
                             body {{
@@ -1903,25 +1904,30 @@ elif st.session_state.current_module == 'atraso':
                                 padding: 0;
                                 background: #fff;
                                 color: #000;
+                                -webkit-print-color-adjust: exact;
                             }}
                             .ticket-wrap {{
-                                width: 74mm;
-                                margin: 0 auto;
-                                padding: 2mm 1mm;
+                                width: 76mm;
+                                height: 76mm;
+                                margin: 2mm auto;
+                                padding: 3mm 4mm;
                                 box-sizing: border-box;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: space-between;
                             }}
                             .t-title {{
                                 text-align: center;
-                                font-size: 20px;
+                                font-size: 19px;
                                 font-weight: 900;
                                 letter-spacing: 1px;
                                 border-bottom: 2px dashed #000;
                                 padding-bottom: 3px;
-                                margin-bottom: 5px;
+                                margin-bottom: 3px;
                             }}
                             .t-body {{
-                                font-size: 16px;
-                                line-height: 1.4;
+                                font-size: 15px;
+                                line-height: 1.35;
                                 font-weight: 700;
                             }}
                             .t-item {{
@@ -1938,8 +1944,8 @@ elif st.session_state.current_module == 'atraso':
                                 font-size: 13px;
                                 font-weight: 900;
                                 border-top: 2px dashed #000;
-                                padding-top: 4px;
-                                margin-top: 5px;
+                                padding-top: 3px;
+                                margin-top: 3px;
                             }}
                         </style>
                         </head>
@@ -1984,7 +1990,10 @@ elif st.session_state.current_module == 'atraso':
                         st.success(f"✅ ¡Atraso registrado para **{v_nom}** ({v_cur})! Justificativo emitido a la ticketera.")
 
                     # Buscador normal
-                    busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key="txt_busqueda_atraso_botones").strip()
+                    if "ver_busqueda_atraso" not in st.session_state:
+                        st.session_state.ver_busqueda_atraso = 0
+                    key_input_atraso = f"txt_busqueda_atraso_{st.session_state.ver_busqueda_atraso}"
+                    busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key=key_input_atraso).strip()
 
                     if "alumno_seleccionado_atraso" not in st.session_state:
                         st.session_state.alumno_seleccionado_atraso = None
@@ -2123,14 +2132,15 @@ elif st.session_state.current_module == 'atraso':
                                     }
                                     st.session_state.alumno_seleccionado_atraso = None
                                     st.session_state.ultimo_rut_scroll_atraso = None
-                                    if "txt_busqueda_atraso_botones" in st.session_state:
-                                        st.session_state["txt_busqueda_atraso_botones"] = ""
+                                    st.session_state.ver_busqueda_atraso = st.session_state.get('ver_busqueda_atraso', 0) + 1
                                     st.rerun()
                                 else:
                                     st.error("Error al guardar en la base de datos.")
                 else:
                     st.warning("La base de datos de alumnos está vacía.")
             except Exception as e:
+                if "Rerun" in type(e).__name__ or "ScriptControl" in type(e).__name__:
+                    raise e
                 st.error(f"Error inesperado: {e}")
         else:
             st.error("Error al conectar con la base de datos.")

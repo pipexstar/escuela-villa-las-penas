@@ -20,7 +20,7 @@ Esta guía te permitirá dejar configurada la impresión automática del **Justi
 3. En la casilla que dice *"Escriba la ubicación del elemento"*, copia y pega exactamente esto:
 
 ```cmd
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing "https://gestionescolarevlp.streamlit.app"
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing --user-data-dir="%TEMP%\kiosk_escuela" "https://gestionescolarevlp.streamlit.app"
 ```
 
 *(Si Chrome está instalado en 32 bits, la ruta es `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`)*.
@@ -33,7 +33,7 @@ Esta guía te permitirá dejar configurada la impresión automática del **Justi
 Si en ese equipo navegan con Microsoft Edge, el comando en el acceso directo es:
 
 ```cmd
-"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk-printing "https://gestionescolarevlp.streamlit.app"
+"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk-printing --user-data-dir="%TEMP%\kiosk_escuela" "https://gestionescolarevlp.streamlit.app"
 ```
 
 ---

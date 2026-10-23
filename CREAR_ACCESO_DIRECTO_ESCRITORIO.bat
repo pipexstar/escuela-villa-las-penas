@@ -38,7 +38,7 @@ echo Set oWS = WScript.CreateObject("WScript.Shell") > %SCRIPT_VBS%
 echo sLinkFile = oWS.SpecialFolders("Desktop") ^& "\Sistema Escolar - Atrasos.lnk" >> %SCRIPT_VBS%
 echo Set oLink = oWS.CreateShortcut(sLinkFile) >> %SCRIPT_VBS%
 echo oLink.TargetPath = %NAVEGADOR% >> %SCRIPT_VBS%
-echo oLink.Arguments = "--kiosk-printing " ^& Chr(34) ^& "%URL_APP%" ^& Chr(34) >> %SCRIPT_VBS%
+echo oLink.Arguments = "--kiosk-printing --user-data-dir=""" ^& oWS.ExpandEnvironmentStrings("%%TEMP%%") ^& "\kiosk_escuela"" " ^& Chr(34) ^& "%URL_APP%" ^& Chr(34) >> %SCRIPT_VBS%
 echo oLink.Description = "Sistema Escolar Villa Las Peñas - Impresión Térmica" >> %SCRIPT_VBS%
 echo oLink.Save >> %SCRIPT_VBS%
 
