@@ -258,6 +258,43 @@ def apply_clean_theme():
 apply_clean_theme()
 
 # ==========================================
+# GESTIÓN OFICIAL DE FECHA Y HORA CHILE
+# ==========================================
+def obtener_ahora_chile() -> datetime.datetime:
+    """Devuelve la fecha y hora oficial de Chile (America/Santiago o UTC-3)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo("America/Santiago"))
+    except Exception:
+        # Fallback para Windows o entornos locales sin tzdata: Horario Chile UTC-3
+        return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3)))
+
+# Keep-alive heartbeat silencioso en cliente para evitar suspensión de pestañas
+try:
+    import streamlit.components.v1 as _comp_v1
+    _comp_v1.html("""
+    <script>
+    if (!window._stKeepAliveRunning) {
+        window._stKeepAliveRunning = true;
+        setInterval(function() {
+            try {
+                var el = document.getElementById('st-keepalive-ping');
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'st-keepalive-ping';
+                    el.style.display = 'none';
+                    document.body.appendChild(el);
+                }
+                el.innerText = Date.now().toString();
+            } catch(e) {}
+        }, 30000);
+    }
+    </script>
+    """, height=0, width=0)
+except Exception:
+    pass
+
+# ==========================================
 # FUNCIÓN DE LIMPIEZA UNIVERSAL
 # ==========================================
 def limpiar_universal_ticketera(texto):
@@ -1821,23 +1858,18 @@ elif st.session_state.current_module == 'atraso':
                     col_rut = next((c for c in df_alumnos.columns if 'rut' in c.lower()), 'RUT')
 
                     # Variable de control para saber si ya se guardó
-                    if "atraso_guardado_exito" not in st.session_state:
-                        st.session_state.atraso_guardado_exito = False
                     if "ultimo_rut_scroll_atraso" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_atraso = None
 
-                    # Si ya se guardó con éxito, mostramos confirmación y justificativo térmico (8x8 cm)
-                    if st.session_state.atraso_guardado_exito:
-                        voucher = st.session_state.get('ultimo_voucher_atraso', {})
+                    # Emisión e impresión térmica silenciosa en segundo plano
+                    if st.session_state.get('ultimo_voucher_atraso'):
+                        voucher = st.session_state.pop('ultimo_voucher_atraso')
                         v_nom = voucher.get('nombre', 'ALUMNO')
                         v_cur = voucher.get('curso', '—')
                         v_mot = voucher.get('motivo', 'Atraso')
-                        v_fec = voucher.get('fecha', datetime.date.today().strftime("%d/%m/%Y"))
-                        v_hor = voucher.get('hora', datetime.datetime.now().strftime("%H:%M"))
+                        v_fec = voucher.get('fecha', '')
+                        v_hor = voucher.get('hora', '')
 
-                        st.success("✅ ¡Atraso registrado y justificativo térmico (8x8 cm) emitido con éxito!")
-
-                        # Voucher de 8 cm de ancho por 8 cm de alto con auto-print
                         html_voucher = f"""
                         <!DOCTYPE html>
                         <html lang="es">
@@ -1845,73 +1877,69 @@ elif st.session_state.current_module == 'atraso':
                         <meta charset="UTF-8">
                         <style>
                             @page {{
-                                size: 80mm 80mm;
+                                size: 80mm auto;
                                 margin: 0mm;
                             }}
                             @media print {{
                                 html, body {{
                                     width: 80mm !important;
-                                    height: 80mm !important;
                                     margin: 0 !important;
                                     padding: 0 !important;
                                     background: #fff !important;
+                                    color: #000 !important;
                                 }}
                                 .ticket-wrap {{
-                                    width: 80mm !important;
-                                    height: 80mm !important;
-                                    max-width: 80mm !important;
-                                    max-height: 80mm !important;
-                                    margin: 0 !important;
-                                    padding: 4mm 5mm !important;
+                                    width: 74mm !important;
+                                    margin: 0 auto !important;
+                                    padding: 2mm 1mm !important;
                                     box-sizing: border-box !important;
                                     border: none !important;
-                                    box-shadow: none !important;
+                                    display: block !important;
                                 }}
                             }}
                             body {{
-                                font-family: 'Courier New', Courier, monospace, sans-serif;
+                                font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
                                 margin: 0;
-                                padding: 6px;
-                                background: #f8fafc;
+                                padding: 0;
+                                background: #fff;
+                                color: #000;
                             }}
                             .ticket-wrap {{
-                                width: 78mm;
-                                height: 78mm;
-                                background: #fff;
+                                width: 74mm;
                                 margin: 0 auto;
-                                padding: 4mm 5mm;
+                                padding: 2mm 1mm;
                                 box-sizing: border-box;
-                                border: 1px dashed #94a3b8;
-                                border-radius: 4px;
-                                display: flex;
-                                flex-direction: column;
-                                justify-content: space-between;
-                                color: #000;
                             }}
                             .t-title {{
                                 text-align: center;
-                                font-size: 16px;
+                                font-size: 20px;
                                 font-weight: 900;
                                 letter-spacing: 1px;
                                 border-bottom: 2px dashed #000;
                                 padding-bottom: 3px;
-                                margin-bottom: 4px;
+                                margin-bottom: 5px;
                             }}
                             .t-body {{
-                                font-size: 12.5px;
-                                line-height: 1.35;
+                                font-size: 16px;
+                                line-height: 1.4;
+                                font-weight: 700;
                             }}
                             .t-item {{
-                                margin-bottom: 2px;
+                                margin-bottom: 3px;
                                 word-wrap: break-word;
+                            }}
+                            .t-label {{
+                                font-weight: 900;
+                                display: inline-block;
+                                min-width: 65px;
                             }}
                             .t-footer {{
                                 text-align: center;
-                                font-size: 12px;
-                                font-weight: 700;
+                                font-size: 13px;
+                                font-weight: 900;
                                 border-top: 2px dashed #000;
                                 padding-top: 4px;
-                                margin-top: 3px;
+                                margin-top: 5px;
                             }}
                         </style>
                         </head>
@@ -1919,192 +1947,187 @@ elif st.session_state.current_module == 'atraso':
                         <div class="ticket-wrap">
                             <div class="t-title">JUSTIFICATIVO</div>
                             <div class="t-body">
-                                <div class="t-item"><b>Nombre:</b> {v_nom}</div>
-                                <div class="t-item"><b>Curso:</b> {v_cur}</div>
-                                <div class="t-item"><b>Motivo:</b> {v_mot}</div>
-                                <div class="t-item"><b>Fecha:</b> {v_fec}</div>
-                                <div class="t-item"><b>Hora:</b> {v_hor}</div>
+                                <div class="t-item"><span class="t-label">Nombre:</span> {v_nom}</div>
+                                <div class="t-item"><span class="t-label">Curso:</span> {v_cur}</div>
+                                <div class="t-item"><span class="t-label">Motivo:</span> {v_mot}</div>
+                                <div class="t-item"><span class="t-label">Fecha:</span> <span id="t-fec-val">{v_fec}</span></div>
+                                <div class="t-item"><span class="t-label">Hora:</span> <span id="t-hor-val">{v_hor}</span></div>
                             </div>
                             <div class="t-footer">Escuela Villa Las Peñas</div>
                         </div>
                         <script>
-                            // Disparo automático de impresión térmica (silencioso con --kiosk-printing)
+                            try {{
+                                var d = new Date();
+                                var hh = String(d.getHours()).padStart(2, '0');
+                                var mm = String(d.getMinutes()).padStart(2, '0');
+                                var elemHora = document.getElementById('t-hor-val');
+                                if (elemHora) {{ elemHora.textContent = hh + ':' + mm; }}
+
+                                var dd = String(d.getDate()).padStart(2, '0');
+                                var mes = String(d.getMonth() + 1).padStart(2, '0');
+                                var yyyy = d.getFullYear();
+                                var elemFec = document.getElementById('t-fec-val');
+                                if (elemFec) {{ elemFec.textContent = dd + '/' + mes + '/' + yyyy; }}
+                            }} catch(e) {{}}
+
                             window.onload = function() {{
                                 setTimeout(function() {{
                                     window.print();
-                                }}, 250);
+                                }}, 150);
                             }};
                         </script>
                         </body>
                         </html>
                         """
                         import streamlit.components.v1 as components
-                        components.html(html_voucher, height=265)
+                        components.html(html_voucher, height=1)
+                        st.success(f"✅ ¡Atraso registrado para **{v_nom}** ({v_cur})! Justificativo emitido a la ticketera.")
 
-                        c_b1, c_b2, c_b3 = st.columns([1.5, 1.4, 1.1])
-                        with c_b1:
-                            if st.button("➕ Registrar Otro Atraso", type="primary", key="btn_sig_atraso", use_container_width=True):
-                                st.session_state.atraso_guardado_exito = False
-                                st.session_state.alumno_seleccionado_atraso = None
-                                st.session_state.ultimo_rut_scroll_atraso = None
-                                st.session_state.pop("ultimo_voucher_atraso", None)
-                                if "txt_busqueda_atraso_botones" in st.session_state:
-                                    st.session_state["txt_busqueda_atraso_botones"] = ""
-                                st.rerun()
-                        with c_b2:
-                            if st.button("🖨️ Reimprimir Justificativo", key="btn_reimprimir_atraso", use_container_width=True):
-                                st.rerun()
-                        with c_b3:
-                            if st.button("🏠 Salir", key="btn_finalizar_atraso", use_container_width=True):
-                                st.session_state.atraso_guardado_exito = False
-                                st.session_state.alumno_seleccionado_atraso = None
-                                st.session_state.ultimo_rut_scroll_atraso = None
-                                st.session_state.pop("ultimo_voucher_atraso", None)
-                                st.session_state.current_module = 'home'
-                                st.rerun()
-                    else:
-                        # Buscador normal
-                        busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key="txt_busqueda_atraso_botones").strip()
+                    # Buscador normal
+                    busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno:", placeholder="Escriba para buscar...", key="txt_busqueda_atraso_botones").strip()
 
-                        if "alumno_seleccionado_atraso" not in st.session_state:
-                            st.session_state.alumno_seleccionado_atraso = None
+                    if "alumno_seleccionado_atraso" not in st.session_state:
+                        st.session_state.alumno_seleccionado_atraso = None
 
-                        if 'ultimo_input_atraso' not in st.session_state:
-                            st.session_state.ultimo_input_atraso = ""
-                        if busqueda_input != st.session_state.ultimo_input_atraso:
-                            st.session_state.alumno_seleccionado_atraso = None
-                            st.session_state.ultimo_input_atraso = busqueda_input
+                    if 'ultimo_input_atraso' not in st.session_state:
+                        st.session_state.ultimo_input_atraso = ""
+                    if busqueda_input != st.session_state.ultimo_input_atraso:
+                        st.session_state.alumno_seleccionado_atraso = None
+                        st.session_state.ultimo_input_atraso = busqueda_input
 
-                        # Filtro y ordenamiento por relevancia
-                        if busqueda_input and col_nombre in df_alumnos.columns:
-                            termino = normalizar_texto(busqueda_input)
+                    # Filtro y ordenamiento por relevancia
+                    if busqueda_input and col_nombre in df_alumnos.columns:
+                        termino = normalizar_texto(busqueda_input)
 
-                            # Función interna ultra-blindada para celda única de nombre completo
-                            def calza_filtro_estricto(nombre_completo, rut_alumno):
-                                nombre_norm = normalizar_texto(nombre_completo)
-                                rut_norm = normalizar_texto(str(rut_alumno))
+                        # Función interna ultra-blindada para celda única de nombre completo
+                        def calza_filtro_estricto(nombre_completo, rut_alumno):
+                            nombre_norm = normalizar_texto(nombre_completo)
+                            rut_norm = normalizar_texto(str(rut_alumno))
 
-                                if termino in rut_norm:
-                                    return True
+                            if termino in rut_norm:
+                                return True
 
-                                # Si buscan múltiples palabras juntas, permitimos coincidencia de subcadena directa
-                                if len(termino.split()) > 1:
-                                    return termino in nombre_norm
+                            # Si buscan múltiples palabras juntas, permitimos coincidencia de subcadena directa
+                            if len(termino.split()) > 1:
+                                return termino in nombre_norm
 
-                                palabras = nombre_norm.split()
-                                if not palabras:
-                                    return False
-
-                                for i, palabra in enumerate(palabras):
-                                    if len(palabras) >= 4:
-                                        if i == 1 or i == (len(palabras) - 1):
-                                            if not palabra.startswith(termino): 
-                                                continue 
-
-                                    if palabra.startswith(termino):
-                                        return True
+                            palabras = nombre_norm.split()
+                            if not palabras:
                                 return False
 
-                            # Filtrado estricto
-                            mask_filtrado = df_alumnos.apply(lambda x: calza_filtro_estricto(x[col_nombre], x[col_rut]), axis=1)
-                            df_filtrado = df_alumnos[mask_filtrado].copy()
+                            for i, palabra in enumerate(palabras):
+                                if len(palabras) >= 4:
+                                    if i == 1 or i == (len(palabras) - 1):
+                                        if not palabra.startswith(termino): 
+                                            continue 
 
-                            if not df_filtrado.empty:
-                                st.write("### 👥 Seleccione al alumno correcto:")
-                                df_filtrado['NOMBRES_NORM'] = df_filtrado[col_nombre].apply(normalizar_texto)
-                                df_filtrado['EMPIEZA_CON'] = df_filtrado['NOMBRES_NORM'].str.startswith(termino)
-                                df_filtrado = df_filtrado.sort_values(by=['EMPIEZA_CON', col_nombre], ascending=[False, True])
+                                if palabra.startswith(termino):
+                                    return True
+                            return False
 
-                                for idx, fila in df_filtrado.iterrows():
-                                    v_nombre = fila[col_nombre]
-                                    v_curso = fila.get(col_curso, 'N/A')
-                                    v_rut = fila.get(col_rut, 'N/A')
+                        # Filtrado estricto
+                        mask_filtrado = df_alumnos.apply(lambda x: calza_filtro_estricto(x[col_nombre], x[col_rut]), axis=1)
+                        df_filtrado = df_alumnos[mask_filtrado].copy()
 
-                                    label_boton = f"👤 {v_nombre}  |  📌 {v_curso}  |  🆔 {v_rut}"
-                                    if st.button(label_boton, key=f"btn_alumno_{v_rut}_{idx}", use_container_width=True):
-                                        st.session_state.alumno_seleccionado_atraso = {
-                                            'nombre': v_nombre,
-                                            'curso': v_curso,
-                                            'rut': v_rut
-                                        }
-                            else:
-                                st.warning("⚠️ No se encontraron alumnos con ese término.")
+                        if not df_filtrado.empty:
+                            st.write("### 👥 Seleccione al alumno correcto:")
+                            df_filtrado['NOMBRES_NORM'] = df_filtrado[col_nombre].apply(normalizar_texto)
+                            df_filtrado['EMPIEZA_CON'] = df_filtrado['NOMBRES_NORM'].str.startswith(termino)
+                            df_filtrado = df_filtrado.sort_values(by=['EMPIEZA_CON', col_nombre], ascending=[False, True])
+
+                            for idx, fila in df_filtrado.iterrows():
+                                v_nombre = fila[col_nombre]
+                                v_curso = fila.get(col_curso, 'N/A')
+                                v_rut = fila.get(col_rut, 'N/A')
+
+                                label_boton = f"👤 {v_nombre}  |  📌 {v_curso}  |  🆔 {v_rut}"
+                                if st.button(label_boton, key=f"btn_alumno_{v_rut}_{idx}", use_container_width=True):
+                                    st.session_state.alumno_seleccionado_atraso = {
+                                        'nombre': v_nombre,
+                                        'curso': v_curso,
+                                        'rut': v_rut
+                                    }
                         else:
-                            st.info("💡 Ingrese un término arriba para desplegar los alumnos.")
+                            st.warning("⚠️ No se encontraron alumnos con ese término.")
+                    else:
+                        st.info("💡 Ingrese un término arriba para desplegar los alumnos.")
 
-                        if st.session_state.alumno_seleccionado_atraso is not None:
-                            alumno = st.session_state.alumno_seleccionado_atraso
+                    if st.session_state.alumno_seleccionado_atraso is not None:
+                        alumno = st.session_state.alumno_seleccionado_atraso
 
-                            # Marcador de destino invisible para Atrasos
-                            st.markdown("<div id='formulario_control_atraso'></div>", unsafe_allow_html=True)
+                        # Marcador de destino invisible para Atrasos
+                        st.markdown("<div id='formulario_control_atraso'></div>", unsafe_allow_html=True)
 
-                            # Inyección de Scroll limpia usando st.empty() para forzar refresco
-                            placeholder_scroll = st.empty()
-                            with placeholder_scroll:
-                                components.html(
-                                    f"""
-                                    <script>
-                                        // RUT: {alumno['rut']}
-                                        window.parent.document.getElementById('formulario_control_atraso').scrollIntoView({{behavior: 'smooth'}});
-                                    </script>
-                                    """,
-                                    height=0,
-                                )
+                        # Inyección de Scroll limpia usando st.empty() para forzar refresco
+                        placeholder_scroll = st.empty()
+                        with placeholder_scroll:
+                            components.html(
+                                f"""
+                                <script>
+                                    // RUT: {alumno['rut']}
+                                    window.parent.document.getElementById('formulario_control_atraso').scrollIntoView({{behavior: 'smooth'}});
+                                </script>
+                                """,
+                                height=0,
+                            )
 
-                            st.markdown("---")
-                            with st.container(border=True):
-                                st.success("### Ficha de Confirmación")
-                                st.write(f"**Nombre:** {alumno['nombre']}")
-                                st.write(f"**Curso:** {alumno['curso']}")
-                                st.write(f"**RUT:** {alumno['rut']}")
-                                st.write("---")
+                        st.markdown("---")
+                        with st.container(border=True):
+                            st.success("### Ficha de Confirmación")
+                            st.write(f"**Nombre:** {alumno['nombre']}")
+                            st.write(f"**Curso:** {alumno['curso']}")
+                            st.write(f"**RUT:** {alumno['rut']}")
+                            st.write("---")
 
-                                # Selector de Motivos Estandarizado
-                                opciones_motivos = ["Seleccione un motivo...", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
-                                motivo_seleccionado = st.selectbox("Motivo del atraso:", opciones_motivos, key="select_motivo_atraso")
+                            # Selector de Motivos Estandarizado
+                            opciones_motivos = ["Seleccione un motivo...", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
+                            motivo_seleccionado = st.selectbox("Motivo del atraso:", opciones_motivos, key="select_motivo_atraso")
 
-                                motivo_final = ""
-                                if motivo_seleccionado == "Otro (Especificar)":
-                                    motivo_final = st.text_input("Escriba el motivo específico:", key="txt_motivo_atraso_otro").strip()
-                                elif motivo_seleccionado != "Seleccione un motivo...":
-                                    motivo_final = motivo_seleccionado
+                            motivo_final = ""
+                            if motivo_seleccionado == "Otro (Especificar)":
+                                motivo_final = st.text_input("Escriba el motivo específico:", key="txt_motivo_atraso_otro").strip()
+                            elif motivo_seleccionado != "Seleccione un motivo...":
+                                motivo_final = motivo_seleccionado
 
-                                # Habilitar/Deshabilitar botón de confirmación
-                                deshabilitar_boton = (motivo_seleccionado == "Seleccione un motivo...") or (motivo_seleccionado == "Otro (Especificar)" and not motivo_final)
+                            # Habilitar/Deshabilitar botón de confirmación
+                            deshabilitar_boton = (motivo_seleccionado == "Seleccione un motivo...") or (motivo_seleccionado == "Otro (Especificar)" and not motivo_final)
 
-                                if st.button("Confirmar Registro de Atraso", type="primary", key="btn_guardar_atraso_botones", disabled=deshabilitar_boton):
-                                    if sheet_registros:
-                                        ahora = datetime.datetime.now()
+                            if st.button("Confirmar Registro de Atraso", type="primary", key="btn_guardar_atraso_botones", disabled=deshabilitar_boton):
+                                if sheet_registros:
+                                    ahora = obtener_ahora_chile()
 
-                                        # Asegurar encabezados si la hoja está vacía
-                                        if not sheet_registros.row_values(1):
-                                            sheet_registros.append_row(["Fecha", "Hora", "RUT", "Nombre", "Tipo", "Motivo", "Apoderado", "Vinculo", "Curso"])
+                                    # Asegurar encabezados si la hoja está vacía
+                                    if not sheet_registros.row_values(1):
+                                        sheet_registros.append_row(["Fecha", "Hora", "RUT", "Nombre", "Tipo", "Motivo", "Apoderado", "Vinculo", "Curso"])
 
-                                        curso_alumno_final = alumno.get('curso', '')
-                                        sheet_registros.append_row([
-                                            ahora.strftime("%Y-%m-%d"),
-                                            ahora.strftime("%H:%M:%S"),
-                                            alumno['rut'],
-                                            alumno['nombre'],
-                                            "Atraso",
-                                            motivo_final,
-                                            "",
-                                            "",
-                                            curso_alumno_final
-                                        ])
+                                    curso_alumno_final = alumno.get('curso', '')
+                                    sheet_registros.append_row([
+                                        ahora.strftime("%Y-%m-%d"),
+                                        ahora.strftime("%H:%M:%S"),
+                                        alumno['rut'],
+                                        alumno['nombre'],
+                                        "Atraso",
+                                        motivo_final,
+                                        "",
+                                        "",
+                                        curso_alumno_final
+                                    ])
 
-                                        # Guardar datos del justificativo térmico de 8x8 cm
-                                        st.session_state.ultimo_voucher_atraso = {
-                                            'nombre': str(alumno['nombre']).strip().upper(),
-                                            'curso': str(curso_alumno_final).strip(),
-                                            'motivo': motivo_final,
-                                            'fecha': ahora.strftime("%d/%m/%Y"),
-                                            'hora': ahora.strftime("%H:%M")
-                                        }
-                                        st.session_state.atraso_guardado_exito = True
-                                        st.rerun()
-                                    else:
-                                        st.error("Error al guardar en Google Sheets.")
+                                    # Guardar datos del justificativo térmico de 8x8 cm
+                                    st.session_state.ultimo_voucher_atraso = {
+                                        'nombre': str(alumno['nombre']).strip().upper(),
+                                        'curso': str(curso_alumno_final).strip(),
+                                        'motivo': motivo_final,
+                                        'fecha': ahora.strftime("%d/%m/%Y"),
+                                        'hora': ahora.strftime("%H:%M")
+                                    }
+                                    st.session_state.alumno_seleccionado_atraso = None
+                                    st.session_state.ultimo_rut_scroll_atraso = None
+                                    if "txt_busqueda_atraso_botones" in st.session_state:
+                                        st.session_state["txt_busqueda_atraso_botones"] = ""
+                                    st.rerun()
+                                else:
+                                    st.error("Error al guardar en la base de datos.")
                 else:
                     st.warning("La base de datos de alumnos está vacía.")
             except Exception as e:
@@ -2113,7 +2136,7 @@ elif st.session_state.current_module == 'atraso':
             st.error("Error al conectar con la base de datos.")
 
         st.write("")
-        if not st.session_state.get('atraso_guardado_exito', False):
+        if True:
             if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_atraso_botones"):
                 st.session_state.alumno_seleccionado_atraso = None
                 st.session_state.ultimo_rut_scroll_atraso = None
