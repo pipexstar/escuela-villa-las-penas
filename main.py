@@ -833,21 +833,21 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
             with f_col1:
                 opciones_periodo = [
-                    "Hoy (Día Actual)",
                     "Mes Actual",
+                    "Hoy (Día Actual)",
                     "Primer Semestre (Inicio de Clases)",
                     "Segundo Semestre",
                     "Año Escolar Completo",
                     "Rango Personalizado"
                 ]
-                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_atraso_periodo_sel")
+                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_atraso_periodo_sel_v2")
                 hoy_dt = obtener_ahora_chile().date()
 
-                if filtro_periodo == "Hoy (Día Actual)":
-                    f_desde = hoy_dt
-                    f_hasta = hoy_dt
-                elif filtro_periodo == "Mes Actual":
+                if filtro_periodo == "Mes Actual":
                     f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Hoy (Día Actual)":
+                    f_desde = hoy_dt
                     f_hasta = hoy_dt
                 elif filtro_periodo == "Primer Semestre (Inicio de Clases)":
                     f_desde = conf["s1_ini"]
@@ -1292,21 +1292,21 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
             with f_col1:
                 opciones_periodo = [
-                    "Hoy (Día Actual)",
                     "Mes Actual",
+                    "Hoy (Día Actual)",
                     "Primer Semestre (Inicio de Clases)",
                     "Segundo Semestre",
                     "Año Escolar Completo",
                     "Rango Personalizado"
                 ]
-                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_retiro_periodo_sel")
+                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_retiro_periodo_sel_v2")
                 hoy_dt = obtener_ahora_chile().date()
 
-                if filtro_periodo == "Hoy (Día Actual)":
-                    f_desde = hoy_dt
-                    f_hasta = hoy_dt
-                elif filtro_periodo == "Mes Actual":
+                if filtro_periodo == "Mes Actual":
                     f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
+                    f_hasta = hoy_dt
+                elif filtro_periodo == "Hoy (Día Actual)":
+                    f_desde = hoy_dt
                     f_hasta = hoy_dt
                 elif filtro_periodo == "Primer Semestre (Inicio de Clases)":
                     f_desde = conf["s1_ini"]
