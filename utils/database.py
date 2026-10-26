@@ -113,7 +113,15 @@ class SupabaseSheet:
             return []
 
     def clear(self):
-        """Elimina todos los registros de la tabla."""
+        """Elimina todos los registros de la tabla (con blindaje de seguridad en tablas críticas)."""
+        # BLINDAJE DE SEGURIDAD ESTRICTO:
+        # Prevenir vaciado ciego en tablas sensibles de la escuela (notas, asistencia, alumnos, etc.)
+        # para que un error en el flujo jamás borre registros masivamente.
+        tablas_protegidas = ['notas', 'asistencia', 'registros', 'alumnos', 'funcionarios']
+        if self._table in tablas_protegidas:
+            print(f"[SupabaseSheet] BLINDAJE DE SEGURIDAD: clear() masivo bloqueado en tabla crítica '{self._table}'. Los cambios se realizan de forma atómica y quirúrgica.")
+            return
+
         try:
             self._client.table(self._table).delete().gte('id', 0).execute()
         except Exception as e:
