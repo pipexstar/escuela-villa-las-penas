@@ -7,9 +7,26 @@ import io
 import time
 import re
 from utils.database import get_sheets, get_asistencia_sheet, get_config_sheet, get_preacta_sheet, get_desarrollo_personal_sheet, get_cursos_sheet
+from decimal import Decimal, ROUND_HALF_UP
 
 # Configuración inicial (Debe ser el primer comando de Streamlit)
 st.set_page_config(page_title="Dashboard Escolar", page_icon="🏫", layout="wide")
+
+def redondear_nota(valor, decimales=1):
+    """
+    Redondeo estándar educacional (ROUND_HALF_UP / Decreto 67 de Evaluación Escolar).
+    Aproxima 0.05 o superior a la décima superior (ej: 6.25 -> 6.3, 4.45 -> 4.5).
+    Reemplaza el 'banker's rounding' nativo de Python que truncaba 6.25 a 6.2.
+    """
+    if valor is None:
+        return 0.0
+    try:
+        val_float = float(valor)
+        d = Decimal(f"{val_float:.6f}")
+        factor = Decimal('10') ** -decimales
+        return float(d.quantize(factor, rounding=ROUND_HALF_UP))
+    except Exception:
+        return float(valor)
 
 def apply_clean_theme():
     """
@@ -3437,7 +3454,7 @@ elif st.session_state.current_module == 'notas':
         if 10.0 <= num <= 70.0:
             num = num / 10.0
 
-        num = round(num, 1)
+        num = redondear_nota(num, 1)
 
         # Rango estricto de notas en Chile: 1.0 a 7.0
         if 1.0 <= num <= 7.0:
@@ -3847,11 +3864,13 @@ elif st.session_state.current_module == 'notas':
                             unsafe_allow_html=True
                         )
                     elif notas_vals:
-                        prom = round(sum(notas_vals) / len(notas_vals), 1)
-                        prom_str = f"{prom:.1f}".replace('.', ',')
+                        prom_raw = sum(notas_vals) / len(notas_vals)
+                        prom = redondear_nota(prom_raw, 1)
+                        from decimal import Decimal as _D
+                        prom_str = str(_D(f"{prom:.6f}").quantize(_D('0.1'), rounding='ROUND_HALF_UP')).replace('.', ',')
                         color_prom = "#008F39" if prom >= 4.0 else "#cc0000"
                         fila_cols[-1].markdown(
-                            f"<div style='text-align:center;font-weight:700;color:{color_prom};font-size:0.9rem'>{prom_str}</div>",
+                            f"<div style='text-align:center;font-weight:700;color:{color_prom};font-size:0.75rem'>{prom_str}<br><span style='font-size:0.6rem;color:#888'>{prom_raw:.4f}</span></div>",
                             unsafe_allow_html=True
                         )
                     else:
@@ -3987,7 +4006,7 @@ elif st.session_state.current_module == 'notas':
                                 if es_asig_conceptual:
                                     prom_calc = conceptos_f[-1] if conceptos_f else ""
                                 elif vals_notas:
-                                    prom_num = round(sum(vals_notas) / len(vals_notas), 1)
+                                    prom_num = redondear_nota(sum(vals_notas) / len(vals_notas), 1)
                                     prom_calc = f"{prom_num:.1f}".replace('.', ',')
                                 else:
                                     prom_calc = ""
@@ -5639,7 +5658,7 @@ elif st.session_state.current_module == 'preacta':
                     try:
                         num = float(str(val_raw).replace(',', '.'))
                         if num > 10.0:
-                            num = round(num / 10.0, 1)
+                            num = redondear_nota(num / 10.0, 1)
                         return num
                     except:
                         return None
@@ -5696,7 +5715,7 @@ elif st.session_state.current_module == 'preacta':
                                 else:
                                     num1 = parsear_prom_num(p1_raw)
                                     if num1 is not None:
-                                        p1_val = f"{num1:.1f}"
+                                        p1_val = f"{redondear_nota(num1):.1f}"
 
                             m_s2 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('2')]
                             if not m_s2.empty:
@@ -5706,7 +5725,7 @@ elif st.session_state.current_module == 'preacta':
                                 else:
                                     num2 = parsear_prom_num(p2_raw)
                                     if num2 is not None:
-                                        p2_val = f"{num2:.1f}"
+                                        p2_val = f"{redondear_nota(num2):.1f}"
 
                         nf_final = ""
                         if es_conceptual:
@@ -5716,17 +5735,17 @@ elif st.session_state.current_module == 'preacta':
                                 f1 = float(p1_val) if p1_val else None
                                 f2 = float(p2_val) if p2_val else None
                                 if f1 is not None and f2 is not None:
-                                    prom_a = round((f1 + f2) / 2.0, 1)
+                                    prom_a = redondear_nota((f1 + f2) / 2.0, 1)
                                     nf_final = f"{prom_a:.1f}".replace('.', ',')
                                     promedios_computables.append(prom_a)
                                     sumas_asig[asig_corta].append(prom_a)
                                 elif f1 is not None:
-                                    prom_a = round(f1, 1)
+                                    prom_a = redondear_nota(f1, 1)
                                     nf_final = f"{prom_a:.1f}".replace('.', ',')
                                     promedios_computables.append(prom_a)
                                     sumas_asig[asig_corta].append(prom_a)
                                 elif f2 is not None:
-                                    prom_a = round(f2, 1)
+                                    prom_a = redondear_nota(f2, 1)
                                     nf_final = f"{prom_a:.1f}".replace('.', ',')
                                     promedios_computables.append(prom_a)
                                     sumas_asig[asig_corta].append(prom_a)
@@ -5737,7 +5756,7 @@ elif st.session_state.current_module == 'preacta':
 
                     # Promedio General Anual
                     if promedios_computables:
-                        prom_gral_num = round(sum(promedios_computables) / len(promedios_computables), 1)
+                        prom_gral_num = redondear_nota(sum(promedios_computables) / len(promedios_computables), 1)
                         prom_gral_str = f"{prom_gral_num:.1f}".replace('.', ',')
                     else:
                         prom_gral_num = 0.0
@@ -5806,7 +5825,7 @@ elif st.session_state.current_module == 'preacta':
                 total_promovidos = sum(1 for f in alumnos_activos if f['situacion'] == "Promovido(a)")
                 total_reprobados = total_activos - total_promovidos
                 proms_validos = [f['prom_gral_num'] for f in alumnos_activos if f['prom_gral_num'] > 0]
-                prom_curso_gral = round(sum(proms_validos) / len(proms_validos), 1) if proms_validos else 0.0
+                prom_curso_gral = redondear_nota(sum(proms_validos) / len(proms_validos), 1) if proms_validos else 0.0
                 prom_curso_str = f"{prom_curso_gral:.1f}".replace('.', ',') if prom_curso_gral > 0 else "—"
                 pct_promovidos = round(total_promovidos / total_activos * 100, 1) if total_activos else 100
                 fecha_emision_str = datetime.date.today().strftime('%d/%m/%Y')
@@ -5873,7 +5892,7 @@ elif st.session_state.current_module == 'preacta':
                 celdas_prom_pie = ""
                 for _, asig_corta, _ in asigs_catalogo:
                     arr = sumas_asig[asig_corta]
-                    prom_c = f"{(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
+                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
                     celdas_prom_pie += f"<th style='text-align:center;font-weight:800;color:#1e293b;padding:5px 3px;border:1px solid #cbd5e1;'>{prom_c}</th>"
 
                 headers_asig_th = "".join([f"<th style='padding:6px 3px;text-align:center;border:1px solid #cbd5e1;font-size:0.75rem;' title='{asig_full}'>{abrev}</th>" for asig_full, _, abrev in asigs_catalogo])
@@ -5959,7 +5978,7 @@ elif st.session_state.current_module == 'preacta':
                 celdas_prom_pie_print = ""
                 for _, asig_corta, _ in asigs_catalogo:
                     arr = sumas_asig[asig_corta]
-                    prom_c = f"{(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
+                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
                     celdas_prom_pie_print += f"<td style='text-align:center;font-weight:bold;padding:3px;'>{prom_c}</td>"
 
                 headers_asig_print = "".join([f"<th style='padding:3px;font-size:7.5pt;'>{abrev}</th>" for _, _, abrev in asigs_catalogo])
@@ -6388,7 +6407,7 @@ elif st.session_state.current_module == 'informes':
                     if val_raw is None or str(val_raw).strip() in ['', 'None', 'nan']: return None
                     try:
                         num = float(str(val_raw).replace(',', '.'))
-                        if num > 10.0: num = round(num / 10.0, 1)
+                        if num > 10.0: num = float(redondear_nota(num / 10.0))
                         return num
                     except: return None
 
@@ -6414,8 +6433,8 @@ elif st.session_state.current_module == 'informes':
                             else:
                                 num_p1 = parsear_prom_inf(p1_raw)
                                 if num_p1 is not None:
-                                    p1_val = f"{num_p1:.1f}".replace('.', ',')
-                                    promedios_s1.append(num_p1)
+                                    p1_val = f"{redondear_nota(num_p1):.1f}".replace('.', ',')
+                                    promedios_s1.append(float(redondear_nota(num_p1)))
 
                     # Semestre 2 (Hasta 10 notas disponibles en el sistema)
                     n_s2 = [""] * 10
@@ -6436,8 +6455,8 @@ elif st.session_state.current_module == 'informes':
                             else:
                                 num_p2 = parsear_prom_inf(p2_raw)
                                 if num_p2 is not None:
-                                    p2_val = f"{num_p2:.1f}".replace('.', ',')
-                                    promedios_s2.append(num_p2)
+                                    p2_val = f"{redondear_nota(num_p2):.1f}".replace('.', ',')
+                                    promedios_s2.append(float(redondear_nota(num_p2)))
 
                     # Nota Final Asignatura
                     nf_val = ""
@@ -6449,7 +6468,7 @@ elif st.session_state.current_module == 'informes':
                             p1_flt = float(p1_val.replace(',', '.')) if p1_val else None
                             p2_flt = float(p2_val.replace(',', '.')) if p2_val else None
                             if p1_flt and p2_flt:
-                                nf_calc = round((p1_flt + p2_flt) / 2, 1)
+                                nf_calc = float(redondear_nota((p1_flt + p2_flt) / 2))
                                 nf_val = f"{nf_calc:.1f}".replace('.', ',')
                                 promedios_finales.append(nf_calc)
                             elif p1_flt:
@@ -6490,9 +6509,9 @@ elif st.session_state.current_module == 'informes':
                         filas_tabla_html += f"<tr><td class='asig-col'>{asig}</td>{c_s1}{c_p1}{c_s2}{c_p2}{c_nf}</tr>"
 
                 # Promedios Generales
-                prom_s1_gen = f"{sum(promedios_s1)/len(promedios_s1):.1f}".replace('.', ',') if promedios_s1 else ""
-                prom_s2_gen = f"{sum(promedios_s2)/len(promedios_s2):.1f}".replace('.', ',') if promedios_s2 else ""
-                prom_final_gen = f"{sum(promedios_finales)/len(promedios_finales):.1f}".replace('.', ',') if promedios_finales else ""
+                prom_s1_gen = f"{redondear_nota(sum(promedios_s1)/len(promedios_s1)):.1f}".replace('.', ',') if promedios_s1 else ""
+                prom_s2_gen = f"{redondear_nota(sum(promedios_s2)/len(promedios_s2)):.1f}".replace('.', ',') if promedios_s2 else ""
+                prom_final_gen = f"{redondear_nota(sum(promedios_finales)/len(promedios_finales)):.1f}".replace('.', ',') if promedios_finales else ""
 
                 cls_prom_s1 = "prom-cell-gen nota-roja-rep" if (promedios_s1 and (sum(promedios_s1)/len(promedios_s1)) < 4.0) else "prom-cell-gen"
                 cls_prom_s2 = "prom-cell-gen nota-roja-rep" if (promedios_s2 and (sum(promedios_s2)/len(promedios_s2)) < 4.0) else "prom-cell-gen"
