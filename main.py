@@ -4056,28 +4056,21 @@ elif st.session_state.current_module == 'notas':
                     inputs.forEach(input => {
                         const raw = (input.value || '').trim().replace(',', '.');
                         if (!raw) {
-                            input.style.color = '#1a1a1a';
-                            input.style.fontWeight = '700';
-                            input.style.borderColor = '';
-                            input.style.backgroundColor = '';
+                            input.style.setProperty('color', '#1a1a1a', 'important');
+                            input.style.setProperty('font-weight', '700', 'important');
                             return;
                         }
                         const num = parseFloat(raw);
                         const esRoja = (!isNaN(num) && num < 4.0 && num >= 1.0) || (raw.toUpperCase() === 'I');
                         if (esRoja) {
-                            input.style.setProperty('color', '#dc2626', 'important');
-                            input.style.setProperty('font-weight', '800', 'important');
-                            input.style.setProperty('border-color', '#fca5a5', 'important');
-                            input.style.setProperty('background-color', '#fef2f2', 'important');
+                            input.style.setProperty('color', '#cc0000', 'important');
+                            input.style.setProperty('font-weight', '700', 'important');
                         } else if (!isNaN(num) && num >= 4.0) {
                             input.style.setProperty('color', '#111827', 'important');
                             input.style.setProperty('font-weight', '700', 'important');
-                            input.style.setProperty('border-color', '', '');
-                            input.style.setProperty('background-color', '', '');
                         } else {
                             input.style.setProperty('color', '#1a1a1a', 'important');
-                            input.style.setProperty('border-color', '', '');
-                            input.style.setProperty('background-color', '', '');
+                            input.style.setProperty('font-weight', '700', 'important');
                         }
                     });
                 }
