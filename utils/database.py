@@ -156,7 +156,14 @@ class SupabaseSheet:
                 if val is None or str(val).strip() in ('', 'nan', 'None', 'NaT', 'NULL'):
                     record[db_col] = None
                 else:
-                    record[db_col] = val
+                    if self._table == 'notas' and db_col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'promedio']:
+                        val_str = str(val).strip().replace(',', '.')
+                        try:
+                            record[db_col] = float(val_str)
+                        except ValueError:
+                            record[db_col] = str(val).strip()
+                    else:
+                        record[db_col] = val
                     skip = False
             if not skip:
                 records.append(record)
@@ -166,7 +173,17 @@ class SupabaseSheet:
                 # Insertar en lotes de 500 para evitar límites de payload
                 BATCH = 500
                 for i in range(0, len(records), BATCH):
-                    self._client.table(self._table).insert(records[i:i+BATCH]).execute()
+                    batch_data = records[i:i+BATCH]
+                    if self._table == 'notas':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='rut,asignatura,semestre').execute()
+                    elif self._table == 'asistencia':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='fecha,curso,tipo').execute()
+                    elif self._table == 'alumnos':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='rut').execute()
+                    elif self._table == 'funcionarios':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='rut').execute()
+                    else:
+                        self._client.table(self._table).insert(batch_data).execute()
             except Exception as e:
                 print(f"[SupabaseSheet] update '{self._table}': {e}")
 
