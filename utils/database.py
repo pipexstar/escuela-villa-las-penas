@@ -112,7 +112,14 @@ class SupabaseSheet:
                 if val is None or str(val).strip() in ('', 'nan', 'None', 'NaT', 'NULL'):
                     record[db_col] = None
                 else:
-                    record[db_col] = val
+                    if self._table == 'notas' and db_col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'promedio']:
+                        val_str = str(val).strip().replace(',', '.')
+                        try:
+                            record[db_col] = float(val_str)
+                        except ValueError:
+                            record[db_col] = str(val).strip()
+                    else:
+                        record[db_col] = val
 
             try:
                 if self._table == 'notas':
@@ -127,6 +134,7 @@ class SupabaseSheet:
                     self._client.table(self._table).insert(record).execute()
             except Exception as e:
                 print(f"[SupabaseSheet] update single-row '{self._table}': {e}")
+                raise e
             return
 
         if len(values) < 2:
@@ -174,7 +182,14 @@ class SupabaseSheet:
                 if val is None or str(val).strip() in ('', 'nan', 'None', 'NaT', 'NULL'):
                     record[db_col] = None
                 else:
-                    record[db_col] = val
+                    if self._table == 'notas' and db_col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'promedio']:
+                        val_str = str(val).strip().replace(',', '.')
+                        try:
+                            record[db_col] = float(val_str)
+                        except ValueError:
+                            record[db_col] = str(val).strip()
+                    else:
+                        record[db_col] = val
 
             if self._table == 'notas':
                 self._client.table(self._table).upsert(record, on_conflict='rut,asignatura,semestre').execute()
