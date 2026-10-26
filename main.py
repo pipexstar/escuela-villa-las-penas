@@ -494,14 +494,44 @@ else:
     if param_mod and param_mod != st.session_state.current_module:
         st.session_state.current_module = param_mod
 
-if 'user' not in st.session_state:
-    st.session_state.user = None
+# ── Persistencia de Sesión de Usuario (Token en URL) ────────────────────────
+def _generar_token_sesion(u_dict):
+    try:
+        raw = f"{u_dict['rut']}###{u_dict['nombre']}###{u_dict['rol']}###{u_dict['pin']}###{u_dict.get('estado','Activo')}"
+        return base64.urlsafe_b64encode(raw.encode('utf-8')).decode('utf-8')
+    except Exception:
+        return ""
+
+def _decodificar_token_sesion(token_str):
+    try:
+        raw = base64.urlsafe_b64decode(token_str.encode('utf-8')).decode('utf-8')
+        partes = raw.split("###")
+        if len(partes) >= 4:
+            return {
+                "rut": partes[0],
+                "nombre": partes[1],
+                "rol": partes[2],
+                "pin": partes[3],
+                "estado": partes[4] if len(partes) > 4 else "Activo"
+            }
+    except Exception:
+        pass
+    return None
+
+if 'user' not in st.session_state or st.session_state.user is None:
+    tok = st.query_params.get("u", "")
+    if tok:
+        u_recup = _decodificar_token_sesion(tok)
+        if u_recup:
+            st.session_state.user = u_recup
 
 def navigate(module_name):
-    """Navega a un módulo y actualiza la URL del navegador."""
+    """Navega a un módulo y actualiza la URL del navegador manteniendo la sesión."""
     st.session_state.current_module = module_name
     try:
         st.query_params["m"] = module_name
+        if st.session_state.get('user'):
+            st.query_params["u"] = _generar_token_sesion(st.session_state.user)
     except Exception:
         pass
 
@@ -646,6 +676,10 @@ if st.session_state.user is None:
                                                     "pin": str(row['PIN']).strip(),
                                                     "estado": str(row.get('Estado', 'Activo')).strip()
                                                 }
+                                                try:
+                                                    st.query_params["u"] = _generar_token_sesion(st.session_state.user)
+                                                except Exception:
+                                                    pass
                                                 st.success(f"¡Bienvenido/a {row['Nombre']}!")
                                                 st.rerun()
                                         else:
