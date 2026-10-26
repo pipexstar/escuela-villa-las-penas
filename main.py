@@ -4044,41 +4044,61 @@ elif st.session_state.current_module == 'notas':
                 else:
                     st.warning("⚠️ Se detectaron notas fuera del rango permitido (1,0 a 7,0) o con formato no reconocido. Corrígelas para poder guardar.")
 
-            # Script para pintar de rojo en tiempo real las notas < 4,0 e 'I'
-            st.markdown("""
+            # Inyección de script JS en tiempo real para pintar de rojo las notas < 4,0 e 'I'
+            import streamlit.components.v1 as _components
+            _components.html("""
             <script>
             (function() {
-                function colorearNotas() {
-                    const inputs = document.querySelectorAll('div[data-testid="stTextInput"] input');
+                function aplicarColoresNotas() {
+                    const doc = window.parent.document;
+                    if (!doc) return;
+                    const inputs = doc.querySelectorAll('div[data-testid="stTextInput"] input');
                     inputs.forEach(input => {
                         const raw = (input.value || '').trim().replace(',', '.');
                         if (!raw) {
                             input.style.color = '#1a1a1a';
                             input.style.fontWeight = '700';
+                            input.style.borderColor = '';
+                            input.style.backgroundColor = '';
                             return;
                         }
                         const num = parseFloat(raw);
-                        if (!isNaN(num) && num < 4.0) {
-                            input.style.color = '#dc2626'; // Rojo
-                            input.style.fontWeight = '800';
-                        } else if (raw.toUpperCase() === 'I') {
-                            input.style.color = '#dc2626'; // Rojo para concepto Insuficiente
-                            input.style.fontWeight = '800';
+                        const esRoja = (!isNaN(num) && num < 4.0 && num >= 1.0) || (raw.toUpperCase() === 'I');
+                        if (esRoja) {
+                            input.style.setProperty('color', '#dc2626', 'important');
+                            input.style.setProperty('font-weight', '800', 'important');
+                            input.style.setProperty('border-color', '#fca5a5', 'important');
+                            input.style.setProperty('background-color', '#fef2f2', 'important');
                         } else if (!isNaN(num) && num >= 4.0) {
-                            input.style.color = '#111827';
-                            input.style.fontWeight = '700';
+                            input.style.setProperty('color', '#111827', 'important');
+                            input.style.setProperty('font-weight', '700', 'important');
+                            input.style.setProperty('border-color', '', '');
+                            input.style.setProperty('background-color', '', '');
                         } else {
-                            input.style.color = '#1a1a1a';
+                            input.style.setProperty('color', '#1a1a1a', 'important');
+                            input.style.setProperty('border-color', '', '');
+                            input.style.setProperty('background-color', '', '');
                         }
                     });
                 }
-                colorearNotas();
-                // Observar cambios o re-ejecución
-                setTimeout(colorearNotas, 150);
-                setTimeout(colorearNotas, 500);
+
+                aplicarColoresNotas();
+                setTimeout(aplicarColoresNotas, 100);
+                setTimeout(aplicarColoresNotas, 300);
+                setTimeout(aplicarColoresNotas, 700);
+
+                // Escuchar eventos de entrada en tiempo real
+                try {
+                    const doc = window.parent.document;
+                    doc.addEventListener('input', function(e) {
+                        if (e.target && e.target.tagName === 'INPUT') {
+                            setTimeout(aplicarColoresNotas, 50);
+                        }
+                    });
+                } catch(e) {}
             })();
             </script>
-            """, unsafe_allow_html=True)
+            """, height=0, width=0)
 
             st.write("")
             st.markdown("<hr style='margin:4px 0 12px 0'>", unsafe_allow_html=True)
