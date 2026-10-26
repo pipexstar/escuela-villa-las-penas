@@ -518,12 +518,14 @@ def _decodificar_token_sesion(token_str):
         pass
     return None
 
-if 'user' not in st.session_state or st.session_state.user is None:
-    tok = st.query_params.get("u", "")
-    if tok:
-        u_recup = _decodificar_token_sesion(tok)
-        if u_recup:
-            st.session_state.user = u_recup
+if 'user' not in st.session_state:
+    st.session_state.user = None
+
+tok = st.query_params.get("u", "")
+if tok and (st.session_state.user is None):
+    u_recup = _decodificar_token_sesion(tok)
+    if u_recup:
+        st.session_state.user = u_recup
 
 def navigate(module_name):
     """Navega a un módulo y actualiza la URL del navegador manteniendo la sesión."""
