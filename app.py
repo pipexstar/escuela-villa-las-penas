@@ -7,6 +7,13 @@ import datetime
 # --- Configuración de la Página ---
 st.set_page_config(page_title="Escuela Villa Las Peñas", page_icon="🏫", layout="wide")
 
+def obtener_ahora_chile():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo("America/Santiago"))
+    except Exception:
+        return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3)))
+
 # --- CSS Personalizado ---
 def local_css():
     st.markdown("""
@@ -116,14 +123,13 @@ if modulo == "Registro de Movimientos":
                         except Exception as e:
                             pass # Si no hay datos aún, no advertir
                     
-                    # Guardar registro
                     if sheet_registros:
                         try:
                             # Asegurar que existan los encabezados
                             if not sheet_registros.row_values(1):
                                 sheet_registros.append_row(["Fecha", "Hora", "RUT", "Tipo", "Motivo"])
                             
-                            now = datetime.datetime.now()
+                            now = obtener_ahora_chile()
                             fecha = now.strftime("%Y-%m-%d")
                             hora = now.strftime("%H:%M:%S")
                             sheet_registros.append_row([fecha, hora, rut, tipo, motivo])

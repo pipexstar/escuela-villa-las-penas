@@ -278,13 +278,24 @@ apply_clean_theme()
 # GESTIÓN OFICIAL DE FECHA Y HORA CHILE
 # ==========================================
 def obtener_ahora_chile() -> datetime.datetime:
-    """Devuelve la fecha y hora oficial de Chile (America/Santiago o UTC-3)."""
+    """Devuelve la fecha y hora oficial de Chile (America/Santiago con soporte horario verano/invierno)."""
     try:
         from zoneinfo import ZoneInfo
         return datetime.datetime.now(ZoneInfo("America/Santiago"))
     except Exception:
-        # Fallback para Windows o entornos locales sin tzdata: Horario Chile UTC-3
-        return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3)))
+        # Fallback inteligente si zoneinfo o tzdata no están disponibles
+        utc_now = datetime.datetime.now(datetime.timezone.utc)
+        m = utc_now.month
+        # Regla general Chile continental: UTC-4 en invierno (mayo a agosto inclusive), UTC-3 en verano
+        if 5 <= m <= 8:
+            offset_hours = -4
+        elif m == 4:
+            offset_hours = -4 if utc_now.day >= 7 else -3
+        elif m == 9:
+            offset_hours = -3 if utc_now.day >= 7 else -4
+        else:
+            offset_hours = -3
+        return utc_now.astimezone(datetime.timezone(datetime.timedelta(hours=offset_hours)))
 
 # Keep-alive heartbeat silencioso en cliente para evitar suspensión de pestañas
 try:
@@ -489,9 +500,11 @@ if 'app_version' not in st.session_state or st.session_state.app_version != APP_
 param_mod = st.query_params.get("m", "home")
 if 'current_module' not in st.session_state:
     st.session_state.current_module = param_mod if param_mod else 'home'
+    st.session_state['_previous_module'] = None
 else:
     # Si la URL tiene un módulo distinto (por ejemplo botón Atrás/Adelante del navegador)
     if param_mod and param_mod != st.session_state.current_module:
+        st.session_state['_previous_module'] = st.session_state.current_module
         st.session_state.current_module = param_mod
 
 # ── Persistencia de Sesión de Usuario (Token en URL) ────────────────────────
@@ -529,6 +542,15 @@ if tok and (st.session_state.user is None):
 
 def navigate(module_name):
     """Navega a un módulo y actualiza la URL del navegador manteniendo la sesión."""
+    _NOTAS_KEYS = [
+        'notas_curso_sel', 'notas_asig_sel', 'notas_sem_seg',
+        'notas_grilla_cargada', 'notas_curso_activo', 'notas_asig_activa', 'notas_sem_activo'
+    ]
+    # Si se sale del módulo de notas, limpiar toda la grilla
+    if module_name != 'notas':
+        for _k in _NOTAS_KEYS:
+            st.session_state.pop(_k, None)
+    st.session_state['_previous_module'] = st.session_state.get('current_module')
     st.session_state.current_module = module_name
     try:
         st.query_params["m"] = module_name
@@ -2263,34 +2285,14 @@ elif st.session_state.current_module == 'retiro':
                     col_curso = next((c for c in df_alumnos.columns if 'curs' in c.lower()), 'CURSO')
                     col_rut = next((c for c in df_alumnos.columns if 'rut' in c.lower()), 'RUT')
 
-                    if "retiro_guardado_exito" not in st.session_state:
-                        st.session_state.retiro_guardado_exito = False
                     if "ultimo_rut_scroll_retiro" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_retiro = None
 
-                    # 1. PANTALLA DE ÉXITO ESTÁTICA
-                    if st.session_state.retiro_guardado_exito:
-                        st.success("✅ Retiro registrado exitosamente en el sistema.")
-                        if st.session_state.get('ultimo_ticket_retiro'):
-                            with st.expander("📄 Ver Comprobante de Retiro (Ticket)", expanded=True):
-                                st.code(st.session_state.ultimo_ticket_retiro, language="text")
-                                st.download_button(
-                                    label="📥 Descargar Comprobante (.txt)",
-                                    data=st.session_state.ultimo_ticket_retiro,
-                                    file_name=f"comprobante_retiro_{st.session_state.get('ultimo_rut_retiro', 'alumno')}.txt",
-                                    mime="text/plain",
-                                    key="btn_download_ticket_retiro"
-                                )
-                        if st.button("« Finalizar y Realizar Otro Registro", type="primary", key="btn_finalizar_retiro_ok"):
-                            st.session_state.retiro_guardado_exito = False
-                            st.session_state.alumno_seleccionado_retiro = None
-                            st.session_state.ultimo_rut_scroll_retiro = None
-                            st.session_state.ultimo_ticket_retiro = None
-                            st.session_state.pop("txt_nombre_apoderado", None)
-                            if "txt_busqueda_retiro_botones" in st.session_state:
-                                st.session_state["txt_busqueda_retiro_botones"] = ""
-                            st.rerun()
-                    else:
+                    # Notificación de éxito si se acaba de registrar un retiro
+                    if st.session_state.get('mensaje_exito_retiro'):
+                        st.success(st.session_state.pop('mensaje_exito_retiro'))
+
+                    if True:
                         # Flujo normal de búsqueda
                         busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno a retirar:", placeholder="Escriba para buscar...", key="txt_busqueda_retiro_botones").strip()
 
@@ -2461,7 +2463,7 @@ elif st.session_state.current_module == 'retiro':
 
                                 if st.button("Confirmar Registro de Retiro", type="primary", key="btn_guardar_retiro_definitivo", disabled=campos_incompletos):
                                     if sheet_registros:
-                                        ahora = datetime.datetime.now()
+                                        ahora = obtener_ahora_chile()
                                         fecha_str = ahora.strftime("%Y-%m-%d")
                                         hora_str = ahora.strftime("%H:%M:%S")
 
@@ -2480,30 +2482,12 @@ elif st.session_state.current_module == 'retiro':
                                             alumno.get('curso', '')
                                         ])
 
-                                        ticket_texto = (
-                                            "========================================\n"
-                                            "        COMPROBANTE DE RETIRO           \n"
-                                            "========================================\n"
-                                            f"Fecha: {fecha_str}   Hora: {hora_str}\n"
-                                            "----------------------------------------\n"
-                                            f"ALUMNO: {limpiar_universal_ticketera(alumno['nombre'])}\n"
-                                            f"CURSO: {limpiar_universal_ticketera(alumno['curso'])}\n"
-                                            f"RUT: {limpiar_universal_ticketera(alumno['rut'])}\n"
-                                            "----------------------------------------\n"
-                                            f"MOTIVO: {limpiar_universal_ticketera(motivo_final)}\n"
-                                            f"RETIRA: {limpiar_universal_ticketera(nombre_apoderado)}\n"
-                                            f"PARENTESCO: {limpiar_universal_ticketera(parentesco_final)}\n"
-                                            "========================================\n\n"
-                                            "FIRMA APODERADO: _______________________\n\n"
-                                            "========================================\n"
-                                            "       Escuela Villa Las Penas          \n"
-                                            " 'Donde la educacion inspira el cambio' \n"
-                                            "========================================\n"
-                                        )
-
-                                        st.session_state.ultimo_ticket_retiro = ticket_texto
-                                        st.session_state.ultimo_rut_retiro = alumno['rut']
-                                        st.session_state.retiro_guardado_exito = True
+                                        st.session_state.mensaje_exito_retiro = f"✅ Retiro registrado exitosamente para **{alumno['nombre']}** ({alumno.get('curso', '')}) a las **{hora_str}** hrs."
+                                        st.session_state.alumno_seleccionado_retiro = None
+                                        st.session_state.ultimo_rut_scroll_retiro = None
+                                        st.session_state.pop("txt_nombre_apoderado", None)
+                                        if "txt_busqueda_retiro_botones" in st.session_state:
+                                            st.session_state["txt_busqueda_retiro_botones"] = ""
                                         st.rerun()
                                     else:
                                         st.error("Error al conectar con la base de datos de registros.")
@@ -2515,13 +2499,12 @@ elif st.session_state.current_module == 'retiro':
             st.error("Error de conexión con la base de datos.")
 
         st.write("")
-        if not st.session_state.get('retiro_guardado_exito', False):
-            if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_retiro_botones"):
-                st.session_state.alumno_seleccionado_retiro = None
-                st.session_state.ultimo_rut_scroll_retiro = None
-                st.session_state.pop("txt_nombre_apoderado", None)
-                navigate('home')
-                st.rerun()
+        if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_retiro_botones"):
+            st.session_state.alumno_seleccionado_retiro = None
+            st.session_state.ultimo_rut_scroll_retiro = None
+            st.session_state.pop("txt_nombre_apoderado", None)
+            navigate('home')
+            st.rerun()
 
 
     with tab_rep_retiro:
@@ -3565,14 +3548,31 @@ elif st.session_state.current_module == 'cursos':
 elif st.session_state.current_module == 'notas':
     renderizar_insignia_universal()
 
+    # DEBUG TEMPORAL — borrar después de verificar
+    st.info(f"DEBUG → _previous_module=`{st.session_state.get('_previous_module')}` | notas_grilla_cargada=`{st.session_state.get('notas_grilla_cargada')}` | notas_curso_activo=`{st.session_state.get('notas_curso_activo')}`")
+
+    # Si venimos de otro módulo, limpiar toda la grilla y forzar rerun limpio.
+    # IMPORTANTE: borrar keys en el mismo run donde se renderizan los widgets NO funciona
+    # en Streamlit (los widgets ya leyeron su estado al inicio del run). Por eso hacemos
+    # st.rerun() para que el PRÓXIMO run renderice los widgets con estado limpio.
+    _prev = st.session_state.get('_previous_module')
+    if _prev != 'notas':
+        for _k in [
+            'notas_curso_sel', 'notas_asig_sel', 'notas_sem_seg',
+            'notas_grilla_cargada', 'notas_curso_activo', 'notas_asig_activa', 'notas_sem_activo'
+        ]:
+            st.session_state.pop(_k, None)
+        for _k in [k for k in list(st.session_state.keys()) if k.startswith('nota_')]:
+            st.session_state.pop(_k, None)
+        st.session_state['_previous_module'] = 'notas'
+        st.rerun()  # Rerun limpio: en el siguiente run _prev=='notas', widgets arrancan vacíos
+
     col_titulo, col_escape = st.columns([3.5, 1])
     with col_titulo:
         st.title("📝 Carga de Notas")
     with col_escape:
         st.write("")
         if st.button("🏠 Volver", key="btn_escape_sup_notas", use_container_width=True):
-            for k in [k for k in st.session_state if k.startswith("nota_")]:
-                del st.session_state[k]
             navigate('home')
             st.rerun()
     st.write("---")
@@ -4049,45 +4049,33 @@ elif st.session_state.current_module == 'notas':
             _components.html("""
             <script>
             (function() {
-                function aplicarColoresNotas() {
-                    const doc = window.parent.document;
-                    if (!doc) return;
-                    const inputs = doc.querySelectorAll('div[data-testid="stTextInput"] input');
-                    inputs.forEach(input => {
-                        const raw = (input.value || '').trim().replace(',', '.');
-                        if (!raw) {
-                            input.style.setProperty('color', '#1a1a1a', 'important');
-                            input.style.setProperty('font-weight', '700', 'important');
-                            return;
-                        }
-                        const num = parseFloat(raw);
-                        const esRoja = (!isNaN(num) && num < 4.0 && num >= 1.0) || (raw.toUpperCase() === 'I');
-                        if (esRoja) {
-                            input.style.setProperty('color', '#cc0000', 'important');
-                            input.style.setProperty('font-weight', '700', 'important');
-                        } else if (!isNaN(num) && num >= 4.0) {
-                            input.style.setProperty('color', '#111827', 'important');
-                            input.style.setProperty('font-weight', '700', 'important');
-                        } else {
-                            input.style.setProperty('color', '#1a1a1a', 'important');
-                            input.style.setProperty('font-weight', '700', 'important');
-                        }
-                    });
+                function pintar() {
+                    try {
+                        const doc = window.parent.document;
+                        if (!doc) return;
+                        const inputs = doc.querySelectorAll('div[data-testid="stTextInput"] input');
+                        inputs.forEach(inp => {
+                            const val = (inp.value || '').trim().replace(',', '.');
+                            if (!val) {
+                                inp.classList.remove('nota-roja');
+                                return;
+                            }
+                            const n = parseFloat(val);
+                            if ((!isNaN(n) && n < 4.0 && n >= 1.0) || val.toUpperCase() === 'I') {
+                                inp.classList.add('nota-roja');
+                            } else {
+                                inp.classList.remove('nota-roja');
+                            }
+                        });
+                    } catch(e) {}
                 }
 
-                aplicarColoresNotas();
-                setTimeout(aplicarColoresNotas, 100);
-                setTimeout(aplicarColoresNotas, 300);
-                setTimeout(aplicarColoresNotas, 700);
+                // Ejecutar inmediatamente y continuar indefinidamente
+                pintar();
+                setInterval(pintar, 500);
 
-                // Escuchar eventos de entrada en tiempo real
                 try {
-                    const doc = window.parent.document;
-                    doc.addEventListener('input', function(e) {
-                        if (e.target && e.target.tagName === 'INPUT') {
-                            setTimeout(aplicarColoresNotas, 50);
-                        }
-                    });
+                    window.parent.document.addEventListener('input', pintar);
                 } catch(e) {}
             })();
             </script>
@@ -7707,7 +7695,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 with c_btn_guardar:
                     if st.button("💾 Guardar Evaluación", type="primary", use_container_width=True, key="btn_save_dp"):
                         try:
-                            ahora_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            ahora_str = obtener_ahora_chile().strftime("%Y-%m-%d %H:%M:%S")
                             fila_datos = [
                                 str(anio_dp_sel),
                                 str(periodo_dp_sel),
