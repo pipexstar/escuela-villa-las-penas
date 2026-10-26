@@ -5222,6 +5222,10 @@ elif st.session_state.current_module == 'asistencia':
     )
     st.markdown("<hr style='margin-top:2px;margin-bottom:8px;'>", unsafe_allow_html=True)
 
+    if st.session_state.get('asist_guardada_ok', False):
+        st.success(st.session_state.get('asist_guardada_msg', "✅ ¡Asistencia guardada exitosamente!"))
+        st.session_state['asist_guardada_ok'] = False
+
     # ── Preparar nómina de alumnos con N° de lista ───────────────────────────
     alumnos_nomina = []
     if not df_alumnos_raw.empty:
@@ -5428,7 +5432,7 @@ elif st.session_state.current_module == 'asistencia':
                     st.warning(f"⚠️ {ev} — Usa: ok | todos | sc | borrar | 1-4-15")
 
             try:
-                with st.spinner("Guardando en Google Sheets..."):
+                with st.spinner("Guardando en la base de datos..."):
                     recs_all = sheet_asistencia.get_all_records()
                     df_all_a = pd.DataFrame(recs_all) if recs_all else pd.DataFrame()
                     mes_pre  = f"{year:04d}-{month:02d}"
@@ -5467,7 +5471,9 @@ elif st.session_state.current_module == 'asistencia':
                     else:
                         sheet_asistencia.append_row(["Fecha","Curso","Datos","Tipo"])
 
-                st.success(f"✅ Asistencia de **{MESES[month-1]} {year}** guardada. {len(nuevas_filas)} días registrados.")
+                st.session_state['asist_guardada_ok'] = True
+                st.session_state['asist_guardada_msg'] = f"✅ ¡Asistencia de **{curso_asist}** para **{MESES[month-1]} {year}** guardada y actualizada exitosamente! ({len(nuevas_filas)} días registrados)"
+                st.toast(f"✅ ¡Asistencia de {curso_asist} ({MESES[month-1]} {year}) guardada!", icon="📅")
                 st.session_state.asist_loaded_key = ""   # forzar recarga
                 st.rerun()
 
