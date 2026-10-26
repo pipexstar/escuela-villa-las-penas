@@ -322,6 +322,89 @@ try:
 except Exception:
     pass
 
+# =========================================================================
+# GESTIÓN CENTRALIZADA DE ROLES Y MATRIZ DE PERMISOS DE MÓDULOS
+# =========================================================================
+ROLES_TODOS = ["Director", "Jefe UTP", "Profesor", "Inspector", "Administrador Total", "Secretaria"]
+ROLES_CONFIGURABLES = ["Director", "Jefe UTP", "Profesor", "Inspector", "Secretaria"]
+
+MODULOS_SISTEMA = [
+    {"id": "atraso", "titulo": "Registro Atraso", "sub": "Ingreso y comprobantes"},
+    {"id": "retiro", "titulo": "Registro Retiro", "sub": "Salidas anticipadas"},
+    {"id": "asistencia", "titulo": "Asistencia", "sub": "Control diario escolar"},
+    {"id": "notas", "titulo": "Carga de Notas", "sub": "Registro y promedios"},
+    {"id": "desarrollo_personal", "titulo": "Desarrollo Personal", "sub": "Informe y observaciones"},
+    {"id": "asignaciones", "titulo": "Asignación Docente", "sub": "Asignaturas y docentes"},
+    {"id": "preacta", "titulo": "Preacta Anual", "sub": "Promoción Decreto 67"},
+    {"id": "informes", "titulo": "Informes y Certificados", "sub": "Notas y certificados"},
+    {"id": "alumnos", "titulo": "Alumnos", "sub": "Fichas y nómina escolar"},
+    {"id": "cursos", "titulo": "Cursos", "sub": "Catálogo y jefaturas"},
+    {"id": "funcionarios", "titulo": "Funcionarios", "sub": "Personal y accesos"},
+    {"id": "configuracion", "titulo": "Configuración", "sub": "Colegio, firmas y fechas"}
+]
+
+TODOS_MODULOS_IDS = [m["id"] for m in MODULOS_SISTEMA]
+
+DEFAULT_PERMISOS_ROLES = {
+    "Director": TODOS_MODULOS_IDS.copy(),
+    "Jefe UTP": TODOS_MODULOS_IDS.copy(),
+    "Profesor": ["notas", "asistencia", "informes", "desarrollo_personal"],
+    "Inspector": ["atraso", "retiro", "asistencia", "alumnos"],
+    "Secretaria": ["alumnos", "funcionarios", "retiro", "atraso", "informes"]
+}
+
+def normalizar_nombre_rol(rol_raw):
+    """Estandariza cualquier variante del rol a su denominación oficial."""
+    r = str(rol_raw or "").strip().lower()
+    if "admin" in r:
+        return "Administrador Total"
+    if "director" in r:
+        return "Director"
+    if "utp" in r:
+        return "Jefe UTP"
+    if "profesor" in r or "docente" in r:
+        return "Profesor"
+    if "inspector" in r:
+        return "Inspector"
+    if "secretari" in r:
+        return "Secretaria"
+    return str(rol_raw or "").strip().title()
+
+def obtener_matriz_permisos(sheet_config=None):
+    """Carga la matriz de permisos desde sheet_config o usa DEFAULT_PERMISOS_ROLES."""
+    import json
+    if sheet_config:
+        try:
+            records = sheet_config.get_all_records()
+            for r in records:
+                k = str(r.get("Clave", "")).strip()
+                if k == "matriz_permisos_roles":
+                    val = str(r.get("Valor", "")).strip()
+                    if val:
+                        matriz_guardada = json.loads(val)
+                        matriz_completa = {}
+                        for r_cfg in ROLES_CONFIGURABLES:
+                            if r_cfg in matriz_guardada:
+                                matriz_completa[r_cfg] = matriz_guardada[r_cfg]
+                            else:
+                                matriz_completa[r_cfg] = DEFAULT_PERMISOS_ROLES.get(r_cfg, []).copy()
+                        return matriz_completa
+        except Exception:
+            pass
+    return {k: v.copy() for k, v in DEFAULT_PERMISOS_ROLES.items()}
+
+def rol_tiene_permiso(rol_usuario, modulo_id, matriz_permisos=None):
+    """Evalúa si un rol tiene acceso a un módulo determinado."""
+    if not rol_usuario:
+        return False
+    rol_norm = normalizar_nombre_rol(rol_usuario)
+    if rol_norm == "Administrador Total":
+        return True
+    if matriz_permisos is None:
+        matriz_permisos = DEFAULT_PERMISOS_ROLES
+    permisos_rol = matriz_permisos.get(rol_norm, DEFAULT_PERMISOS_ROLES.get(rol_norm, []))
+    return modulo_id in permisos_rol
+
 # ==========================================
 # FUNCIÓN DE LIMPIEZA UNIVERSAL
 # ==========================================
@@ -1876,8 +1959,21 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 # # LÓGICA DE RENDERIZADO (USUARIO AUTENTICADO)
 # ---------------------------------------------------------
 
-rol_user_actual = str(st.session_state.user.get('rol', '')).strip().lower()
-es_admin_total  = 'admin' in rol_user_actual or 'director' in rol_user_actual or 'utp' in rol_user_actual
+sheet_config_global = get_config_sheet()
+matriz_permisos_global = obtener_matriz_permisos(sheet_config_global)
+rol_user_actual = str(st.session_state.user.get('rol', '')).strip()
+es_admin_total  = normalizar_nombre_rol(rol_user_actual) == "Administrador Total"
+
+# Seguridad de navegación directa por rol
+if st.session_state.current_module != 'home':
+    if not rol_tiene_permiso(rol_user_actual, st.session_state.current_module, matriz_permisos_global):
+        renderizar_insignia_universal()
+        st.error(f"🔒 Acceso restringido: El rol '{rol_user_actual}' no tiene permisos para acceder al módulo '{st.session_state.current_module}'.")
+        st.info("Comunícate con el Administrador del establecimiento para solicitar acceso a este módulo.")
+        if st.button("🏠 Volver al Menú Principal", use_container_width=True):
+            navigate('home')
+            st.rerun()
+        st.stop()
 
 if st.session_state.current_module == 'home':
     # Insignia Institucional Centrada
@@ -1924,46 +2020,61 @@ if st.session_state.current_module == 'home':
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>⏱️ Registro Atraso</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Ingreso y comprobantes</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_atraso", use_container_width=True):
-                navigate('atraso'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'atraso', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_atraso", use_container_width=True):
+                    navigate('atraso'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c2:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>🚪 Registro Retiro</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Salidas anticipadas</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_retiro", use_container_width=True):
-                navigate('retiro'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'retiro', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_retiro", use_container_width=True):
+                    navigate('retiro'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c3:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>📅 Asistencia</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Control diario escolar</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_asistencia", use_container_width=True):
-                navigate('asistencia'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'asistencia', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_asistencia", use_container_width=True):
+                    navigate('asistencia'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c4:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>📝 Carga de Notas</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Registro y promedios</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_notas", use_container_width=True):
-                navigate('notas'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'notas', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_notas", use_container_width=True):
+                    navigate('notas'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c5:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>🌱 Desarrollo Personal</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Informe y observaciones</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_desarrollo_personal", use_container_width=True):
-                navigate('desarrollo_personal'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'desarrollo_personal', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_desarrollo_personal", use_container_width=True):
+                    navigate('desarrollo_personal'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c6:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>📚 Asignación Docente</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Asignaturas y docentes</div>", unsafe_allow_html=True)
-            if es_admin_total:
+            if rol_tiene_permiso(rol_user_actual, 'asignaciones', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_asignaciones", use_container_width=True):
                     navigate('asignaciones'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>🔒 Solo Administrador</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     st.write("")
     st.markdown("<div style='font-size:0.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>⚙️ Cierre, Certificados y Administración</div>", unsafe_allow_html=True)
@@ -1973,52 +2084,61 @@ if st.session_state.current_module == 'home':
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>📊 Preacta Anual</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Promoción Decreto 67</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_preacta", use_container_width=True):
-                navigate('preacta'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'preacta', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_preacta", use_container_width=True):
+                    navigate('preacta'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c2:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>📑 Informes y Certificados</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Notas y certificados</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_informes_notas", use_container_width=True):
-                navigate('informes'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'informes', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_informes_notas", use_container_width=True):
+                    navigate('informes'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c3:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>👥 Alumnos</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Fichas y nómina escolar</div>", unsafe_allow_html=True)
-            if st.button("Abrir Módulo", key="btn_alumnos", use_container_width=True):
-                navigate('alumnos'); st.rerun()
+            if rol_tiene_permiso(rol_user_actual, 'alumnos', matriz_permisos_global):
+                if st.button("Abrir Módulo", key="btn_alumnos", use_container_width=True):
+                    navigate('alumnos'); st.rerun()
+            else:
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c4:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>🏫 Cursos</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Catálogo y jefaturas</div>", unsafe_allow_html=True)
-            if es_admin_total:
+            if rol_tiene_permiso(rol_user_actual, 'cursos', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_cursos", use_container_width=True):
                     navigate('cursos'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>🔒 Solo Administrador</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c5:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>👔 Funcionarios</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Personal y accesos</div>", unsafe_allow_html=True)
-            if es_admin_total:
+            if rol_tiene_permiso(rol_user_actual, 'funcionarios', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_funcionarios", use_container_width=True):
                     navigate('funcionarios'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>🔒 Solo Administrador</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c6:
         with st.container(border=True):
             st.markdown("<div class='modulo-card-title'>⚙️ Configuración</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Colegio, firmas y fechas</div>", unsafe_allow_html=True)
-            if es_admin_total:
+            if rol_tiene_permiso(rol_user_actual, 'configuracion', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_configuracion", use_container_width=True):
                     navigate('configuracion'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>🔒 Solo Administrador</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
 
 elif st.session_state.current_module == 'atraso':
@@ -4288,7 +4408,7 @@ elif st.session_state.current_module == 'funcionarios':
                 with col_rol_filtro:
                     filtro_rol_sel = st.selectbox(
                         "Filtrar por Rol:",
-                        ["Todos los Roles", "Solo Profesores", "Solo Inspectores", "Equipo Directivo"],
+                        ["Todos los Roles", "Solo Profesores", "Solo Inspectores", "Solo Secretarias", "Equipo Directivo"],
                         key="sel_filtro_rol_func"
                     )
 
@@ -4299,6 +4419,8 @@ elif st.session_state.current_module == 'funcionarios':
                         df_filtrado_f = df_filtrado_f[df_filtrado_f[col_rol].astype(str).str.lower().str.contains('prof')]
                     elif filtro_rol_sel == "Solo Inspectores":
                         df_filtrado_f = df_filtrado_f[df_filtrado_f[col_rol].astype(str).str.lower().str.contains('inspect')]
+                    elif filtro_rol_sel == "Solo Secretarias":
+                        df_filtrado_f = df_filtrado_f[df_filtrado_f[col_rol].astype(str).str.lower().str.contains('secretar')]
                     elif filtro_rol_sel == "Equipo Directivo":
                         df_filtrado_f = df_filtrado_f[df_filtrado_f[col_rol].astype(str).str.lower().str.contains('direct|utp|admin')]
 
@@ -4355,7 +4477,7 @@ elif st.session_state.current_module == 'funcionarios':
 
                         c_fn3, c_fn4, c_fn5 = st.columns([1.5, 1.2, 1.3])
                         with c_fn3:
-                            in_n_rol_f = st.selectbox("Rol Institucional:", ["Profesor", "Director", "Jefe UTP", "Inspector", "Administrador Total"], key="in_new_rol_func")
+                            in_n_rol_f = st.selectbox("Rol Institucional:", ROLES_TODOS, key="in_new_rol_func")
                         with c_fn4:
                             in_n_pin_f = st.text_input("Clave PIN (4 dígitos):", value="1234", max_chars=4, key="in_new_pin_func").strip()
                         with c_fn5:
@@ -4491,7 +4613,7 @@ elif st.session_state.current_module == 'funcionarios':
                                         in_nom_f = st.text_input("Nombre Completo:", value=val_nom_f, key="ed_nom_func").strip()
 
                                     c3_f, c4_f, c5_f = st.columns([1.5, 1.2, 1.3])
-                                    roles_validos = ["Profesor", "Director", "Jefe UTP", "Inspector", "Administrador Total"]
+                                    roles_validos = ROLES_TODOS
                                     idx_rol = roles_validos.index(val_rol_f) if val_rol_f in roles_validos else 0
                                     with c3_f:
                                         in_rol_f = st.selectbox("Rol:", roles_validos, index=idx_rol, key="ed_rol_func")
@@ -5311,8 +5433,12 @@ elif st.session_state.current_module == 'asistencia':
                     df_all_a = pd.DataFrame(recs_all) if recs_all else pd.DataFrame()
                     mes_pre  = f"{year:04d}-{month:02d}"
 
+                    cols_asist = ["Fecha", "Curso", "Datos", "Tipo"]
+
                     if not df_all_a.empty:
                         df_all_a.columns = [str(c).strip() for c in df_all_a.columns]
+                        if '_id' in df_all_a.columns:
+                            df_all_a = df_all_a.drop(columns=['_id'])
                         col_f_s = next((c for c in df_all_a.columns if 'fecha' in c.lower()), 'Fecha')
                         col_c_s = next((c for c in df_all_a.columns if 'curs'  in c.lower()), 'Curso')
                         df_resto = df_all_a[
@@ -5322,10 +5448,14 @@ elif st.session_state.current_module == 'asistencia':
                             )
                         ].copy()
                     else:
-                        df_resto = pd.DataFrame(columns=["Fecha","Curso","Datos","Tipo"])
+                        df_resto = pd.DataFrame(columns=cols_asist)
 
-                    df_nuevas_a = pd.DataFrame(nuevas_filas) if nuevas_filas else pd.DataFrame(columns=["Fecha","Curso","Datos","Tipo"])
+                    df_nuevas_a = pd.DataFrame(nuevas_filas) if nuevas_filas else pd.DataFrame(columns=cols_asist)
+                    if '_id' in df_nuevas_a.columns:
+                        df_nuevas_a = df_nuevas_a.drop(columns=['_id'])
+
                     df_final_a  = pd.concat([df_resto, df_nuevas_a], ignore_index=True)
+                    df_final_a = df_final_a[[c for c in cols_asist if c in df_final_a.columns]]
 
                     if not df_final_a.empty and 'Fecha' in df_final_a.columns:
                         df_final_a = df_final_a.sort_values(by=['Fecha','Curso'])
@@ -5511,138 +5641,216 @@ elif st.session_state.current_module == 'configuracion':
             c_s2_fin = conf_dict.get("semestre_2_fin", "10-12-2026")
             c_firma_b64 = conf_dict.get("firma_director_b64", "")
 
-            st.markdown(
-                "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#334155;font-size:0.83rem;'>"
-                "ℹ️ Estos datos se utilizarán para la cabecera oficial, firma ministerial y cálculo de períodos en los <b>Informes de Notas</b> y documentos oficiales.</div>",
-                unsafe_allow_html=True
-            )
+            tab_datos_col, tab_permisos_cfg = st.tabs(["🏛️ Datos Institucionales y Calendario", "🛡️ Roles y Permisos de Módulos"])
 
-            col_izq_cfg, col_der_cfg = st.columns([3.2, 2.8], gap="large")
+            with tab_datos_col:
+                st.markdown(
+                    "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#334155;font-size:0.83rem;'>"
+                    "ℹ️ Estos datos se utilizarán para la cabecera oficial, firma ministerial y cálculo de períodos en los <b>Informes de Notas</b> y documentos oficiales.</div>",
+                    unsafe_allow_html=True
+                )
 
-            with col_izq_cfg:
-                st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>🏛️ Identificación Institucional</div>", unsafe_allow_html=True)
-                with st.container(border=True):
-                    in_cfg_col = st.text_input("Nombre del Establecimiento:", value=c_nom_col, key="cfg_in_col").strip()
-                    c_c0, c_c1, c_c2 = st.columns([1.2, 1.2, 1])
-                    with c_c0:
-                        in_cfg_reg = st.text_input("Región:", value=c_region, key="cfg_in_reg").strip()
-                    with c_c1:
-                        in_cfg_ciudad = st.text_input("Ciudad / Comuna:", value=c_ciudad, key="cfg_in_ciu").strip()
-                    with c_c2:
-                        in_cfg_rbd = st.text_input("RBD:", value=c_rbd, key="cfg_in_rbd").strip()
+                col_izq_cfg, col_der_cfg = st.columns([3.2, 2.8], gap="large")
 
-                    in_cfg_dir = st.text_input("Nombre Completo del Director(a):", value=c_director, key="cfg_in_dir").strip()
+                with col_izq_cfg:
+                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>🏛️ Identificación Institucional</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        in_cfg_col = st.text_input("Nombre del Establecimiento:", value=c_nom_col, key="cfg_in_col").strip()
+                        c_c0, c_c1, c_c2 = st.columns([1.2, 1.2, 1])
+                        with c_c0:
+                            in_cfg_reg = st.text_input("Región:", value=c_region, key="cfg_in_reg").strip()
+                        with c_c1:
+                            in_cfg_ciudad = st.text_input("Ciudad / Comuna:", value=c_ciudad, key="cfg_in_ciu").strip()
+                        with c_c2:
+                            in_cfg_rbd = st.text_input("RBD:", value=c_rbd, key="cfg_in_rbd").strip()
 
-                st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin:12px 0 8px 0;'>📅 Calendario de Semestres Escolares</div>", unsafe_allow_html=True)
-                with st.container(border=True):
-                    # Función auxiliar para parsear fechas en formato dd-mm-aaaa
-                    def _parse_fecha(s, fallback):
+                        in_cfg_dir = st.text_input("Nombre Completo del Director(a):", value=c_director, key="cfg_in_dir").strip()
+
+                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin:12px 0 8px 0;'>📅 Calendario de Semestres Escolares</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        # Función auxiliar para parsear fechas en formato dd-mm-aaaa
+                        def _parse_fecha(s, fallback):
+                            try:
+                                return datetime.datetime.strptime(s.strip(), "%d-%m-%Y").date()
+                            except Exception:
+                                return fallback
+
+                        st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;'>1° Semestre:</div>", unsafe_allow_html=True)
+                        s1_c1, s1_c2 = st.columns(2)
+                        with s1_c1:
+                            _d_s1_ini = _parse_fecha(c_s1_ini, datetime.date(datetime.date.today().year, 3, 1))
+                            _v_s1_ini = st.date_input("Fecha Inicio:", value=_d_s1_ini, key="cfg_in_s1_ini", format="DD/MM/YYYY")
+                            in_s1_ini = _v_s1_ini.strftime("%d-%m-%Y") if _v_s1_ini else c_s1_ini
+                        with s1_c2:
+                            _d_s1_fin = _parse_fecha(c_s1_fin, datetime.date(datetime.date.today().year, 7, 5))
+                            _v_s1_fin = st.date_input("Fecha Término:", value=_d_s1_fin, key="cfg_in_s1_fin", format="DD/MM/YYYY")
+                            in_s1_fin = _v_s1_fin.strftime("%d-%m-%Y") if _v_s1_fin else c_s1_fin
+
+                        st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;margin-top:8px;'>2° Semestre:</div>", unsafe_allow_html=True)
+                        s2_c1, s2_c2 = st.columns(2)
+                        with s2_c1:
+                            _d_s2_ini = _parse_fecha(c_s2_ini, datetime.date(datetime.date.today().year, 7, 22))
+                            _v_s2_ini = st.date_input("Fecha Inicio:", value=_d_s2_ini, key="cfg_in_s2_ini", format="DD/MM/YYYY")
+                            in_s2_ini = _v_s2_ini.strftime("%d-%m-%Y") if _v_s2_ini else c_s2_ini
+                        with s2_c2:
+                            _d_s2_fin = _parse_fecha(c_s2_fin, datetime.date(datetime.date.today().year, 12, 10))
+                            _v_s2_fin = st.date_input("Fecha Término:", value=_d_s2_fin, key="cfg_in_s2_fin", format="DD/MM/YYYY")
+                            in_s2_fin = _v_s2_fin.strftime("%d-%m-%Y") if _v_s2_fin else c_s2_fin
+
+                with col_der_cfg:
+                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>✍️ Firma y Timbre del Director(a)</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        st.write("Sube la imagen de la firma y timbre en formato **PNG** (idealmente con fondo transparente):")
+                        
+                        up_firma = st.file_uploader("Archivo PNG de Firma/Timbre:", type=['png', 'jpg', 'jpeg'], key="up_firma_dir")
+                        firma_a_guardar = c_firma_b64
+
+                        if up_firma is not None:
+                            try:
+                                from PIL import Image
+                                import io
+                                img_pil = Image.open(up_firma)
+                                # Convertir a RGBA para preservar transparencia
+                                img_pil = img_pil.convert("RGBA")
+                                # Redimensionar para firma proporcional (ancho máx 260px, alto máx 90px)
+                                img_pil.thumbnail((260, 90), Image.Resampling.LANCZOS)
+                                
+                                buffer_out = io.BytesIO()
+                                img_pil.save(buffer_out, format="PNG", optimize=True)
+                                b_bytes = buffer_out.getvalue()
+                                b64_str = base64.b64encode(b_bytes).decode('utf-8')
+                                
+                                firma_a_guardar = b64_str
+                                st.session_state['temp_firma_b64'] = b64_str
+                                st.success(f"✅ Firma procesada y optimizada ({len(firma_a_guardar)} caracteres, dentro del límite de Sheets).")
+                            except Exception as e:
+                                st.error(f"Error al procesar la imagen de firma: {e}")
+                        elif 'temp_firma_b64' in st.session_state:
+                            firma_a_guardar = st.session_state['temp_firma_b64']
+
+                        if firma_a_guardar:
+                            st.markdown("<div style='font-size:0.78rem;font-weight:600;color:#64748b;margin:8px 0 4px 0;'>Previsualización en Informes:</div>", unsafe_allow_html=True)
+                            st.markdown(
+                                f"<div style='background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:12px;text-align:center;'>"
+                                f"<img src='data:image/png;base64,{firma_a_guardar}' style='max-height:85px;max-width:240px;object-fit:contain;'/>"
+                                f"<div style='font-size:0.8rem;font-weight:700;color:#1e293b;border-top:1px solid #94a3b8;margin-top:6px;padding-top:4px;'>{in_cfg_dir}</div>"
+                                f"<div style='font-size:0.72rem;color:#64748b;'>DIRECTOR(A) DEL ESTABLECIMIENTO</div>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                            if st.button("🗑️ Quitar Firma", key="btn_quitar_firma"):
+                                if 'temp_firma_b64' in st.session_state:
+                                    del st.session_state['temp_firma_b64']
+                                firma_a_guardar = ""
+                                st.rerun()
+                        else:
+                            st.info("Sin firma digital cargada. En el informe se mostrará la línea tradicional para firma manual.")
+
+                st.markdown("<hr style='margin:18px 0 12px 0;'>", unsafe_allow_html=True)
+
+                if st.session_state.get('conf_guardada_ok', False):
+                    st.success("✅ ¡Configuración del establecimiento guardada y actualizada exitosamente!")
+                    st.session_state['conf_guardada_ok'] = False
+
+                if st.button("💾 Guardar Toda la Configuración Institucional", type="primary", use_container_width=True, key="btn_save_config_all"):
+                    with st.spinner("Guardando en la base de datos..."):
                         try:
-                            return datetime.datetime.strptime(s.strip(), "%d-%m-%Y").date()
-                        except Exception:
-                            return fallback
+                            filas_actualizadas = [
+                                ["Clave", "Valor"],
+                                ["nombre_colegio", in_cfg_col],
+                                ["region", in_cfg_reg],
+                                ["ciudad", in_cfg_ciudad],
+                                ["nombre_director", in_cfg_dir],
+                                ["rbd", in_cfg_rbd],
+                                ["semestre_1_inicio", in_s1_ini],
+                                ["semestre_1_fin", in_s1_fin],
+                                ["semestre_2_inicio", in_s2_ini],
+                                ["semestre_2_fin", in_s2_fin],
+                                ["firma_director_b64", firma_a_guardar]
+                            ]
+                            if "matriz_permisos_roles" in conf_dict:
+                                filas_actualizadas.append(["matriz_permisos_roles", conf_dict["matriz_permisos_roles"]])
 
-                    st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;'>1° Semestre:</div>", unsafe_allow_html=True)
-                    s1_c1, s1_c2 = st.columns(2)
-                    with s1_c1:
-                        _d_s1_ini = _parse_fecha(c_s1_ini, datetime.date(datetime.date.today().year, 3, 1))
-                        _v_s1_ini = st.date_input("Fecha Inicio:", value=_d_s1_ini, key="cfg_in_s1_ini", format="DD/MM/YYYY")
-                        in_s1_ini = _v_s1_ini.strftime("%d-%m-%Y") if _v_s1_ini else c_s1_ini
-                    with s1_c2:
-                        _d_s1_fin = _parse_fecha(c_s1_fin, datetime.date(datetime.date.today().year, 7, 5))
-                        _v_s1_fin = st.date_input("Fecha Término:", value=_d_s1_fin, key="cfg_in_s1_fin", format="DD/MM/YYYY")
-                        in_s1_fin = _v_s1_fin.strftime("%d-%m-%Y") if _v_s1_fin else c_s1_fin
-
-                    st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;margin-top:8px;'>2° Semestre:</div>", unsafe_allow_html=True)
-                    s2_c1, s2_c2 = st.columns(2)
-                    with s2_c1:
-                        _d_s2_ini = _parse_fecha(c_s2_ini, datetime.date(datetime.date.today().year, 7, 22))
-                        _v_s2_ini = st.date_input("Fecha Inicio:", value=_d_s2_ini, key="cfg_in_s2_ini", format="DD/MM/YYYY")
-                        in_s2_ini = _v_s2_ini.strftime("%d-%m-%Y") if _v_s2_ini else c_s2_ini
-                    with s2_c2:
-                        _d_s2_fin = _parse_fecha(c_s2_fin, datetime.date(datetime.date.today().year, 12, 10))
-                        _v_s2_fin = st.date_input("Fecha Término:", value=_d_s2_fin, key="cfg_in_s2_fin", format="DD/MM/YYYY")
-                        in_s2_fin = _v_s2_fin.strftime("%d-%m-%Y") if _v_s2_fin else c_s2_fin
-
-
-            with col_der_cfg:
-                st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>✍️ Firma y Timbre del Director(a)</div>", unsafe_allow_html=True)
-                with st.container(border=True):
-                    st.write("Sube la imagen de la firma y timbre en formato **PNG** (idealmente con fondo transparente):")
-                    
-                    up_firma = st.file_uploader("Archivo PNG de Firma/Timbre:", type=['png', 'jpg', 'jpeg'], key="up_firma_dir")
-                    firma_a_guardar = c_firma_b64
-
-                    if up_firma is not None:
-                        try:
-                            from PIL import Image
-                            import io
-                            img_pil = Image.open(up_firma)
-                            # Convertir a RGBA para preservar transparencia
-                            img_pil = img_pil.convert("RGBA")
-                            # Redimensionar para firma proporcional (ancho máx 260px, alto máx 90px)
-                            img_pil.thumbnail((260, 90), Image.Resampling.LANCZOS)
-                            
-                            buffer_out = io.BytesIO()
-                            img_pil.save(buffer_out, format="PNG", optimize=True)
-                            b_bytes = buffer_out.getvalue()
-                            b64_str = base64.b64encode(b_bytes).decode('utf-8')
-                            
-                            firma_a_guardar = b64_str
-                            st.session_state['temp_firma_b64'] = b64_str
-                            st.success(f"✅ Firma procesada y optimizada ({len(firma_a_guardar)} caracteres, dentro del límite de Sheets).")
-                        except Exception as e:
-                            st.error(f"Error al procesar la imagen de firma: {e}")
-                    elif 'temp_firma_b64' in st.session_state:
-                        firma_a_guardar = st.session_state['temp_firma_b64']
-
-                    if firma_a_guardar:
-                        st.markdown("<div style='font-size:0.78rem;font-weight:600;color:#64748b;margin:8px 0 4px 0;'>Previsualización en Informes:</div>", unsafe_allow_html=True)
-                        st.markdown(
-                            f"<div style='background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:12px;text-align:center;'>"
-                            f"<img src='data:image/png;base64,{firma_a_guardar}' style='max-height:85px;max-width:240px;object-fit:contain;'/>"
-                            f"<div style='font-size:0.8rem;font-weight:700;color:#1e293b;border-top:1px solid #94a3b8;margin-top:6px;padding-top:4px;'>{in_cfg_dir}</div>"
-                            f"<div style='font-size:0.72rem;color:#64748b;'>DIRECTOR(A) DEL ESTABLECIMIENTO</div>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                        if st.button("🗑️ Quitar Firma", key="btn_quitar_firma"):
-                            if 'temp_firma_b64' in st.session_state:
-                                del st.session_state['temp_firma_b64']
-                            firma_a_guardar = ""
+                            sheet_config.clear()
+                            sheet_config.update(values=filas_actualizadas)
+                            st.session_state['conf_guardada_ok'] = True
+                            st.toast("✅ ¡Configuración guardada exitosamente!", icon="🎉")
                             st.rerun()
-                    else:
-                        st.info("Sin firma digital cargada. En el informe se mostrará la línea tradicional para firma manual.")
+                        except Exception as e:
+                            st.error(f"Error al guardar configuración: {e}")
 
-            st.markdown("<hr style='margin:18px 0 12px 0;'>", unsafe_allow_html=True)
+            with tab_permisos_cfg:
+                st.markdown("<h3 style='margin:4px 0 6px 0;color:#1a5c32;font-size:1.15rem;'>🛡️ Matriz de Control de Acceso por Rol</h3>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#334155;font-size:0.83rem;'>"
+                    "ℹ️ Define a qué módulos tiene acceso cada rol en la Escuela Villa Las Peñas. "
+                    "El rol <b>Administrador Total</b> siempre cuenta con acceso irrestricto por seguridad del sistema.</div>",
+                    unsafe_allow_html=True
+                )
 
-            if st.session_state.get('conf_guardada_ok', False):
-                st.success("✅ ¡Configuración del establecimiento guardada y actualizada exitosamente!")
-                st.session_state['conf_guardada_ok'] = False
+                matriz_actual_cfg = obtener_matriz_permisos(sheet_config)
 
-            if st.button("💾 Guardar Toda la Configuración Institucional", type="primary", use_container_width=True, key="btn_save_config_all"):
-                with st.spinner("Guardando en Google Sheets..."):
-                    try:
-                        filas_actualizadas = [
-                            ["Clave", "Valor"],
-                            ["nombre_colegio", in_cfg_col],
-                            ["region", in_cfg_reg],
-                            ["ciudad", in_cfg_ciudad],
-                            ["nombre_director", in_cfg_dir],
-                            ["rbd", in_cfg_rbd],
-                            ["semestre_1_inicio", in_s1_ini],
-                            ["semestre_1_fin", in_s1_fin],
-                            ["semestre_2_inicio", in_s2_ini],
-                            ["semestre_2_fin", in_s2_fin],
-                            ["firma_director_b64", firma_a_guardar]
-                        ]
-                        sheet_config.clear()
-                        sheet_config.update(values=filas_actualizadas)
-                        st.session_state['conf_guardada_ok'] = True
-                        st.toast("✅ ¡Configuración guardada exitosamente!", icon="🎉")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al guardar configuración: {e}")
+                st.info("🔒 **Administrador Total:** Acceso permanente a todos los 12 módulos del sistema.")
+
+                tabs_roles_cfg = st.tabs([f"🎭 {r}" for r in ROLES_CONFIGURABLES])
+
+                cambios_matriz = {}
+                for idx_r, rol_nom in enumerate(ROLES_CONFIGURABLES):
+                    with tabs_roles_cfg[idx_r]:
+                        st.markdown(f"**Permisos de acceso asignados para el rol: `{rol_nom}`**")
+                        permisos_este_rol = matriz_actual_cfg.get(rol_nom, DEFAULT_PERMISOS_ROLES.get(rol_nom, []))
+
+                        col_chk1, col_chk2 = st.columns(2)
+                        nuevos_permisos_rol = []
+
+                        for i_mod, mod in enumerate(MODULOS_SISTEMA):
+                            col_destino = col_chk1 if i_mod < 6 else col_chk2
+                            with col_destino:
+                                esta_activo = mod["id"] in permisos_este_rol
+                                chk_val = st.checkbox(
+                                    f"{mod['titulo']} — *{mod['sub']}*",
+                                    value=esta_activo,
+                                    key=f"chk_perm_{rol_nom}_{mod['id']}"
+                                )
+                                if chk_val:
+                                    nuevos_permisos_rol.append(mod["id"])
+
+                        cambios_matriz[rol_nom] = nuevos_permisos_rol
+
+                st.markdown("<hr style='margin:18px 0 12px 0;'>", unsafe_allow_html=True)
+
+                if st.session_state.get('permisos_guardados_ok', False):
+                    st.success("✅ ¡Permisos de roles institucionales guardados y aplicados exitosamente!")
+                    st.session_state['permisos_guardados_ok'] = False
+
+                if st.button("💾 Guardar Permisos de Roles", type="primary", use_container_width=True, key="btn_save_permisos_roles"):
+                    with st.spinner("Guardando matriz de permisos en la base de datos..."):
+                        try:
+                            import json
+                            v_json = json.dumps(cambios_matriz, ensure_ascii=False)
+
+                            recs_raw = sheet_config.get_all_records()
+                            df_cfg_all = pd.DataFrame(recs_raw) if recs_raw else pd.DataFrame(columns=["Clave", "Valor"])
+                            df_cfg_all.columns = [str(c).strip() for c in df_cfg_all.columns]
+                            if '_id' in df_cfg_all.columns:
+                                df_cfg_all = df_cfg_all.drop(columns=['_id'])
+                            if "Clave" not in df_cfg_all.columns: df_cfg_all["Clave"] = []
+                            if "Valor" not in df_cfg_all.columns: df_cfg_all["Valor"] = []
+
+                            m_perm = df_cfg_all["Clave"].astype(str).str.strip() == "matriz_permisos_roles"
+                            if m_perm.any():
+                                df_cfg_all.loc[m_perm, "Valor"] = v_json
+                            else:
+                                nueva_f = pd.DataFrame([{"Clave": "matriz_permisos_roles", "Valor": v_json}])
+                                df_cfg_all = pd.concat([df_cfg_all, nueva_f], ignore_index=True)
+
+                            sheet_config.clear()
+                            sheet_config.update(values=[df_cfg_all.columns.tolist()] + df_cfg_all.values.tolist())
+                            st.session_state['permisos_guardados_ok'] = True
+                            st.toast("✅ ¡Permisos actualizados con éxito!", icon="🛡️")
+                            st.rerun()
+                        except Exception as err_p:
+                            st.error(f"Error al guardar permisos: {err_p}")
 
         except Exception as e:
             st.error(f"Error al cargar módulo de configuración: {e}")

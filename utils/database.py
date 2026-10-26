@@ -54,10 +54,14 @@ class SupabaseSheet:
     def _to_db(self, display_name: str) -> str:
         """Convierte nombre de UI a nombre de columna en DB."""
         name = str(display_name).strip()
+        if name in ('_id', 'id', 'ID'):
+            return 'id'
         if name in self._d2db:
             return self._d2db[name]
         # Búsqueda insensible a mayúsculas
         nl = name.lower()
+        if nl in ('_id', 'id'):
+            return 'id'
         for k, v in self._d2db.items():
             if k.lower() == nl:
                 return v
@@ -172,7 +176,7 @@ class SupabaseSheet:
             skip = True
             for i, h in enumerate(headers):
                 db_col = self._to_db(h)
-                if db_col == 'id':
+                if db_col in ('id', '_id'):
                     continue
                 val = padded[i]
                 # Normalizar None y cadenas vacías
@@ -209,6 +213,7 @@ class SupabaseSheet:
                         self._client.table(self._table).insert(batch_data).execute()
             except Exception as e:
                 print(f"[SupabaseSheet] update '{self._table}': {e}")
+                raise e
 
     def append_row(self, row_values, **kwargs):
         """Inserta o actualiza una fila usando el orden de columnas predefinido."""
