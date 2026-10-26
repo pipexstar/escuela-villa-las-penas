@@ -65,14 +65,37 @@ class SupabaseSheet:
         return name.lower().replace(' ', '_').replace('°', '').replace('n°_', 'numero_')
 
     def _row_to_display(self, db_row: dict) -> dict:
-        """Convierte un registro de DB a dict con nombres de UI."""
+        """Convierte un registro de DB a dict con nombres de UI, preservando _id."""
         result = {}
         for db_col, val in db_row.items():
             if db_col == 'id':
+                result['_id'] = val
                 continue
             display = self._db2d.get(db_col, db_col)
             result[display] = val if val is not None else ''
         return result
+
+    def delete_by_id(self, record_id):
+        """Elimina un registro específico por su ID primario."""
+        try:
+            self._client.table(self._table).delete().eq('id', record_id).execute()
+            return True
+        except Exception as e:
+            print(f"[SupabaseSheet] delete_by_id '{self._table}': {e}")
+            raise e
+
+    def delete_records(self, filters: dict):
+        """Elimina registros que coincidan con un conjunto de filtros clave=valor."""
+        try:
+            q = self._client.table(self._table).delete()
+            for col, val in filters.items():
+                db_col = self._d2db.get(col, col.lower())
+                q = q.eq(db_col, val)
+            q.execute()
+            return True
+        except Exception as e:
+            print(f"[SupabaseSheet] delete_records '{self._table}': {e}")
+            raise e
 
     # ── Métodos principales ────────────────────────────────────────────────
 

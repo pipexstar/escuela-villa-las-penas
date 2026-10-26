@@ -1042,6 +1042,61 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                 key="btn_csv_atrasos"
             )
 
+            # --- SECCIÓN: ANULAR / ELIMINAR REGISTRO POR ERROR ---
+            with st.expander("🗑️ Anular / Eliminar Registro de Atraso por Error", expanded=False):
+                st.caption("Si se cometió una equivocación al marcar un atraso, puedes anularlo aquí. Esta acción lo eliminará de la base de datos.")
+                
+                # Crear diccionario de opciones con información legible
+                opciones_del = {}
+                for idx_row, r_del in df_filtrado.iterrows():
+                    reg_id = r_del.get('_id', idx_row)
+                    etiqueta = f"🗓️ {r_del['Fecha_Chilena']} {r_del['Hora_Clean']} — {r_del['Nombre_Final']} ({r_del['Curso_Final']}) | Motivo: {r_del['Motivo_Clean']}"
+                    opciones_del[etiqueta] = r_del
+
+                if opciones_del:
+                    sel_etiqueta = st.selectbox(
+                        "Selecciona el atraso a anular:",
+                        options=list(opciones_del.keys()),
+                        key="sel_del_atraso"
+                    )
+                    r_a_borrar = opciones_del[sel_etiqueta]
+                    
+                    c_del1, c_del2 = st.columns([3, 1.2])
+                    with c_del1:
+                        confirmar_check = st.checkbox(
+                            f"Confirmar anulación del atraso de **{r_a_borrar['Nombre_Final']}**",
+                            key="chk_confirm_del_atraso"
+                        )
+                    with c_del2:
+                        btn_del_atraso = st.button(
+                            "🗑️ Eliminar Definitivamente",
+                            type="primary",
+                            disabled=not confirmar_check,
+                            key="btn_ejecutar_del_atraso",
+                            use_container_width=True
+                        )
+
+                    if btn_del_atraso:
+                        try:
+                            # Si tiene _id primario de PostgreSQL
+                            if '_id' in r_a_borrar and r_a_borrar['_id']:
+                                sheet_registros.delete_by_id(r_a_borrar['_id'])
+                            else:
+                                sheet_registros.delete_records({
+                                    'rut': r_a_borrar[col_r],
+                                    'fecha': r_a_borrar[col_f],
+                                    'hora': r_a_borrar[col_h],
+                                    'tipo': 'Atraso'
+                                })
+                            st.toast(f"✅ Atraso de {r_a_borrar['Nombre_Final']} eliminado exitosamente.", icon="🗑️")
+                            st.success(f"✅ Se ha eliminado correctamente el atraso de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
+                            time.sleep(1.2)
+                            st.rerun()
+                        except Exception as e_del:
+                            st.error(f"❌ Error al anular el registro: {e_del}")
+                else:
+                    st.info("No hay registros en la vista actual para anular.")
+
         with tab_imprimible:
             st.markdown("##### Vista Previa de Documento Oficial")
             st.caption("Usa el botón para abrir el diálogo de impresión del navegador y guardar directamente en **PDF**.")
@@ -1504,6 +1559,60 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 mime="text/csv",
                 key="btn_csv_retiros"
             )
+
+            # --- SECCIÓN: ANULAR / ELIMINAR REGISTRO POR ERROR ---
+            with st.expander("🗑️ Anular / Eliminar Registro de Retiro por Error", expanded=False):
+                st.caption("Si se cometió una equivocación al registrar una salida anticipada, puedes anularla aquí. Esta acción eliminará el registro de la base de datos.")
+                
+                opciones_del = {}
+                for idx_row, r_del in df_filtrado.iterrows():
+                    reg_id = r_del.get('_id', idx_row)
+                    etiqueta = f"🗓️ {r_del['Fecha_Chilena']} {r_del['Hora_Clean']} — {r_del['Nombre_Final']} ({r_del['Curso_Final']}) | Retira: {r_del['Apoderado_Clean']} ({r_del['Vinculo_Clean']})"
+                    opciones_del[etiqueta] = r_del
+
+                if opciones_del:
+                    sel_etiqueta = st.selectbox(
+                        "Selecciona la salida a anular:",
+                        options=list(opciones_del.keys()),
+                        key="sel_del_retiro"
+                    )
+                    r_a_borrar = opciones_del[sel_etiqueta]
+                    
+                    c_del1, c_del2 = st.columns([3, 1.2])
+                    with c_del1:
+                        confirmar_check = st.checkbox(
+                            f"Confirmar anulación del retiro de **{r_a_borrar['Nombre_Final']}**",
+                            key="chk_confirm_del_retiro"
+                        )
+                    with c_del2:
+                        btn_del_retiro = st.button(
+                            "🗑️ Eliminar Definitivamente",
+                            type="primary",
+                            disabled=not confirmar_check,
+                            key="btn_ejecutar_del_retiro",
+                            use_container_width=True
+                        )
+
+                    if btn_del_retiro:
+                        try:
+                            # Si tiene _id primario de PostgreSQL
+                            if '_id' in r_a_borrar and r_a_borrar['_id']:
+                                sheet_registros.delete_by_id(r_a_borrar['_id'])
+                            else:
+                                sheet_registros.delete_records({
+                                    'rut': r_a_borrar[col_r],
+                                    'fecha': r_a_borrar[col_f],
+                                    'hora': r_a_borrar[col_h],
+                                    'tipo': 'Retiro'
+                                })
+                            st.toast(f"✅ Salida anticipada de {r_a_borrar['Nombre_Final']} eliminada exitosamente.", icon="🗑️")
+                            st.success(f"✅ Se ha eliminado correctamente el retiro de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
+                            time.sleep(1.2)
+                            st.rerun()
+                        except Exception as e_del:
+                            st.error(f"❌ Error al anular el registro: {e_del}")
+                else:
+                    st.info("No hay registros en la vista actual para anular.")
 
         with tab_imprimible:
             st.markdown("##### Vista Previa de Documento Oficial")
