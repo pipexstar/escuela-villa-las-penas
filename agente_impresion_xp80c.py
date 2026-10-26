@@ -22,21 +22,33 @@ import logging
 # ──────────────────────────────────────────────
 # CONFIGURACION DEL AGENTE
 # ──────────────────────────────────────────────
+DEFAULT_SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+DEFAULT_SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
 def cargar_credenciales():
-    url = os.environ.get("SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_KEY", "")
-    secrets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".streamlit", "secrets.toml")
-    if os.path.exists(secrets_path):
-        try:
-            with open(secrets_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("SUPABASE_URL"):
-                        url = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    elif line.startswith("SUPABASE_KEY"):
-                        key = line.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception as e:
-            log.error("Error al leer secrets.toml: " + str(e))
+    url = os.environ.get("SUPABASE_URL", DEFAULT_SUPABASE_URL)
+    key = os.environ.get("SUPABASE_KEY", DEFAULT_SUPABASE_KEY)
+    
+    # Buscar secrets.toml si existe localmente para sobrescribir
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    secrets_paths = [
+        os.path.join(base_dir, ".streamlit", "secrets.toml"),
+        os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), ".streamlit", "secrets.toml"),
+        os.path.join(os.getcwd(), ".streamlit", "secrets.toml")
+    ]
+    for sp in secrets_paths:
+        if os.path.exists(sp):
+            try:
+                with open(sp, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("SUPABASE_URL"):
+                            url = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        elif line.startswith("SUPABASE_KEY"):
+                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                break
+            except Exception as e:
+                log.error("Error al leer secrets.toml: " + str(e))
     return url, key
 
 SUPABASE_URL, SUPABASE_KEY = cargar_credenciales()
@@ -47,11 +59,14 @@ NOMBRE_IMPRESORA = ""
 # Intervalo de consulta en segundos
 INTERVALO_SEGUNDOS = 3
 
+# Directorio de trabajo seguro (tanto si corre como script o como .exe congelado)
+APP_DIR = os.path.dirname(os.path.abspath(sys.executable)) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+
 # Archivo donde se guarda el ultimo ID impreso
-ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "estado_agente.json")
+ESTADO_FILE = os.path.join(APP_DIR, "estado_agente.json")
 
 # Log
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agente_impresion.log")
+LOG_FILE = os.path.join(APP_DIR, "agente_impresion.log")
 
 
 # ──────────────────────────────────────────────
@@ -286,35 +301,46 @@ def guardar_estado(estado):
 
 
 # ──────────────────────────────────────────────
-# CONEXION A SUPABASE
+# CONEXION A SUPABASE (REST API NATIVA - CERO DEPENDENCIAS)
 # ──────────────────────────────────────────────
-def conectar_supabase():
-    from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+import urllib.request
+import urllib.error
+
+def supabase_get(endpoint):
+    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=10) as response:
+        return json.loads(response.read().decode('utf-8'))
 
 
-def obtener_atrasos_nuevos(sb, ultimo_id):
-    """Devuelve los atrasos con id > ultimo_id, ordenados ascendentemente."""
+def test_conexion_supabase():
     try:
-        resp = (
-            sb.table("registros")
-            .select("id, fecha, hora, nombre, curso, motivo, tipo")
-            .eq("tipo", "Atraso")
-            .gt("id", ultimo_id)
-            .order("id")
-            .execute()
-        )
-        return resp.data or []
+        supabase_get("registros?select=id&limit=1")
+        return True, "OK"
+    except Exception as e:
+        return False, str(e)
+
+
+def obtener_atrasos_nuevos(ultimo_id):
+    endpoint = f"registros?tipo=eq.Atraso&id=gt.{ultimo_id}&select=id,fecha,hora,nombre,curso,motivo,tipo&order=id.asc"
+    try:
+        return supabase_get(endpoint)
     except Exception as e:
         log.error("Error al consultar Supabase: " + str(e))
         return []
 
 
-def obtener_max_id_atraso(sb):
+def obtener_max_id_atraso():
+    endpoint = "registros?tipo=eq.Atraso&select=id&order=id.desc&limit=1"
     try:
-        resp = sb.table("registros").select("id").eq("tipo", "Atraso").order("id", desc=True).limit(1).execute()
-        if resp.data:
-            return resp.data[0].get("id", 0)
+        data = supabase_get(endpoint)
+        if data:
+            return data[0].get("id", 0)
     except Exception as e:
         log.error("Error al obtener max id: " + str(e))
     return 0
@@ -341,21 +367,25 @@ def main():
         log.critical("Error al detectar impresora: " + str(e))
         sys.exit(1)
 
-    # Conectar a Supabase
-    try:
-        sb = conectar_supabase()
-        log.info("Conexion a Supabase: OK")
-    except Exception as e:
-        log.critical("Error al conectar a Supabase: " + str(e))
-        sys.exit(1)
+    # Conectar a Supabase (reintentar amigablemente si la red demora)
+    while True:
+        ok_sb, msg_sb = test_conexion_supabase()
+        if ok_sb:
+            log.info("Conexion a Supabase: OK")
+            break
+        else:
+            log.warning("Esperando conexion con Supabase: " + msg_sb)
+            time.sleep(3)
 
     primera_vez = not os.path.exists(ESTADO_FILE)
     estado = cargar_estado()
     if primera_vez:
-        max_id = obtener_max_id_atraso(sb)
-        estado["ultimo_id_impreso"] = max_id
+        max_id = obtener_max_id_atraso()
+        # En primera ejecución retrocedemos 2 atrasos para recuperar los recién ingresados
+        punto_inicio = max(0, max_id - 2)
+        estado["ultimo_id_impreso"] = punto_inicio
         guardar_estado(estado)
-        log.info("Primera ejecucion: sincronizado al ultimo atraso existente (ID=" + str(max_id) + ")")
+        log.info("Primera ejecucion: sincronizado desde ID=" + str(punto_inicio) + " (ultimo existente ID=" + str(max_id) + ")")
     else:
         log.info("Ultimo ID impreso: " + str(estado['ultimo_id_impreso']))
 
@@ -363,7 +393,7 @@ def main():
 
     while True:
         try:
-            atrasos = obtener_atrasos_nuevos(sb, estado["ultimo_id_impreso"])
+            atrasos = obtener_atrasos_nuevos(estado["ultimo_id_impreso"])
             for reg in atrasos:
                 rid    = reg.get("id", 0)
                 nombre = str(reg.get("nombre", "ALUMNO"))
