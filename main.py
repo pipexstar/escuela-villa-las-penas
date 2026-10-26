@@ -5433,43 +5433,25 @@ elif st.session_state.current_module == 'asistencia':
 
             try:
                 with st.spinner("Guardando en la base de datos..."):
-                    recs_all = sheet_asistencia.get_all_records()
-                    df_all_a = pd.DataFrame(recs_all) if recs_all else pd.DataFrame()
-                    mes_pre  = f"{year:04d}-{month:02d}"
+                    mes_pre = f"{year:04d}-{month:02d}"
 
-                    cols_asist = ["Fecha", "Curso", "Datos", "Tipo"]
+                    # 1. Eliminar exclusivamente los registros de este curso y este mes,
+                    # protegiendo al 100% todos los demás cursos y meses del colegio.
+                    if hasattr(sheet_asistencia, '_client'):
+                        sheet_asistencia._client.table('asistencia').delete().eq('curso', str(curso_asist)).like('fecha', f'{mes_pre}%').execute()
 
-                    if not df_all_a.empty:
-                        df_all_a.columns = [str(c).strip() for c in df_all_a.columns]
-                        if '_id' in df_all_a.columns:
-                            df_all_a = df_all_a.drop(columns=['_id'])
-                        col_f_s = next((c for c in df_all_a.columns if 'fecha' in c.lower()), 'Fecha')
-                        col_c_s = next((c for c in df_all_a.columns if 'curs'  in c.lower()), 'Curso')
-                        df_resto = df_all_a[
-                            ~(
-                                (df_all_a[col_f_s].astype(str).str.startswith(mes_pre)) &
-                                (df_all_a[col_c_s].astype(str).str.strip() == str(curso_asist))
-                            )
-                        ].copy()
-                    else:
-                        df_resto = pd.DataFrame(columns=cols_asist)
-
-                    df_nuevas_a = pd.DataFrame(nuevas_filas) if nuevas_filas else pd.DataFrame(columns=cols_asist)
-                    if '_id' in df_nuevas_a.columns:
-                        df_nuevas_a = df_nuevas_a.drop(columns=['_id'])
-
-                    df_final_a  = pd.concat([df_resto, df_nuevas_a], ignore_index=True)
-                    df_final_a = df_final_a[[c for c in cols_asist if c in df_final_a.columns]]
-
-                    if not df_final_a.empty and 'Fecha' in df_final_a.columns:
-                        df_final_a = df_final_a.sort_values(by=['Fecha','Curso'])
-
-                    df_final_a = df_final_a.fillna("")
-                    sheet_asistencia.clear()
-                    if not df_final_a.empty:
-                        sheet_asistencia.update(values=[df_final_a.columns.values.tolist()] + df_final_a.values.tolist())
-                    else:
-                        sheet_asistencia.append_row(["Fecha","Curso","Datos","Tipo"])
+                    # 2. Insertar los registros actualizados del mes
+                    if nuevas_filas:
+                        if hasattr(sheet_asistencia, '_client'):
+                            db_records = [{
+                                'fecha': r['Fecha'],
+                                'curso': r['Curso'],
+                                'datos': r['Datos'],
+                                'tipo':  r['Tipo']
+                            } for r in nuevas_filas]
+                            sheet_asistencia._client.table('asistencia').insert(db_records).execute()
+                        else:
+                            sheet_asistencia.append_rows([[r['Fecha'], r['Curso'], r['Datos'], r['Tipo']] for r in nuevas_filas])
 
                 st.session_state['asist_guardada_ok'] = True
                 st.session_state['asist_guardada_msg'] = f"✅ ¡Asistencia de **{curso_asist}** para **{MESES[month-1]} {year}** guardada y actualizada exitosamente! ({len(nuevas_filas)} días registrados)"
