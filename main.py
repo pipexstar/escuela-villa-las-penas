@@ -484,17 +484,26 @@ if 'app_version' not in st.session_state or st.session_state.app_version != APP_
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.session_state.app_version = APP_VERSION
-    st.session_state.current_module = 'home'
 
-# Inicializar estado de navegación e inicio de sesión por defecto
+# Inicializar estado de navegación sincronizado con la URL (query_params)
+param_mod = st.query_params.get("m", "home")
 if 'current_module' not in st.session_state:
-    st.session_state.current_module = 'home'
+    st.session_state.current_module = param_mod if param_mod else 'home'
+else:
+    # Si la URL tiene un módulo distinto (por ejemplo botón Atrás/Adelante del navegador)
+    if param_mod and param_mod != st.session_state.current_module:
+        st.session_state.current_module = param_mod
 
 if 'user' not in st.session_state:
     st.session_state.user = None
 
 def navigate(module_name):
+    """Navega a un módulo y actualiza la URL del navegador."""
     st.session_state.current_module = module_name
+    try:
+        st.query_params["m"] = module_name
+    except Exception:
+        pass
 
 def render_sidebar_auth():
     import os
@@ -567,6 +576,10 @@ def render_sidebar_auth():
         if st.sidebar.button("🚪 Cerrar Sesión", key="btn_logout_user"):
             st.session_state.user = None
             st.session_state.current_module = 'home'
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
             # Limpiar cachés sensibles de la sesión
             for k in list(st.session_state.keys()):
                 if k not in ['app_version', 'current_module']:
@@ -581,8 +594,8 @@ render_sidebar_auth()
 # PORTAL DE LOGIN CENTRALIZADO (SI NO HAY SESIÓN ACTIVA)
 # ---------------------------------------------------------
 if st.session_state.user is None:
-    # Ocultar o redirigir cualquier intento de acceder a un módulo sin sesión
-    st.session_state.current_module = 'home'
+    # No hay usuario autenticado: se renderizará el portal de login abajo y se detendrá la ejecución
+    pass
 
     st.markdown("<div style='height:1.5rem;'></div>", unsafe_allow_html=True)
     col_l1, col_login, col_l3 = st.columns([1.5, 2.8, 1.5])
