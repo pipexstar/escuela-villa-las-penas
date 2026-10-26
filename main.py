@@ -2294,7 +2294,10 @@ elif st.session_state.current_module == 'retiro':
 
                     if True:
                         # Flujo normal de búsqueda
-                        busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno a retirar:", placeholder="Escriba para buscar...", key="txt_busqueda_retiro_botones").strip()
+                        if "ver_busqueda_retiro" not in st.session_state:
+                            st.session_state.ver_busqueda_retiro = 0
+                        key_input_retiro = f"txt_busqueda_retiro_{st.session_state.ver_busqueda_retiro}"
+                        busqueda_input = st.text_input("RUT, Apellido o Nombre del Alumno a retirar:", placeholder="Escriba para buscar...", key=key_input_retiro).strip()
 
                         if "alumno_seleccionado_retiro" not in st.session_state:
                             st.session_state.alumno_seleccionado_retiro = None
@@ -2486,8 +2489,7 @@ elif st.session_state.current_module == 'retiro':
                                         st.session_state.alumno_seleccionado_retiro = None
                                         st.session_state.ultimo_rut_scroll_retiro = None
                                         st.session_state.pop("txt_nombre_apoderado", None)
-                                        if "txt_busqueda_retiro_botones" in st.session_state:
-                                            st.session_state["txt_busqueda_retiro_botones"] = ""
+                                        st.session_state.ver_busqueda_retiro = st.session_state.get('ver_busqueda_retiro', 0) + 1
                                         st.rerun()
                                     else:
                                         st.error("Error al conectar con la base de datos de registros.")
