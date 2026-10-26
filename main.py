@@ -3746,14 +3746,18 @@ elif st.session_state.current_module == 'notas':
                     def _norm_cmp(s):
                         return "".join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().strip()
 
+                    def _norm_sem(s):
+                        txt = str(s).strip()
+                        return "1" if "1" in txt else ("2" if "2" in txt else txt)
+
                     cur_act_norm = _norm_cmp(curso_activo)
                     asig_act_norm = _norm_cmp(asig_activa)
-                    sem_act_norm = str(sem_activo).strip()
+                    sem_act_norm = _norm_sem(sem_activo)
 
                     df_filtradas = df_notas[
                         df_notas[col_cur_n].apply(lambda x: _norm_cmp(x) == cur_act_norm) &
                         df_notas[col_asig_n].apply(lambda x: _norm_cmp(x) == asig_act_norm) &
-                        df_notas[col_sem_n].apply(lambda x: str(x).strip() == sem_act_norm)
+                        df_notas[col_sem_n].apply(lambda x: _norm_sem(x) == sem_act_norm)
                     ]
                     for _, row_n in df_filtradas.iterrows():
                         rut_key = str(row_n[col_rut_n]).strip()
@@ -3870,7 +3874,7 @@ elif st.session_state.current_module == 'notas':
                         prom_str = str(_D(f"{prom:.6f}").quantize(_D('0.1'), rounding='ROUND_HALF_UP')).replace('.', ',')
                         color_prom = "#008F39" if prom >= 4.0 else "#cc0000"
                         fila_cols[-1].markdown(
-                            f"<div style='text-align:center;font-weight:700;color:{color_prom};font-size:0.75rem'>{prom_str}<br><span style='font-size:0.6rem;color:#888'>{prom_raw:.4f}</span></div>",
+                            f"<div style='text-align:center;font-weight:700;color:{color_prom};font-size:0.9rem'>{prom_str}</div>",
                             unsafe_allow_html=True
                         )
                     else:
@@ -3962,6 +3966,10 @@ elif st.session_state.current_module == 'notas':
                             def _norm_k(s):
                                 return "".join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().strip()
 
+                            def _norm_sem(s):
+                                txt = str(s).strip()
+                                return "1" if "1" in txt else ("2" if "2" in txt else txt)
+
                             fila_map = {}
                             if not df_nf.empty:
                                 df_nf.columns = [str(c).strip() for c in df_nf.columns]
@@ -3975,7 +3983,7 @@ elif st.session_state.current_module == 'notas':
                                             _norm_k(row_nf[col_rn]),
                                             _norm_k(row_nf[col_cn]),
                                             _norm_k(row_nf[col_an]),
-                                            str(row_nf[col_sn]).strip()
+                                            _norm_sem(row_nf[col_sn])
                                         )
                                         fila_map[key_nf] = row_idx + 2
 
@@ -4021,7 +4029,7 @@ elif st.session_state.current_module == 'notas':
                                     _norm_k(rut_k),
                                     _norm_k(curso_activo),
                                     _norm_k(asig_activa),
-                                    str(sem_activo).strip()
+                                    _norm_sem(sem_activo)
                                 )
 
                                 if clave_fila in fila_map:

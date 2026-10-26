@@ -163,7 +163,7 @@ class SupabaseSheet:
                 print(f"[SupabaseSheet] update '{self._table}': {e}")
 
     def append_row(self, row_values, **kwargs):
-        """Inserta una fila usando el orden de columnas predefinido."""
+        """Inserta o actualiza una fila usando el orden de columnas predefinido."""
         try:
             record = {}
             for i, display_col in enumerate(self._cols):
@@ -175,12 +175,23 @@ class SupabaseSheet:
                     record[db_col] = None
                 else:
                     record[db_col] = val
-            self._client.table(self._table).insert(record).execute()
+
+            if self._table == 'notas':
+                self._client.table(self._table).upsert(record, on_conflict='rut,asignatura,semestre').execute()
+            elif self._table == 'asistencia':
+                self._client.table(self._table).upsert(record, on_conflict='fecha,curso,tipo').execute()
+            elif self._table == 'alumnos':
+                self._client.table(self._table).upsert(record, on_conflict='rut').execute()
+            elif self._table == 'funcionarios':
+                self._client.table(self._table).upsert(record, on_conflict='rut').execute()
+            else:
+                self._client.table(self._table).insert(record).execute()
         except Exception as e:
             print(f"[SupabaseSheet] append_row '{self._table}': {e}")
+            raise e
 
     def append_rows(self, rows_values, **kwargs):
-        """Inserta múltiples filas."""
+        """Inserta o actualiza múltiples filas."""
         for row in rows_values:
             self.append_row(row)
 
