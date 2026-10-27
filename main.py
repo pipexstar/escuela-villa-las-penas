@@ -894,6 +894,8 @@ def estandarizar_motivo_general(val):
     if not s or s.lower() in ('nan', 'none', '—', ''):
         return 'Sin Motivo Especificado'
     s_low = s.lower()
+    if 'personal' in s_low:
+        return 'Personal'
     if 'dormid' in s_low or 'quedo dorm' in s_low:
         return 'Se quedó dormido/a'
     if 'medic' in s_low or 'dental' in s_low or 'doctor' in s_low or 'salud' in s_low or 'control' in s_low:
@@ -2293,7 +2295,7 @@ elif st.session_state.current_module == 'atraso':
                             st.write("---")
 
                             # Selector de Motivos Estandarizado
-                            opciones_motivos = ["Seleccione un motivo...", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
+                            opciones_motivos = ["Seleccione un motivo...", "Personal", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
                             motivo_seleccionado = st.selectbox("Motivo del atraso:", opciones_motivos, key="select_motivo_atraso")
 
                             motivo_final = ""
@@ -2528,6 +2530,7 @@ elif st.session_state.current_module == 'retiro':
 
                                 opciones_retiro = [
                                     "📋 Seleccione un motivo...",
+                                    "Personal",
                                     "🤒 Enfermedad / Malestar",
                                     "🏥 Hora médica/dental",
                                     "💼 Problema/Trámite personal",
