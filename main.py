@@ -894,8 +894,10 @@ def estandarizar_motivo_general(val):
     if not s or s.lower() in ('nan', 'none', '—', ''):
         return 'Sin Motivo Especificado'
     s_low = s.lower()
-    if 'personal' in s_low:
+    if 'personal' in s_low or 'tramite' in s_low or 'trámite' in s_low:
         return 'Personal'
+    if 'enferm' in s_low or 'malestar' in s_low:
+        return 'Enfermedad / Malestar'
     if 'dormid' in s_low or 'quedo dorm' in s_low:
         return 'Se quedó dormido/a'
     if 'medic' in s_low or 'dental' in s_low or 'doctor' in s_low or 'salud' in s_low or 'control' in s_low:
@@ -2525,16 +2527,15 @@ elif st.session_state.current_module == 'retiro':
                                     unsafe_allow_html=True
                                 )
 
-                                # Inputs Estandarizados con Emojis y Blindaje
+                                # Inputs Estandarizados y Blindaje
                                 import re
 
                                 opciones_retiro = [
-                                    "📋 Seleccione un motivo...",
+                                    "Seleccione un motivo...",
                                     "Personal",
-                                    "🤒 Enfermedad / Malestar",
-                                    "🏥 Hora médica/dental",
-                                    "💼 Problema/Trámite personal",
-                                    "❓ Otro (Especificar)"
+                                    "Enfermedad / Malestar",
+                                    "Hora médica/dental",
+                                    "Otro (Especificar)"
                                 ]
                                 motivo_raw = st.selectbox("Motivo del Retiro Anticipado:", opciones_retiro, key="select_motivo_retiro", index=0)
 
@@ -2544,9 +2545,9 @@ elif st.session_state.current_module == 'retiro':
                                     motivo_seleccionado = motivo_raw
 
                                 motivo_final = ""
-                                if motivo_seleccionado == "❓ Otro (Especificar)":
+                                if motivo_seleccionado == "Otro (Especificar)":
                                     motivo_final = st.text_input("Escriba el motivo específico del retiro:", key="txt_motivo_retiro_otro").strip()
-                                elif motivo_seleccionado != "📋 Seleccione un motivo...":
+                                elif motivo_seleccionado != "Seleccione un motivo...":
                                     motivo_final = motivo_seleccionado
 
                                 # Campo de nombre de apoderado con validación segura
@@ -2556,13 +2557,13 @@ elif st.session_state.current_module == 'retiro':
                                     st.error("⚠️ Solo se permiten letras en el nombre del apoderado.")
 
                                 opciones_parentesco = [
-                                    "👥 Seleccione parentesco...",
-                                    "👩 Mamá",
-                                    "👨 Papá",
-                                    "👵 Abuela/o",
-                                    "🧑 Hermana/o",
-                                    "👩‍🦰 Tía/o",
-                                    "❓ Otro (Especificar)"
+                                    "Seleccione parentesco...",
+                                    "Mamá",
+                                    "Papá",
+                                    "Abuela/o",
+                                    "Hermana/o",
+                                    "Tía/o",
+                                    "Otro (Especificar)"
                                 ]
                                 parentesco_raw = st.selectbox("Parentesco o Relación con el alumno:", opciones_parentesco, key="select_parentesco_retiro", index=0)
 
@@ -2572,20 +2573,20 @@ elif st.session_state.current_module == 'retiro':
                                     parentesco_seleccionado = parentesco_raw
 
                                 parentesco_final = ""
-                                if parentesco_seleccionado == "❓ Otro (Especificar)":
+                                if parentesco_seleccionado == "Otro (Especificar)":
                                     raw_parentesco_otro = st.text_input("Escriba la relación específica (Ej: Furgon, Vecino):", key="txt_parentesco_otro").strip()
                                     parentesco_final = re.sub(r'[0-9]', '', raw_parentesco_otro).strip()
                                     if re.search(r'\d', raw_parentesco_otro):
                                         st.error("⚠️ Solo se permiten letras en la relación.")
-                                elif parentesco_seleccionado != "👥 Seleccione parentesco...":
+                                elif parentesco_seleccionado != "Seleccione parentesco...":
                                     parentesco_final = parentesco_seleccionado
 
-                                campos_incompletos = (motivo_seleccionado == "📋 Seleccione un motivo...") or \
-                                                     (motivo_seleccionado == "❓ Otro (Especificar)" and not motivo_final) or \
+                                campos_incompletos = (motivo_seleccionado == "Seleccione un motivo...") or \
+                                                     (motivo_seleccionado == "Otro (Especificar)" and not motivo_final) or \
                                                      (not nombre_apoderado) or \
                                                      nombre_tiene_digitos or \
-                                                     (parentesco_seleccionado == "👥 Seleccione parentesco...") or \
-                                                     (parentesco_seleccionado == "❓ Otro (Especificar)" and not parentesco_final)
+                                                     (parentesco_seleccionado == "Seleccione parentesco...") or \
+                                                     (parentesco_seleccionado == "Otro (Especificar)" and not parentesco_final)
 
                                 if st.button("Confirmar Registro de Retiro", type="primary", key="btn_guardar_retiro_definitivo", disabled=campos_incompletos):
                                     if sheet_registros:
