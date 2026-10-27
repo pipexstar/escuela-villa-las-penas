@@ -806,6 +806,20 @@ if st.session_state.user is None:
 # MÓDULOS DE REPORTES INSTITUCIONALES (ATRASOS Y RETIROS)
 # ---------------------------------------------------------
 
+def parse_fecha_flexible(val):
+    """Parsea fechas en diversos formatos estándar (DD-MM-YYYY, YYYY-MM-DD, etc.)."""
+    if not val or pd.isna(val): return None
+    if isinstance(val, datetime.date): return val
+    if isinstance(val, datetime.datetime): return val.date()
+    val_clean = str(val).strip()
+    if val_clean.lower() in ('', 'nan', 'none', '—'): return None
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            return datetime.datetime.strptime(val_clean.split()[0], fmt).date()
+        except Exception:
+            pass
+    return None
+
 def cargar_datos_configuracion_reportes():
     """Carga los parámetros institucionales oficiales desde la tabla de Configuración."""
     conf_data = {}
@@ -3878,7 +3892,7 @@ elif st.session_state.current_module == 'notas':
                         df_a_adm.columns = [str(c).strip() for c in df_a_adm.columns]
                         col_c_adm = next((c for c in df_a_adm.columns if 'curs' in c.lower()), None)
                         if col_c_adm:
-                            cursos_permitidos = sorted([str(v).strip() for v in df_a_adm[col_c_adm].unique() if str(v).strip()])
+                            cursos_permitidos = sorted([str(v).strip() for v in df_a_adm[col_c_adm].unique() if str(v).strip()], key=orden_curso_sistema)
                             if cursos_permitidos:
                                 st.session_state['_admin_cursos_cache'] = cursos_permitidos
                 except Exception:
@@ -3903,7 +3917,7 @@ elif st.session_state.current_module == 'notas':
                             (df_asig[col_rut].astype(str).str.strip() == str(rut_usuario).strip()) &
                             (df_asig[col_a].astype(str).str.strip().str.upper() != 'JEFATURA')
                         ]
-                        cursos_permitidos = sorted(df_mias[col_c].unique().tolist())
+                        cursos_permitidos = sorted(df_mias[col_c].unique().tolist(), key=orden_curso_sistema)
                         asigs_permitidas  = sorted([a for a in df_mias[col_a].unique().tolist() if str(a).strip().upper() != 'JEFATURA'])
             except Exception as e:
                 st.warning(f"No se pudieron cargar las asignaciones: {e}")
@@ -4881,7 +4895,7 @@ elif st.session_state.current_module == 'asignaciones':
             df_a = pd.DataFrame(ra)
             col_c = next((c for c in df_a.columns if 'curs' in c.lower()), None)
             if col_c and not df_a.empty:
-                c_db = sorted([str(val) for val in df_a[col_c].unique() if str(val).strip() != ""])
+                c_db = sorted([str(val) for val in df_a[col_c].unique() if str(val).strip() != ""], key=orden_curso_sistema)
                 if c_db:
                     cursos_list = c_db
         except Exception:
@@ -5184,7 +5198,7 @@ elif st.session_state.current_module == 'asistencia':
             if not df_alumnos_raw.empty:
                 col_c_tmp = next((c for c in df_alumnos_raw.columns if 'curs' in c.lower()), None)
                 if col_c_tmp:
-                    cursos_disp = sorted([str(v) for v in df_alumnos_raw[col_c_tmp].unique() if str(v).strip()])
+                    cursos_disp = sorted([str(v) for v in df_alumnos_raw[col_c_tmp].unique() if str(v).strip()], key=orden_curso_sistema)
         except:
             pass
 
@@ -5203,8 +5217,8 @@ elif st.session_state.current_module == 'asistencia':
     MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
              "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
-    # ── Fila de controles compacta ───────────────────────────────────────────
-    col_c, col_p, col_m, col_n, col_s = st.columns([2.8, 0.45, 1.8, 0.45, 2.0])
+    # ── Fila de controles compacta con navegación y calendario ───────────────
+    col_c, col_p, col_m, col_cal, col_n, col_s = st.columns([2.4, 0.42, 1.7, 1.1, 0.42, 1.9])
 
     with col_c:
         idx_c = cursos_disp.index(st.session_state.asist_curso) if st.session_state.asist_curso in cursos_disp else 0
@@ -5220,10 +5234,25 @@ elif st.session_state.current_module == 'asistencia':
 
     with col_m:
         st.markdown(
-            f"<div style='text-align:center;font-size:1.0rem;font-weight:700;padding-top:4px;color:#1a5c32;'>"
+            f"<div style='text-align:center;font-size:1.0rem;font-weight:700;padding-top:4px;color:#1a5c32;white-space:nowrap;'>"
             f"{MESES[st.session_state.asist_month-1]} {st.session_state.asist_year}</div>",
             unsafe_allow_html=True
         )
+
+    with col_cal:
+        f_cal_val = datetime.date(st.session_state.asist_year, st.session_state.asist_month, 1)
+        f_cal_sel = st.date_input(
+            "📅 Mes:",
+            value=f_cal_val,
+            key=f"asist_cal_{st.session_state.asist_year}_{st.session_state.asist_month}",
+            format="DD/MM/YYYY",
+            label_visibility="collapsed"
+        )
+        if f_cal_sel and (f_cal_sel.month != st.session_state.asist_month or f_cal_sel.year != st.session_state.asist_year):
+            st.session_state.asist_month = f_cal_sel.month
+            st.session_state.asist_year = f_cal_sel.year
+            st.session_state.asist_loaded_key = ""
+            st.rerun()
 
     with col_n:
         if st.button("▶", key="btn_asist_next"):
@@ -5535,6 +5564,11 @@ elif st.session_state.current_module == 'asistencia':
                     col_o_al = next((c for c in df_alu.columns if any(
                                      x in c.lower() for x in ['list', 'orden', 'n°', 'nro'])), None)
                     col_b_al = next((c for c in df_alu.columns if 'baja'  in c.lower() or 'retir' in c.lower()), None)
+                    col_f_ing_al = next((c for c in df_alu.columns if any(
+                                         x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
+
+                    conf_inst_asis = cargar_datos_configuracion_reportes()
+                    f_inicio_semestre_1 = conf_inst_asis.get("s1_ini", datetime.date(year, 3, 4))
 
                     if not all([col_f_y, col_c_y, col_d_y, col_n_al, col_c_al]):
                         st.warning("Faltan columnas necesarias en la base de datos.")
@@ -5563,15 +5597,39 @@ elif st.session_state.current_module == 'asistencia':
                                 df_alu_c['_ord'] = range(1, len(df_alu_c)+1)
                             df_alu_c = df_alu_c.sort_values('_ord')
 
-                            # Calcular por alumno
+                            # Calcular por alumno considerando fecha de ingreso efectiva
                             rows_res = []
                             for _, alu in df_alu_c.iterrows():
                                 num_l    = int(alu['_ord'])
                                 nombre_a = str(alu[col_n_al])
-                                retirado = col_b_al and str(alu.get(col_b_al, '')).strip() not in ['','nan','None']
+                                val_baja = str(alu.get(col_b_al, '')).strip() if col_b_al else ''
+                                retirado = bool(val_baja and val_baja not in ['','nan','None'])
+                                val_ing  = str(alu.get(col_f_ing_al, '')).strip() if col_f_ing_al else ''
 
-                                dias_inasist = 0
+                                f_ing_alu  = parse_fecha_flexible(val_ing)
+                                f_baja_alu = parse_fecha_flexible(val_baja) if retirado else None
+
+                                # Si el alumno ingresó después del inicio oficial del semestre, contar desde su matrícula
+                                if f_ing_alu and f_ing_alu > f_inicio_semestre_1:
+                                    f_inicio_efectiva = f_ing_alu
+                                    es_ingreso_tardio = True
+                                else:
+                                    f_inicio_efectiva = f_inicio_semestre_1
+                                    es_ingreso_tardio = False
+
+                                dias_clase_alu = 0
+                                dias_inasist   = 0
+
                                 for _, rd in df_curso_yr.iterrows():
+                                    f_dia_str = str(rd[col_f_y]).strip()
+                                    f_dia     = parse_fecha_flexible(f_dia_str)
+
+                                    if f_dia and f_dia < f_inicio_efectiva:
+                                        continue
+                                    if f_baja_alu and f_dia and f_dia > f_baja_alu:
+                                        continue
+
+                                    dias_clase_alu += 1
                                     dato = str(rd[col_d_y]).strip().lower()
                                     if dato == 'todos':
                                         dias_inasist += 1
@@ -5579,13 +5637,19 @@ elif st.session_state.current_module == 'asistencia':
                                         if str(num_l) in [p.strip() for p in dato.split('-')]:
                                             dias_inasist += 1
 
-                                dias_asist = total_dias - dias_inasist
-                                pct        = round(dias_asist / total_dias * 100, 1) if total_dias > 0 else 0.0
+                                dias_asist = max(0, dias_clase_alu - dias_inasist)
+                                pct        = round(dias_asist / dias_clase_alu * 100, 1) if dias_clase_alu > 0 else 100.0
+
+                                etiqueta_alu = nombre_a
+                                if retirado:
+                                    etiqueta_alu += " 🔴 (Retirado)"
+                                elif es_ingreso_tardio:
+                                    etiqueta_alu += f" 🟡 (Ingreso: {f_inicio_efectiva.strftime('%d/%m')})"
 
                                 rows_res.append({
                                     "N°":                  num_l,
-                                    "Alumno":              nombre_a + (" 🔴" if retirado else ""),
-                                    "Días Clase":         total_dias,
+                                    "Alumno":              etiqueta_alu,
+                                    "Días Clase":         dias_clase_alu,
                                     "Días Asistidos":     dias_asist,
                                     "Días Inasistencia":  dias_inasist,
                                     "% Asistencia":        pct
@@ -5929,8 +5993,9 @@ elif st.session_state.current_module == 'preacta':
             col_r = next((c for c in df_al.columns if 'rut' in c.lower()), 'RUT')
             col_o = next((c for c in df_al.columns if any(x in c.lower() for x in ['list','orden','n°','nro'])), 'N° Lista')
             col_baja = next((c for c in df_al.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
+            col_ing_pre = next((c for c in df_al.columns if any(x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
 
-            cursos_disp = sorted([str(c).strip() for c in df_al[col_c].unique() if str(c).strip()]) if not df_al.empty and col_c in df_al.columns else ["1° Básico"]
+            cursos_disp = sorted([str(c).strip() for c in df_al[col_c].unique() if str(c).strip()], key=orden_curso_sistema) if not df_al.empty and col_c in df_al.columns else ["1° Básico"]
 
             # Barra superior de filtros
             c_p1, c_p2 = st.columns([2.5, 1.5])
@@ -6018,11 +6083,19 @@ elif st.session_state.current_module == 'preacta':
                     ("Orientación", "Orientación", "Ori")
                 ]
 
-                # Total días asistencia del curso
+                # Asistencia del curso y fecha de inicio de clases institucional
+                conf_inst_pre = cargar_datos_configuracion_reportes()
+                f_inicio_semestre_1_pre = conf_inst_pre.get("s1_ini", datetime.date(anio_preacta_sel, 3, 4))
+
                 total_dias_asis = 0
+                df_c_asist = pd.DataFrame()
+                col_f_asist = 'Fecha'
+                col_d_asist = 'Datos'
                 if not df_asist.empty and 'Curso' in df_asist.columns:
                     df_c_asist = df_asist[df_asist['Curso'].astype(str).str.strip() == str(curso_preacta_sel).strip()]
                     total_dias_asis = len(df_c_asist)
+                    col_f_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['fecha', 'fec', 'dia'])), 'Fecha')
+                    col_d_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
 
                 def match_asig(nombre_bd, asig_cat_full):
                     nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
@@ -6153,14 +6226,33 @@ elif st.session_state.current_module == 'preacta':
                         prom_gral_num = 0.0
                         prom_gral_str = "—"
 
-                    # Asistencia del Alumno
+                    # Asistencia del Alumno considerando fecha de matrícula / ingreso
+                    val_ing_al = str(r_al.get(col_ing_pre, '')).strip() if col_ing_pre else ''
+                    f_ing_al = parse_fecha_flexible(val_ing_al)
+                    f_baja_al = parse_fecha_flexible(val_baja) if es_ret else None
+
+                    if f_ing_al and f_ing_al > f_inicio_semestre_1_pre:
+                        f_inicio_efectiva = f_ing_al
+                    else:
+                        f_inicio_efectiva = f_inicio_semestre_1_pre
+
+                    dias_clase_al = 0
                     inasist_al = 0
-                    if total_dias_asis > 0:
+                    if not df_c_asist.empty:
                         for _, ra in df_c_asist.iterrows():
-                            dat_a = str(ra.get('Datos', '')).strip().lower()
+                            f_dia_str = str(ra.get(col_f_asist, '')).strip()
+                            f_dia = parse_fecha_flexible(f_dia_str)
+                            if f_dia and f_dia < f_inicio_efectiva:
+                                continue
+                            if f_baja_al and f_dia and f_dia > f_baja_al:
+                                continue
+                            dias_clase_al += 1
+                            dat_a = str(ra.get(col_d_asist, '')).strip().lower()
                             if dat_a == 'todos' or str(n_lista) in [p.strip() for p in dat_a.split('-')]:
                                 inasist_al += 1
-                        pct_asist_num = round(((max(0, total_dias_asis - inasist_al)) / total_dias_asis) * 100, 1)
+
+                    if dias_clase_al > 0:
+                        pct_asist_num = round(((max(0, dias_clase_al - inasist_al)) / dias_clase_al) * 100, 1)
                     else:
                         pct_asist_num = 100.0
 
@@ -6666,6 +6758,10 @@ elif st.session_state.current_module == 'informes':
             col_mat = next((c for c in df_al_inf.columns if 'matr' in c.lower() and 'fec' not in c.lower()), 'N° Matrícula')
             col_f_mat = next((c for c in df_al_inf.columns if 'matr' in c.lower() and ('fec' in c.lower() or 'date' in c.lower())), 'Fecha Matrícula')
             col_baja = next((c for c in df_al_inf.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
+            col_f_ing = next((c for c in df_al_inf.columns if any(x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
+
+            conf_inst_inf = cargar_datos_configuracion_reportes()
+            f_inicio_semestre_1_inf = conf_inst_inf.get("s1_ini", datetime.date(datetime.date.today().year, 3, 4))
 
             cursos_disp = obtener_cursos_oficiales_sistema()
 
@@ -6923,14 +7019,33 @@ elif st.session_state.current_module == 'informes':
                     )
                     th_html = f"<tr><th rowspan='2' class='asig-col'>Asignaturas</th><th colspan='10'>1er Semestre</th><th rowspan='2'>P1</th><th colspan='10'>2do Semestre</th><th rowspan='2'>P2</th><th rowspan='2'>NF</th></tr><tr>{sub_th_10}{sub_th_10}</tr>"
 
-                # Calcular Asistencia real
+                # Calcular Asistencia real (considerando fecha de ingreso y retiro)
+                val_ing_al = str(alumno_dict.get(col_f_ing, '')).strip() if col_f_ing else ''
+                val_baja_al = str(alumno_dict.get(col_baja, '')).strip() if col_baja else ''
+                f_ing_alu = parse_fecha_flexible(val_ing_al)
+                f_baja_alu = parse_fecha_flexible(val_baja_al) if (val_baja_al and val_baja_al not in ['', 'nan', 'None']) else None
+
+                if f_ing_alu and f_ing_alu > f_inicio_semestre_1_inf:
+                    f_inicio_efectiva = f_ing_alu
+                else:
+                    f_inicio_efectiva = f_inicio_semestre_1_inf
+
                 total_dias_asis = 0
                 total_inasist = 0
                 if not df_asist_all.empty:
                     df_c_asist = df_asist_all[df_asist_all['Curso'].astype(str).str.strip() == str(curso_inf_sel).strip()]
-                    total_dias_asis = len(df_c_asist)
+                    col_f_asist_inf = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['fecha', 'fec', 'dia'])), 'Fecha')
+                    col_d_asist_inf = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
+
                     for _, ra in df_c_asist.iterrows():
-                        dat_a = str(ra.get('Datos', '')).strip().lower()
+                        f_dia_str = str(ra.get(col_f_asist_inf, '')).strip()
+                        f_dia = parse_fecha_flexible(f_dia_str)
+                        if f_dia and f_dia < f_inicio_efectiva:
+                            continue
+                        if f_baja_alu and f_dia and f_dia > f_baja_alu:
+                            continue
+                        total_dias_asis += 1
+                        dat_a = str(ra.get(col_d_asist_inf, '')).strip().lower()
                         if dat_a == 'todos' or str(ord_alu) in [p.strip() for p in dat_a.split('-')]:
                             total_inasist += 1
 
