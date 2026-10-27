@@ -2330,6 +2330,17 @@ elif st.session_state.current_module == 'atraso':
                                         curso_alumno_final
                                     ])
 
+                                    # Notificar al teléfono del apoderado si está suscrito
+                                    try:
+                                        from utils.notifications import notificar_apoderados_rut
+                                        notificar_apoderados_rut(
+                                            rut=alumno['rut'],
+                                            titulo="🔔 Escuela Villa Las Peñas",
+                                            mensaje=f"Atraso registrado: {alumno['nombre']} ingresó a las {ahora.strftime('%H:%M')} hrs. Motivo: {motivo_final}."
+                                        )
+                                    except Exception:
+                                        pass
+
                                     # Guardar datos del justificativo térmico de 8x8 cm
                                     st.session_state.ultimo_voucher_atraso = {
                                         'nombre': str(alumno['nombre']).strip().upper(),
@@ -2608,6 +2619,17 @@ elif st.session_state.current_module == 'retiro':
                                             parentesco_final,
                                             alumno.get('curso', '')
                                         ])
+
+                                        # Notificar al teléfono del apoderado si está suscrito
+                                        try:
+                                            from utils.notifications import notificar_apoderados_rut
+                                            notificar_apoderados_rut(
+                                                rut=alumno['rut'],
+                                                titulo="🔔 Escuela Villa Las Peñas",
+                                                mensaje=f"Retiro registrado: {alumno['nombre']} fue retirado/a a las {hora_str} hrs por {nombre_apoderado} ({parentesco_final}). Motivo: {motivo_final}."
+                                            )
+                                        except Exception:
+                                            pass
 
                                         st.session_state.mensaje_exito_retiro = f"✅ Retiro registrado exitosamente para **{alumno['nombre']}** ({alumno.get('curso', '')}) a las **{hora_str}** hrs."
                                         st.session_state.alumno_seleccionado_retiro = None
