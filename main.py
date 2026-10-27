@@ -820,6 +820,71 @@ def parse_fecha_flexible(val):
             pass
     return None
 
+def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
+    """
+    Extrae de forma robusta la fecha de ingreso (matrícula o alta) y fecha de baja de un alumno,
+    independiente de tildes o variaciones de columnas ('Fecha Matrícula', 'Fecha Matricula', 'Fecha Alta', etc.).
+    """
+    import unicodedata
+    if not isinstance(r_alu, dict):
+        try:
+            r_alu = r_alu.to_dict()
+        except Exception:
+            r_alu = dict(r_alu)
+
+    # 1. Buscar fecha de baja / retiro
+    f_baja = None
+    es_retirado = False
+    for k, v in r_alu.items():
+        k_norm = ''.join(c for c in unicodedata.normalize('NFD', str(k).lower()) if unicodedata.category(c) != 'Mn')
+        if ('baja' in k_norm or 'retir' in k_norm) and 'motiv' not in k_norm:
+            val_b = str(v).strip()
+            if val_b and val_b.lower() not in ('', 'nan', 'none', '—'):
+                es_retirado = True
+                f_baja = parse_fecha_flexible(val_b)
+                break
+
+    # 2. Buscar fecha de matrícula y fecha de alta / ingreso
+    f_mat = None
+    f_alta = None
+    for k, v in r_alu.items():
+        k_norm = ''.join(c for c in unicodedata.normalize('NFD', str(k).lower()) if unicodedata.category(c) != 'Mn')
+        if 'fec' in k_norm or 'date' in k_norm or 'alta' in k_norm or 'ingres' in k_norm:
+            if 'matr' in k_norm:
+                f_mat = parse_fecha_flexible(v)
+            elif 'alta' in k_norm or 'ingres' in k_norm or 'incorp' in k_norm:
+                f_alta = parse_fecha_flexible(v)
+
+    # 3. Determinar fecha de ingreso efectiva
+    f_ingreso = None
+    if f_mat and f_inicio_oficial and f_mat > f_inicio_oficial:
+        f_ingreso = f_mat
+    elif f_alta and f_inicio_oficial and f_alta > f_inicio_oficial:
+        f_ingreso = f_alta
+    elif f_mat:
+        f_ingreso = f_mat
+    elif f_alta:
+        f_ingreso = f_alta
+
+    # 4. Determinar fecha de inicio efectiva para el conteo de asistencia
+    es_ingreso_tardio = False
+    if f_inicio_oficial:
+        if f_ingreso and f_ingreso > f_inicio_oficial:
+            f_inicio_efectiva = f_ingreso
+            es_ingreso_tardio = True
+        else:
+            f_inicio_efectiva = f_inicio_oficial
+    else:
+        f_inicio_efectiva = f_ingreso
+
+    return {
+        "f_ingreso": f_ingreso,
+        "f_inicio_efectiva": f_inicio_efectiva,
+        "es_ingreso_tardio": es_ingreso_tardio,
+        "f_baja": f_baja,
+        "es_retirado": es_retirado
+    }
+
 def cargar_datos_configuracion_reportes():
     """Carga los parámetros institucionales oficiales desde la tabla de Configuración."""
     conf_data = {}
@@ -1979,7 +2044,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
 sheet_config_global = get_config_sheet()
 matriz_permisos_global = obtener_matriz_permisos(sheet_config_global)
-rol_user_actual = str(st.session_state.user.get('rol', '')).strip()
+rol_user_actual = str(st.session_state.user.get('rol', '') if st.session_state.get('user') else '').strip()
 es_admin_total  = normalizar_nombre_rol(rol_user_actual) == "Administrador Total"
 
 # Seguridad de navegación directa por rol
@@ -5283,13 +5348,15 @@ elif st.session_state.current_module == 'asistencia':
 
     # ── Preparar nómina de alumnos con N° de lista ───────────────────────────
     alumnos_nomina = []
+    conf_inst_asis = cargar_datos_configuracion_reportes()
+    f_inicio_semestre_1 = conf_inst_asis.get("s1_ini", datetime.date(year, 3, 4))
+
     if not df_alumnos_raw.empty:
         df_al_work = df_alumnos_raw.copy()
         df_al_work.columns = [str(c).strip() for c in df_al_work.columns]
         col_c_al = next((c for c in df_al_work.columns if 'curs' in c.lower()), None)
         col_n_al = next((c for c in df_al_work.columns if 'nomb' in c.lower()), None)
         col_o_al = next((c for c in df_al_work.columns if any(x in c.lower() for x in ['list', 'orden', 'n°', 'nro'])), None)
-        col_b_al = next((c for c in df_al_work.columns if 'baja' in c.lower() or 'retir' in c.lower()), None)
 
         if col_c_al and col_n_al:
             df_curso_al = df_al_work[df_al_work[col_c_al].astype(str).str.strip() == str(curso_asist)].copy()
@@ -5302,11 +5369,13 @@ elif st.session_state.current_module == 'asistencia':
                 df_curso_al = df_curso_al.sort_values('_ord')
 
                 for _, r_alu in df_curso_al.iterrows():
-                    es_ret = bool(col_b_al and str(r_alu.get(col_b_al, '')).strip() not in ['', 'nan', 'None'])
+                    f_info = extraer_fechas_alumno(r_alu, f_inicio_semestre_1)
                     alumnos_nomina.append({
                         "num": int(r_alu['_ord']),
                         "nombre": str(r_alu[col_n_al]).strip(),
-                        "retirado": es_ret
+                        "retirado": f_info["es_retirado"],
+                        "ingreso_tardio": f_info["es_ingreso_tardio"],
+                        "f_inicio_efectiva": f_info["f_inicio_efectiva"]
                     })
 
     # ── Detectar cambio de curso/mes → recargar datos ────────────────────────
@@ -5371,6 +5440,11 @@ elif st.session_state.current_module == 'asistencia':
                 if al["retirado"]:
                     ret_tag = "<span style='background:#fee2e2;color:#b91c1c;border:1px solid #f87171;font-size:0.68rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:6px;'>RETIRADO</span>"
                     cls_item = " style='background:#fef2f2;border-left:3px solid #ef4444;color:#991b1b;'"
+                elif al.get("ingreso_tardio"):
+                    f_ef = al["f_inicio_efectiva"]
+                    f_str = f_ef.strftime('%d/%m') if hasattr(f_ef, 'strftime') else str(f_ef)
+                    ret_tag = f"<span style='background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.68rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:6px;'>INGRESO: {f_str}</span>"
+                    cls_item = ""
                 else:
                     ret_tag = ""
                     cls_item = ""
@@ -5602,20 +5676,11 @@ elif st.session_state.current_module == 'asistencia':
                             for _, alu in df_alu_c.iterrows():
                                 num_l    = int(alu['_ord'])
                                 nombre_a = str(alu[col_n_al])
-                                val_baja = str(alu.get(col_b_al, '')).strip() if col_b_al else ''
-                                retirado = bool(val_baja and val_baja not in ['','nan','None'])
-                                val_ing  = str(alu.get(col_f_ing_al, '')).strip() if col_f_ing_al else ''
-
-                                f_ing_alu  = parse_fecha_flexible(val_ing)
-                                f_baja_alu = parse_fecha_flexible(val_baja) if retirado else None
-
-                                # Si el alumno ingresó después del inicio oficial del semestre, contar desde su matrícula
-                                if f_ing_alu and f_ing_alu > f_inicio_semestre_1:
-                                    f_inicio_efectiva = f_ing_alu
-                                    es_ingreso_tardio = True
-                                else:
-                                    f_inicio_efectiva = f_inicio_semestre_1
-                                    es_ingreso_tardio = False
+                                f_info   = extraer_fechas_alumno(alu, f_inicio_semestre_1)
+                                retirado = f_info["es_retirado"]
+                                f_baja_alu = f_info["f_baja"]
+                                es_ingreso_tardio = f_info["es_ingreso_tardio"]
+                                f_inicio_efectiva = f_info["f_inicio_efectiva"]
 
                                 dias_clase_alu = 0
                                 dias_inasist   = 0
@@ -6227,14 +6292,9 @@ elif st.session_state.current_module == 'preacta':
                         prom_gral_str = "—"
 
                     # Asistencia del Alumno considerando fecha de matrícula / ingreso
-                    val_ing_al = str(r_al.get(col_ing_pre, '')).strip() if col_ing_pre else ''
-                    f_ing_al = parse_fecha_flexible(val_ing_al)
-                    f_baja_al = parse_fecha_flexible(val_baja) if es_ret else None
-
-                    if f_ing_al and f_ing_al > f_inicio_semestre_1_pre:
-                        f_inicio_efectiva = f_ing_al
-                    else:
-                        f_inicio_efectiva = f_inicio_semestre_1_pre
+                    f_info_pre = extraer_fechas_alumno(r_al, f_inicio_semestre_1_pre)
+                    f_inicio_efectiva = f_info_pre["f_inicio_efectiva"]
+                    f_baja_al = f_info_pre["f_baja"]
 
                     dias_clase_al = 0
                     inasist_al = 0
@@ -7020,15 +7080,9 @@ elif st.session_state.current_module == 'informes':
                     th_html = f"<tr><th rowspan='2' class='asig-col'>Asignaturas</th><th colspan='10'>1er Semestre</th><th rowspan='2'>P1</th><th colspan='10'>2do Semestre</th><th rowspan='2'>P2</th><th rowspan='2'>NF</th></tr><tr>{sub_th_10}{sub_th_10}</tr>"
 
                 # Calcular Asistencia real (considerando fecha de ingreso y retiro)
-                val_ing_al = str(alumno_dict.get(col_f_ing, '')).strip() if col_f_ing else ''
-                val_baja_al = str(alumno_dict.get(col_baja, '')).strip() if col_baja else ''
-                f_ing_alu = parse_fecha_flexible(val_ing_al)
-                f_baja_alu = parse_fecha_flexible(val_baja_al) if (val_baja_al and val_baja_al not in ['', 'nan', 'None']) else None
-
-                if f_ing_alu and f_ing_alu > f_inicio_semestre_1_inf:
-                    f_inicio_efectiva = f_ing_alu
-                else:
-                    f_inicio_efectiva = f_inicio_semestre_1_inf
+                f_info_inf = extraer_fechas_alumno(alumno_dict, f_inicio_semestre_1_inf)
+                f_inicio_efectiva = f_info_inf["f_inicio_efectiva"]
+                f_baja_alu = f_info_inf["f_baja"]
 
                 total_dias_asis = 0
                 total_inasist = 0
