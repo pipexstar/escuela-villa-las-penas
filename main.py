@@ -822,8 +822,9 @@ def parse_fecha_flexible(val):
 
 def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
     """
-    Extrae de forma robusta la fecha de ingreso (matrícula o alta) y fecha de baja de un alumno,
-    independiente de tildes o variaciones de columnas ('Fecha Matrícula', 'Fecha Matricula', 'Fecha Alta', etc.).
+    Extrae de forma robusta la fecha de ingreso (matricula o alta) y fecha de baja de un alumno.
+    Soporta variaciones de nombre de columna con o sin tildes.
+    Si la fecha de matricula/alta es posterior al inicio del semestre 1, se marca como ingreso tardio.
     """
     import unicodedata
     if not isinstance(r_alu, dict):
@@ -832,31 +833,43 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
         except Exception:
             r_alu = dict(r_alu)
 
+    def norm_key(k):
+        return ''.join(c for c in unicodedata.normalize('NFD', str(k).lower()) if unicodedata.category(c) != 'Mn')
+
     # 1. Buscar fecha de baja / retiro
     f_baja = None
     es_retirado = False
     for k, v in r_alu.items():
-        k_norm = ''.join(c for c in unicodedata.normalize('NFD', str(k).lower()) if unicodedata.category(c) != 'Mn')
-        if ('baja' in k_norm or 'retir' in k_norm) and 'motiv' not in k_norm:
+        k_n = norm_key(k)
+        if ('baja' in k_n or 'retir' in k_n) and 'motiv' not in k_n and 'nac' not in k_n:
             val_b = str(v).strip()
-            if val_b and val_b.lower() not in ('', 'nan', 'none', '—'):
-                es_retirado = True
-                f_baja = parse_fecha_flexible(val_b)
-                break
+            if val_b and val_b.lower() not in ('', 'nan', 'none', '-', 'nat', 'null'):
+                parsed = parse_fecha_flexible(val_b)
+                if parsed is not None:
+                    es_retirado = True
+                    f_baja = parsed
+                    break
 
-    # 2. Buscar fecha de matrícula y fecha de alta / ingreso
+    # 2. Buscar fecha de matricula y fecha de alta / ingreso por nombre de columna
     f_mat = None
     f_alta = None
     for k, v in r_alu.items():
-        k_norm = ''.join(c for c in unicodedata.normalize('NFD', str(k).lower()) if unicodedata.category(c) != 'Mn')
-        if 'fec' in k_norm or 'date' in k_norm or 'alta' in k_norm or 'ingres' in k_norm:
-            if 'matr' in k_norm:
-                f_mat = parse_fecha_flexible(v)
-            elif 'alta' in k_norm or 'ingres' in k_norm or 'incorp' in k_norm:
-                f_alta = parse_fecha_flexible(v)
+        k_n = norm_key(k)
+        if 'baja' in k_n or 'retir' in k_n or 'nac' in k_n:
+            continue
+        if 'fec' in k_n or 'date' in k_n or 'alta' in k_n or 'ingres' in k_n or 'incorpor' in k_n:
+            parsed = parse_fecha_flexible(v)
+            if parsed is None:
+                continue
+            if 'matr' in k_n:
+                f_mat = parsed
+            elif 'alta' in k_n or 'ingres' in k_n or 'incorpor' in k_n:
+                f_alta = parsed
 
-    # 3. Determinar fecha de ingreso efectiva
+    # 3. Determinar fecha de ingreso al anio escolar (posterior al inicio oficial)
+    anio_escolar = f_inicio_oficial.year if f_inicio_oficial else None
     f_ingreso = None
+
     if f_mat and f_inicio_oficial and f_mat > f_inicio_oficial:
         f_ingreso = f_mat
     elif f_alta and f_inicio_oficial and f_alta > f_inicio_oficial:
@@ -865,6 +878,19 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
         f_ingreso = f_mat
     elif f_alta:
         f_ingreso = f_alta
+
+    # Fallback: buscar en TODAS las columnas de fecha un valor del anio escolar > inicio oficial
+    if f_ingreso is None and f_inicio_oficial and anio_escolar:
+        candidatas = []
+        for k, v in r_alu.items():
+            k_n = norm_key(k)
+            if 'baja' in k_n or 'retir' in k_n or 'nac' in k_n:
+                continue
+            parsed = parse_fecha_flexible(v)
+            if parsed and parsed.year == anio_escolar and parsed > f_inicio_oficial:
+                candidatas.append(parsed)
+        if candidatas:
+            f_ingreso = min(candidatas)
 
     # 4. Determinar fecha de inicio efectiva para el conteo de asistencia
     es_ingreso_tardio = False
@@ -875,7 +901,7 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
         else:
             f_inicio_efectiva = f_inicio_oficial
     else:
-        f_inicio_efectiva = f_ingreso
+        f_inicio_efectiva = f_ingreso if f_ingreso else None
 
     return {
         "f_ingreso": f_ingreso,
@@ -5279,6 +5305,9 @@ elif st.session_state.current_module == 'asistencia':
     if 'asist_month' not in st.session_state: st.session_state.asist_month = today.month
     if 'asist_curso' not in st.session_state: st.session_state.asist_curso = cursos_disp[0]
 
+    year  = st.session_state.asist_year
+    month = st.session_state.asist_month
+
     MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
              "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
@@ -5643,22 +5672,35 @@ elif st.session_state.current_module == 'asistencia':
 
                     conf_inst_asis = cargar_datos_configuracion_reportes()
                     f_inicio_semestre_1 = conf_inst_asis.get("s1_ini", datetime.date(year, 3, 4))
+                    f_fin_semestre_1    = conf_inst_asis.get("s1_fin", datetime.date(year, 6, 18))
+                    f_inicio_semestre_2 = conf_inst_asis.get("s2_ini", datetime.date(year, 7, 6))
+                    f_fin_semestre_2    = conf_inst_asis.get("s2_fin", datetime.date(year, 12, 11))
 
                     if not all([col_f_y, col_c_y, col_d_y, col_n_al, col_c_al]):
                         st.warning("Faltan columnas necesarias en la base de datos.")
                     else:
+                        col_cur_y = next((c for c in df_yr.columns if 'curs' in c.lower()), col_c_y)
                         df_curso_yr = df_yr[
                             (df_yr[col_f_y].astype(str).str.startswith(str(year))) &
-                            (df_yr[col_c_y].astype(str).str.strip() == str(curso_asist))
+                            (df_yr[col_cur_y].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_asist)))
                         ].copy()
 
-                        # Excluir días marcados como "sin_clases" del total
+                        # Excluir días marcados como "sin_clases" o "sc"
                         col_t_y = next((c for c in df_curso_yr.columns if 'tipo' in c.lower()), None)
                         if col_t_y:
                             df_curso_yr = df_curso_yr[df_curso_yr[col_t_y].astype(str).str.strip().str.lower() != 'sin_clases']
+                        df_curso_yr = df_curso_yr[~df_curso_yr[col_d_y].astype(str).str.strip().str.lower().isin(['sc', 'borrar', ''])]
+
+                        # Excluir fechas fuera de los semestres escolares oficiales (vacaciones de invierno / fuera de rango)
+                        def _es_dia_escolar_oficial(f_str):
+                            fd = parse_fecha_flexible(f_str)
+                            if not fd: return False
+                            return (f_inicio_semestre_1 <= fd <= f_fin_semestre_1) or (f_inicio_semestre_2 <= fd <= f_fin_semestre_2)
+
+                        df_curso_yr = df_curso_yr[df_curso_yr[col_f_y].apply(_es_dia_escolar_oficial)]
                         total_dias = len(df_curso_yr)
 
-                        df_alu_c = df_alu[df_alu[col_c_al].astype(str).str.strip() == str(curso_asist)].copy()
+                        df_alu_c = df_alu[df_alu[col_c_al].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_asist))].copy()
 
                         if df_alu_c.empty:
                             st.info("No hay alumnos registrados para este curso.")
@@ -5681,6 +5723,10 @@ elif st.session_state.current_module == 'asistencia':
                                 f_baja_alu = f_info["f_baja"]
                                 es_ingreso_tardio = f_info["es_ingreso_tardio"]
                                 f_inicio_efectiva = f_info["f_inicio_efectiva"]
+
+                                # Seguridad: si f_inicio_efectiva es None, usar inicio del semestre
+                                if f_inicio_efectiva is None:
+                                    f_inicio_efectiva = f_inicio_semestre_1
 
                                 dias_clase_alu = 0
                                 dias_inasist   = 0
@@ -6148,16 +6194,20 @@ elif st.session_state.current_module == 'preacta':
                     ("Orientación", "Orientación", "Ori")
                 ]
 
-                # Asistencia del curso y fecha de inicio de clases institucional
+                # Asistencia del curso y fechas de semestres institucionales
                 conf_inst_pre = cargar_datos_configuracion_reportes()
                 f_inicio_semestre_1_pre = conf_inst_pre.get("s1_ini", datetime.date(anio_preacta_sel, 3, 4))
+                f_fin_semestre_1_pre    = conf_inst_pre.get("s1_fin", datetime.date(anio_preacta_sel, 6, 18))
+                f_inicio_semestre_2_pre = conf_inst_pre.get("s2_ini", datetime.date(anio_preacta_sel, 7, 6))
+                f_fin_semestre_2_pre    = conf_inst_pre.get("s2_fin", datetime.date(anio_preacta_sel, 12, 11))
 
                 total_dias_asis = 0
                 df_c_asist = pd.DataFrame()
                 col_f_asist = 'Fecha'
                 col_d_asist = 'Datos'
                 if not df_asist.empty and 'Curso' in df_asist.columns:
-                    df_c_asist = df_asist[df_asist['Curso'].astype(str).str.strip() == str(curso_preacta_sel).strip()]
+                    col_cur_asist = next((c for c in df_asist.columns if 'curs' in c.lower()), 'Curso')
+                    df_c_asist = df_asist[df_asist[col_cur_asist].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_preacta_sel))]
                     total_dias_asis = len(df_c_asist)
                     col_f_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['fecha', 'fec', 'dia'])), 'Fecha')
                     col_d_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
@@ -6296,18 +6346,36 @@ elif st.session_state.current_module == 'preacta':
                     f_inicio_efectiva = f_info_pre["f_inicio_efectiva"]
                     f_baja_al = f_info_pre["f_baja"]
 
+                    # Seguridad: si f_inicio_efectiva es None, usar inicio del semestre
+                    if f_inicio_efectiva is None:
+                        f_inicio_efectiva = f_inicio_semestre_1_pre
+
                     dias_clase_al = 0
                     inasist_al = 0
                     if not df_c_asist.empty:
+                        col_t_asist = next((c for c in df_c_asist.columns if 'tipo' in c.lower()), None)
                         for _, ra in df_c_asist.iterrows():
+                            if col_t_asist and str(ra.get(col_t_asist, '')).strip().lower() == 'sin_clases':
+                                continue
+                            dat_a = str(ra.get(col_d_asist, '')).strip().lower()
+                            if dat_a in ('sc', 'borrar', ''):
+                                continue
+
                             f_dia_str = str(ra.get(col_f_asist, '')).strip()
                             f_dia = parse_fecha_flexible(f_dia_str)
-                            if f_dia and f_dia < f_inicio_efectiva:
+                            if not f_dia:
                                 continue
-                            if f_baja_al and f_dia and f_dia > f_baja_al:
+
+                            # Validar que pertenezca a los semestres escolares oficiales (excluye vacaciones de invierno)
+                            es_en_semestre = (f_inicio_semestre_1_pre <= f_dia <= f_fin_semestre_1_pre) or (f_inicio_semestre_2_pre <= f_dia <= f_fin_semestre_2_pre)
+                            if not es_en_semestre:
+                                continue
+
+                            if f_dia < f_inicio_efectiva:
+                                continue
+                            if f_baja_al and f_dia > f_baja_al:
                                 continue
                             dias_clase_al += 1
-                            dat_a = str(ra.get(col_d_asist, '')).strip().lower()
                             if dat_a == 'todos' or str(n_lista) in [p.strip() for p in dat_a.split('-')]:
                                 inasist_al += 1
 
@@ -6822,6 +6890,9 @@ elif st.session_state.current_module == 'informes':
 
             conf_inst_inf = cargar_datos_configuracion_reportes()
             f_inicio_semestre_1_inf = conf_inst_inf.get("s1_ini", datetime.date(datetime.date.today().year, 3, 4))
+            f_fin_semestre_1_inf    = conf_inst_inf.get("s1_fin", datetime.date(datetime.date.today().year, 6, 18))
+            f_inicio_semestre_2_inf = conf_inst_inf.get("s2_ini", datetime.date(datetime.date.today().year, 7, 6))
+            f_fin_semestre_2_inf    = conf_inst_inf.get("s2_fin", datetime.date(datetime.date.today().year, 12, 11))
 
             cursos_disp = obtener_cursos_oficiales_sistema()
 
@@ -7084,27 +7155,60 @@ elif st.session_state.current_module == 'informes':
                 f_inicio_efectiva = f_info_inf["f_inicio_efectiva"]
                 f_baja_alu = f_info_inf["f_baja"]
 
+                # Seguridad: si f_inicio_efectiva es None, usar inicio del semestre
+                if f_inicio_efectiva is None:
+                    f_inicio_efectiva = f_inicio_semestre_1_inf
+
                 total_dias_asis = 0
                 total_inasist = 0
                 if not df_asist_all.empty:
-                    df_c_asist = df_asist_all[df_asist_all['Curso'].astype(str).str.strip() == str(curso_inf_sel).strip()]
+                    col_cur_asist_inf = next((c for c in df_asist_all.columns if 'curs' in c.lower()), 'Curso')
+                    df_c_asist = df_asist_all[df_asist_all[col_cur_asist_inf].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_inf_sel))]
                     col_f_asist_inf = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['fecha', 'fec', 'dia'])), 'Fecha')
                     col_d_asist_inf = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
+                    col_t_asist_inf = next((c for c in df_c_asist.columns if 'tipo' in c.lower()), None)
 
                     for _, ra in df_c_asist.iterrows():
+                        # Excluir días sin clases
+                        if col_t_asist_inf and str(ra.get(col_t_asist_inf, '')).strip().lower() == 'sin_clases':
+                            continue
+                        dat_a = str(ra.get(col_d_asist_inf, '')).strip().lower()
+                        if dat_a in ('sc', 'borrar', ''):
+                            continue
+
                         f_dia_str = str(ra.get(col_f_asist_inf, '')).strip()
                         f_dia = parse_fecha_flexible(f_dia_str)
-                        if f_dia and f_dia < f_inicio_efectiva:
+                        if not f_dia:
                             continue
-                        if f_baja_alu and f_dia and f_dia > f_baja_alu:
+
+                        # Filtros por período / semestre oficial (excluye vacaciones de invierno y días fuera de rango)
+                        if modo_s1_solo:
+                            if f_dia < f_inicio_semestre_1_inf or (f_fin_semestre_1_inf and f_dia > f_fin_semestre_1_inf):
+                                continue
+                            if f_dia < f_inicio_efectiva:
+                                continue
+                        elif modo_s2_solo:
+                            f_ini_s2_eff = max(f_inicio_semestre_2_inf, f_inicio_efectiva) if f_inicio_semestre_2_inf else f_inicio_efectiva
+                            if f_dia < f_ini_s2_eff or (f_fin_semestre_2_inf and f_dia > f_fin_semestre_2_inf):
+                                continue
+                        else:
+                            # Modo Anual: solo días oficiales de S1 o S2 (excluye receso de invierno entre semestres)
+                            es_en_semestre = (f_inicio_semestre_1_inf <= f_dia <= f_fin_semestre_1_inf) or (f_inicio_semestre_2_inf <= f_dia <= f_fin_semestre_2_inf)
+                            if not es_en_semestre:
+                                continue
+                            if f_dia < f_inicio_efectiva:
+                                continue
+
+                        if f_baja_alu and f_dia > f_baja_alu:
                             continue
+
                         total_dias_asis += 1
-                        dat_a = str(ra.get(col_d_asist_inf, '')).strip().lower()
                         if dat_a == 'todos' or str(ord_alu) in [p.strip() for p in dat_a.split('-')]:
                             total_inasist += 1
 
                 total_asis_dias = max(0, total_dias_asis - total_inasist)
                 pct_asis = f"{(total_asis_dias / total_dias_asis * 100):.2f}".replace('.', ',') if total_dias_asis > 0 else "100,00"
+                label_asist_rec = "Asistencia 1er Semestre(%)" if modo_s1_solo else ("Asistencia 2do Semestre(%)" if modo_s2_solo else "Asistencia Anual(%)")
 
                 # Insignia en Base64 o fallback
                 insignia_img_tag = f"<img src='data:image/png;base64,{insignia_b64_html}' style='max-height:65px;max-width:65px;object-fit:contain;'>" if insignia_b64_html else "<div style='font-size:1.8rem;'>🏫</div>"
@@ -7483,7 +7587,7 @@ elif st.session_state.current_module == 'informes':
                     <!-- RECUADRO ASISTENCIA -->
                     <div class="recuadro-asistencia">
                         <div>Total Días Trabajados: <b>{total_dias_asis}</b></div>
-                        <div>Asistencia Anual(%): <b>{pct_asis}</b></div>
+                        <div>{label_asist_rec}: <b>{pct_asis}%</b></div>
                         <div>Total Días Inasistentes: <b>{total_inasist}</b></div>
                     </div>
 
