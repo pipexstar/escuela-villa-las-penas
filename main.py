@@ -4022,9 +4022,6 @@ elif st.session_state.current_module == 'cursos':
 elif st.session_state.current_module == 'notas':
     renderizar_insignia_universal()
 
-    # DEBUG TEMPORAL — borrar después de verificar
-    st.info(f"DEBUG → _previous_module=`{st.session_state.get('_previous_module')}` | notas_grilla_cargada=`{st.session_state.get('notas_grilla_cargada')}` | notas_curso_activo=`{st.session_state.get('notas_curso_activo')}`")
-
     # Si venimos de otro módulo, limpiar toda la grilla y forzar rerun limpio.
     # IMPORTANTE: borrar keys en el mismo run donde se renderizan los widgets NO funciona
     # en Streamlit (los widgets ya leyeron su estado al inicio del run). Por eso hacemos
