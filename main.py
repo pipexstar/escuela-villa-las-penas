@@ -4684,6 +4684,9 @@ elif st.session_state.current_module == 'notas':
                     # st.rerun() FUERA del try/except
                     if _save_ok:
                         st.session_state['_notas_guardadas_msg'] = (filas_nuevas, filas_actualizadas)
+                        # Limpiar keys de notas para que el siguiente render los lea frescos desde la DB
+                        for k in [k for k in st.session_state if k.startswith("nota_")]:
+                            del st.session_state[k]
                         st.rerun()
                     else:
                         st.error(f"❌ Error al guardar las notas: {_save_error}")
