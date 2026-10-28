@@ -104,13 +104,23 @@ class SupabaseSheet:
     # ── Métodos principales ────────────────────────────────────────────────
 
     def get_all_records(self, **kwargs) -> list:
-        """Devuelve todos los registros como lista de dicts con nombres de UI."""
+        """Devuelve todos los registros como lista de dicts con nombres de UI (paginado para superar límites de PostgREST)."""
         try:
-            resp = self._client.table(self._table).select("*").execute()
-            return [self._row_to_display(r) for r in (resp.data or [])]
+            PAGE_SIZE = 1000
+            offset = 0
+            all_rows = []
+            while True:
+                resp = self._client.table(self._table).select("*").range(offset, offset + PAGE_SIZE - 1).execute()
+                batch = resp.data or []
+                all_rows.extend(batch)
+                if len(batch) < PAGE_SIZE:
+                    break
+                offset += PAGE_SIZE
+            return [self._row_to_display(r) for r in all_rows]
         except Exception as e:
             print(f"[SupabaseSheet] get_all_records '{self._table}': {e}")
             return []
+
 
     def clear(self):
         """Elimina todos los registros de la tabla (con blindaje de seguridad en tablas críticas)."""

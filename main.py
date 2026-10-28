@@ -5638,25 +5638,37 @@ elif st.session_state.current_module == 'asistencia':
         for k in [k for k in st.session_state if k.startswith('asist_dia_')]:
             del st.session_state[k]
 
-        # Cargar desde Sheets
+        # Cargar datos del mes para este curso (consulta directa y ultra rapida a Supabase)
         datos_mes = {}
         if sheet_asistencia:
             try:
-                recs_a = sheet_asistencia.get_all_records()
-                df_a = pd.DataFrame(recs_a) if recs_a else pd.DataFrame()
-                if not df_a.empty:
-                    df_a.columns = [str(c).strip() for c in df_a.columns]
-                    col_f_a = next((c for c in df_a.columns if 'fecha' in c.lower()), None)
-                    col_c_a = next((c for c in df_a.columns if 'curs'  in c.lower()), None)
-                    col_d_a = next((c for c in df_a.columns if 'dato'  in c.lower()), None)
-                    if all([col_f_a, col_c_a, col_d_a]):
-                        mes_pre = f"{year:04d}-{month:02d}"
-                        df_mes = df_a[
-                            (df_a[col_f_a].astype(str).str.startswith(mes_pre)) &
-                            (df_a[col_c_a].astype(str).str.strip() == str(curso_asist))
-                        ]
-                        for _, row_a in df_mes.iterrows():
-                            datos_mes[str(row_a[col_f_a]).strip()] = str(row_a[col_d_a]).strip()
+                mes_pre = f"{year:04d}-{month:02d}"
+                if hasattr(sheet_asistencia, '_client'):
+                    resp_mes = sheet_asistencia._client.table('asistencia')\
+                        .select('fecha,datos')\
+                        .eq('curso', str(curso_asist))\
+                        .like('fecha', f'{mes_pre}%')\
+                        .execute()
+                    for r in (resp_mes.data or []):
+                        f_k = str(r.get('fecha', '')).strip()
+                        d_v = str(r.get('datos', '')).strip()
+                        if f_k:
+                            datos_mes[f_k] = d_v
+                else:
+                    recs_a = sheet_asistencia.get_all_records()
+                    df_a = pd.DataFrame(recs_a) if recs_a else pd.DataFrame()
+                    if not df_a.empty:
+                        df_a.columns = [str(c).strip() for c in df_a.columns]
+                        col_f_a = next((c for c in df_a.columns if 'fecha' in c.lower()), None)
+                        col_c_a = next((c for c in df_a.columns if 'curs'  in c.lower()), None)
+                        col_d_a = next((c for c in df_a.columns if 'dato'  in c.lower()), None)
+                        if all([col_f_a, col_c_a, col_d_a]):
+                            df_mes = df_a[
+                                (df_a[col_f_a].astype(str).str.startswith(mes_pre)) &
+                                (df_a[col_c_a].astype(str).str.strip() == str(curso_asist))
+                            ]
+                            for _, row_a in df_mes.iterrows():
+                                datos_mes[str(row_a[col_f_a]).strip()] = str(row_a[col_d_a]).strip()
             except Exception:
                 pass
 
@@ -5803,58 +5815,68 @@ elif st.session_state.current_module == 'asistencia':
 
             if errores_val:
                 for ev in errores_val:
-                    st.warning(f"⚠️ {ev} — Usa: ok | todos | sc | borrar | 1-4-15")
+                    st.error(f"❌ {ev} — Usa exclusivamente números separados por guión (ej: 1-4-15), o los comandos: ok | todos | sc | borrar")
+                st.info("💡 **Por seguridad, no se modificó la base de datos.** Corrige los días señalados arriba y vuelve a presionar '💾 Guardar mes'.")
+            else:
+                try:
+                    with st.spinner("Guardando en la base de datos..."):
+                        mes_pre = f"{year:04d}-{month:02d}"
 
-            try:
-                with st.spinner("Guardando en la base de datos..."):
-                    mes_pre = f"{year:04d}-{month:02d}"
-
-                    # 1. Eliminar exclusivamente los registros de este curso y este mes,
-                    # protegiendo al 100% todos los demás cursos y meses del colegio.
-                    if hasattr(sheet_asistencia, '_client'):
-                        sheet_asistencia._client.table('asistencia').delete().eq('curso', str(curso_asist)).like('fecha', f'{mes_pre}%').execute()
-
-                    # 2. Insertar los registros actualizados del mes
-                    if nuevas_filas:
+                        # 1. Eliminar exclusivamente los registros de este curso y este mes,
+                        # protegiendo al 100% todos los demás cursos y meses del colegio.
                         if hasattr(sheet_asistencia, '_client'):
-                            db_records = [{
-                                'fecha': r['Fecha'],
-                                'curso': r['Curso'],
-                                'datos': r['Datos'],
-                                'tipo':  r['Tipo']
-                            } for r in nuevas_filas]
-                            sheet_asistencia._client.table('asistencia').insert(db_records).execute()
-                        else:
-                            sheet_asistencia.append_rows([[r['Fecha'], r['Curso'], r['Datos'], r['Tipo']] for r in nuevas_filas])
+                            sheet_asistencia._client.table('asistencia').delete().eq('curso', str(curso_asist)).like('fecha', f'{mes_pre}%').execute()
 
-                st.session_state['asist_guardada_ok'] = True
-                st.session_state['asist_guardada_msg'] = f"✅ ¡Asistencia de **{curso_asist}** para **{MESES[month-1]} {year}** guardada y actualizada exitosamente! ({len(nuevas_filas)} días registrados)"
-                st.toast(f"✅ ¡Asistencia de {curso_asist} ({MESES[month-1]} {year}) guardada!", icon="📅")
-                st.session_state.asist_loaded_key = ""   # forzar recarga
-                st.rerun()
+                        # 2. Insertar los registros actualizados del mes
+                        if nuevas_filas:
+                            if hasattr(sheet_asistencia, '_client'):
+                                db_records = [{
+                                    'fecha': r['Fecha'],
+                                    'curso': r['Curso'],
+                                    'datos': r['Datos'],
+                                    'tipo':  r['Tipo']
+                                } for r in nuevas_filas]
+                                sheet_asistencia._client.table('asistencia').insert(db_records).execute()
+                            else:
+                                sheet_asistencia.append_rows([[r['Fecha'], r['Curso'], r['Datos'], r['Tipo']] for r in nuevas_filas])
 
-            except Exception as e:
-                st.error(f"❌ Error al guardar: {e}")
+                    st.session_state['asist_guardada_ok'] = True
+                    st.session_state['asist_guardada_msg'] = f"✅ ¡Asistencia de **{curso_asist}** para **{MESES[month-1]} {year}** guardada y actualizada exitosamente! ({len(nuevas_filas)} días registrados)"
+                    st.toast(f"✅ ¡Asistencia de {curso_asist} ({MESES[month-1]} {year}) guardada!", icon="📅")
+                    st.session_state.asist_loaded_key = ""   # forzar recarga
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Error al guardar: {e}")
 
     # ── Resumen anual ─────────────────────────────────────────────────────────────────
     dias_anio_count = 0
     if sheet_asistencia:
         try:
-            recs_cnt = sheet_asistencia.get_all_records()
-            df_cnt   = pd.DataFrame(recs_cnt) if recs_cnt else pd.DataFrame()
-            if not df_cnt.empty:
-                df_cnt.columns = [str(c).strip() for c in df_cnt.columns]
-                col_f_c = next((c for c in df_cnt.columns if 'fecha' in c.lower()), None)
-                col_c_c = next((c for c in df_cnt.columns if 'curs'  in c.lower()), None)
-                if col_f_c and col_c_c:
-                    col_t_c = next((c for c in df_cnt.columns if 'tipo' in c.lower()), None)
-                    _df_cnt_f = df_cnt[
-                        (df_cnt[col_f_c].astype(str).str.startswith(str(year))) &
-                        (df_cnt[col_c_c].astype(str).str.strip() == str(curso_asist))
-                    ]
-                    if col_t_c:
-                        _df_cnt_f = _df_cnt_f[_df_cnt_f[col_t_c].astype(str).str.strip().str.lower() != 'sin_clases']
-                    dias_anio_count = len(_df_cnt_f)
+            if hasattr(sheet_asistencia, '_client'):
+                resp_cnt = sheet_asistencia._client.table('asistencia')\
+                    .select('id,tipo')\
+                    .eq('curso', str(curso_asist))\
+                    .like('fecha', f'{year}%')\
+                    .neq('tipo', 'sin_clases')\
+                    .execute()
+                dias_anio_count = len(resp_cnt.data or [])
+            else:
+                recs_cnt = sheet_asistencia.get_all_records()
+                df_cnt   = pd.DataFrame(recs_cnt) if recs_cnt else pd.DataFrame()
+                if not df_cnt.empty:
+                    df_cnt.columns = [str(c).strip() for c in df_cnt.columns]
+                    col_f_c = next((c for c in df_cnt.columns if 'fecha' in c.lower()), None)
+                    col_c_c = next((c for c in df_cnt.columns if 'curs'  in c.lower()), None)
+                    if col_f_c and col_c_c:
+                        col_t_c = next((c for c in df_cnt.columns if 'tipo' in c.lower()), None)
+                        _df_cnt_f = df_cnt[
+                            (df_cnt[col_f_c].astype(str).str.startswith(str(year))) &
+                            (df_cnt[col_c_c].astype(str).str.strip() == str(curso_asist))
+                        ]
+                        if col_t_c:
+                            _df_cnt_f = _df_cnt_f[_df_cnt_f[col_t_c].astype(str).str.strip().str.lower() != 'sin_clases']
+                        dias_anio_count = len(_df_cnt_f)
         except Exception:
             pass
 
