@@ -8008,8 +8008,8 @@ elif st.session_state.current_module == 'informes':
                 </body></html>
                 """
 
-                # Key dinámica por disparo: obliga a Streamlit/React a remontar el iframe limpio
-                st.components.v1.html(html_acumulado, height=0, scrolling=False, key=f"print_job_{ts_print}")
+                # Iframe invisible con contenido dinamico (ts) para garantizar re-ejecucion sin parametro key
+                st.components.v1.html(html_acumulado, height=0, scrolling=False)
                 st.success(f"✅ Enviando {len(alumnos_a_generar)} informe(s) a la ventana de impresión...")
         except Exception as e:
             st.error(f"Error al generar los informes: {e}")
@@ -8660,7 +8660,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                         </script>
                         </body></html>
                         """
-                        st.components.v1.html(html_ind, height=0, scrolling=False, key=f"print_dp_ind_{ts_dp_ind}")
+                        st.components.v1.html(html_ind, height=0, scrolling=False)
 
                 # 3. BOTÓN IMPRIMIR CURSO COMPLETO
                 with c_btn_imp_cur:
@@ -8699,7 +8699,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                         </script>
                         </body></html>
                         """
-                        st.components.v1.html(html_curso, height=0, scrolling=False, key=f"print_dp_cur_{ts_dp_cur}")
+                        st.components.v1.html(html_curso, height=0, scrolling=False)
 
         except Exception as e:
             st.error(f"Error al cargar el módulo de Desarrollo Personal: {e}")
