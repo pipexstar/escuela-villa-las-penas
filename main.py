@@ -572,7 +572,7 @@ def renderizar_insignia_universal():
 
 
 # Control de Versiones Estructurales para Evitar Caché Corrupto
-APP_VERSION = "4.0"
+APP_VERSION = "4.1"
 if 'app_version' not in st.session_state or st.session_state.app_version != APP_VERSION:
     # Limpiamos todo el estado de sesión si hay cambios estructurales
     for key in list(st.session_state.keys()):
