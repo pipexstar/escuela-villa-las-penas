@@ -7994,10 +7994,22 @@ elif st.session_state.current_module == 'informes':
                 html_acumulado = css_informe
                 for al_item in alumnos_a_generar:
                     html_acumulado += generar_html_informe_alumno(al_item)
-                html_acumulado += "<script>window.onload = function() { window.print(); };</script></body></html>"
+                
+                # Identificador de tiempo único para evitar cacheo del navegador
+                ts_print = int(time.time() * 1000)
+                html_acumulado += f"""
+                <!-- ts_{ts_print} -->
+                <script>
+                    setTimeout(function() {{
+                        window.focus();
+                        window.print();
+                    }}, 150);
+                </script>
+                </body></html>
+                """
 
-                # Iframe invisible de altura 0px que dispara el cuadro de diálogo de impresión nativo
-                st.components.v1.html(html_acumulado, height=0, scrolling=False)
+                # Key dinámica por disparo: obliga a Streamlit/React a remontar el iframe limpio
+                st.components.v1.html(html_acumulado, height=0, scrolling=False, key=f"print_job_{ts_print}")
                 st.success(f"✅ Enviando {len(alumnos_a_generar)} informe(s) a la ventana de impresión...")
         except Exception as e:
             st.error(f"Error al generar los informes: {e}")
@@ -8635,14 +8647,25 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 # 2. BOTÓN IMPRIMIR INDIVIDUAL
                 with c_btn_imp_ind:
                     if st.button("🖨️ Imprimir Alumno", use_container_width=True, key="btn_imp_ind_dp"):
+                        ts_dp_ind = int(time.time() * 1000)
                         html_ind = css_impresion_dp
                         html_ind += construir_html_informe_dp(alumno_sel_data, conceptos_seleccionados, obs_input)
-                        html_ind += f"<!-- ts_{time.time()} --><script>window.onload = function() {{ window.print(); }};</script></body></html>"
-                        st.components.v1.html(html_ind, height=0, scrolling=False)
+                        html_ind += f"""
+                        <!-- ts_{ts_dp_ind} -->
+                        <script>
+                            setTimeout(function() {{
+                                window.focus();
+                                window.print();
+                            }}, 150);
+                        </script>
+                        </body></html>
+                        """
+                        st.components.v1.html(html_ind, height=0, scrolling=False, key=f"print_dp_ind_{ts_dp_ind}")
 
                 # 3. BOTÓN IMPRIMIR CURSO COMPLETO
                 with c_btn_imp_cur:
                     if st.button("📑 Imprimir Todo el Curso", use_container_width=True, key="btn_imp_cur_dp"):
+                        ts_dp_cur = int(time.time() * 1000)
                         html_curso = css_impresion_dp
                         total_alumnos = len(df_curso_dp)
 
@@ -8666,8 +8689,17 @@ elif st.session_state.current_module == 'desarrollo_personal':
 
                             html_curso += construir_html_informe_dp(al_cur_dict, conceptos_al, obs_al)
 
-                        html_curso += f"<!-- ts_{time.time()} --><script>window.onload = function() {{ window.print(); }};</script></body></html>"
-                        st.components.v1.html(html_curso, height=0, scrolling=False)
+                        html_curso += f"""
+                        <!-- ts_{ts_dp_cur} -->
+                        <script>
+                            setTimeout(function() {{
+                                window.focus();
+                                window.print();
+                            }}, 150);
+                        </script>
+                        </body></html>
+                        """
+                        st.components.v1.html(html_curso, height=0, scrolling=False, key=f"print_dp_cur_{ts_dp_cur}")
 
         except Exception as e:
             st.error(f"Error al cargar el módulo de Desarrollo Personal: {e}")
