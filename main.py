@@ -850,21 +850,57 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
                     f_baja = parsed
                     break
 
-    # 2. Buscar fecha de matricula y fecha de alta / ingreso por nombre de columna
+    # 2. Buscar fecha de matricula y fecha de alta / ingreso
+    # Primero: búsqueda directa por nombre exacto (DB y display, con/sin tildes)
+    # Esto garantiza detección correcta independiente del orden del dict
     f_mat = None
     f_alta = None
+
+    # Nombres YA normalizados (sin tildes, minúsculas) — deben coincidir con norm_key(clave)
+    _NOMBRES_MATRICULA = {
+        'fecha_matricula',   # columna DB
+        'fecha matricula',   # display normalizado (norm_key('Fecha Matrícula'))
+        'fechamatricula',
+        'f_matricula',
+        'fec_matricula',
+    }
+    _NOMBRES_ALTA = {
+        'fecha_ingreso',     # columna DB
+        'fecha_alta',        # alternativa DB
+        'fecha ingreso',     # display normalizado
+        'fecha alta',        # display normalizado (norm_key('Fecha Alta'))
+        'fechaingreso',
+        'fechaalta',
+        'f_ingreso',
+        'f_alta',
+        'fecha incorporacion',
+    }
+
     for k, v in r_alu.items():
         k_n = norm_key(k)
-        if 'baja' in k_n or 'retir' in k_n or 'nac' in k_n:
-            continue
-        if 'fec' in k_n or 'date' in k_n or 'alta' in k_n or 'ingres' in k_n or 'incorpor' in k_n or 'matr' in k_n:
+        if k_n in _NOMBRES_MATRICULA:
             parsed = parse_fecha_flexible(v)
-            if parsed is None:
-                continue
-            if 'matr' in k_n:
+            if parsed is not None:
                 f_mat = parsed
-            elif 'alta' in k_n or 'ingres' in k_n or 'incorpor' in k_n:
+        elif k_n in _NOMBRES_ALTA:
+            parsed = parse_fecha_flexible(v)
+            if parsed is not None:
                 f_alta = parsed
+
+    # Fallback: si no se encontraron por nombre exacto, usar heurística de subcadenas
+    if f_mat is None and f_alta is None:
+        for k, v in r_alu.items():
+            k_n = norm_key(k)
+            if 'baja' in k_n or 'retir' in k_n or 'nac' in k_n:
+                continue
+            if 'fec' in k_n or 'date' in k_n or 'alta' in k_n or 'ingres' in k_n or 'incorpor' in k_n or 'matr' in k_n:
+                parsed = parse_fecha_flexible(v)
+                if parsed is None:
+                    continue
+                if 'matr' in k_n and f_mat is None:
+                    f_mat = parsed
+                elif ('alta' in k_n or 'ingres' in k_n or 'incorpor' in k_n) and f_alta is None:
+                    f_alta = parsed
 
     # 3. Determinar fecha de ingreso al anio escolar (posterior al inicio oficial)
     anio_escolar = f_inicio_oficial.year if f_inicio_oficial else None
