@@ -5636,11 +5636,6 @@ elif st.session_state.current_module == 'asistencia':
                 if al["retirado"]:
                     ret_tag = "<span style='background:#fee2e2;color:#b91c1c;border:1px solid #f87171;font-size:0.68rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:6px;'>RETIRADO</span>"
                     cls_item = " style='background:#fef2f2;border-left:3px solid #ef4444;color:#991b1b;'"
-                elif al.get("ingreso_tardio"):
-                    f_ef = al["f_inicio_efectiva"]
-                    f_str = f_ef.strftime('%d/%m') if hasattr(f_ef, 'strftime') else str(f_ef)
-                    ret_tag = f"<span style='background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.68rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:6px;'>INGRESO: {f_str}</span>"
-                    cls_item = ""
                 else:
                     ret_tag = ""
                     cls_item = ""
@@ -5890,8 +5885,6 @@ elif st.session_state.current_module == 'asistencia':
                                 etiqueta_alu = nombre_a
                                 if asis_alu["es_retirado"]:
                                     etiqueta_alu += " 🔴 (Retirado)"
-                                elif asis_alu["es_ingreso_tardio"]:
-                                    etiqueta_alu += f" 🟡 (Ingreso: {asis_alu['f_inicio_efectiva'].strftime('%d/%m')})"
 
                                 rows_res.append({
                                     "N°":                  num_l,
