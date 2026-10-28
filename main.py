@@ -28,6 +28,60 @@ def redondear_nota(valor, decimales=1):
     except Exception:
         return float(valor)
 
+def nota_a_concepto(val):
+    """
+    Convierte cualquier valor cuantitativo (ej: 7.0, 6.5, 5.0) o cualitativo a la escala conceptual oficial chilena:
+    - 6.0 a 7.0 -> MB (Muy Bueno)
+    - 5.0 a 5.9 -> B (Bueno)
+    - 4.0 a 4.9 -> S (Suficiente)
+    - 1.0 a 3.9 -> I (Insuficiente)
+    Si ya es un concepto válido (I, S, B, MB) lo preserva limpio en mayúscula.
+    """
+    if val is None:
+        return ""
+    s = str(val).strip().upper()
+    if not s or s in ("—", "-", "NONE", "NAN", "NULL"):
+        return ""
+    if s in ("MB", "B", "S", "I"):
+        return s
+    if "MUY BUENO" in s: return "MB"
+    if "BUENO" in s: return "B"
+    if "SUFICIENTE" in s: return "S"
+    if "INSUFICIENTE" in s: return "I"
+    try:
+        num = float(s.replace(',', '.'))
+        if 10.0 <= num <= 70.0:
+            num = num / 10.0
+        if num >= 6.0: return "MB"
+        if num >= 5.0: return "B"
+        if num >= 4.0: return "S"
+        if num >= 1.0: return "I"
+    except Exception:
+        pass
+    return s
+
+def concepto_a_numero_db(val):
+    """
+    Convierte un concepto oficial (MB, B, S, I) a su valor numérico estándar representativo
+    para almacenar en columnas de base de datos de tipo 'numeric':
+    - MB -> 7.0
+    - B  -> 5.5
+    - S  -> 4.5
+    - I  -> 3.0
+    """
+    if val is None or str(val).strip() in ("", "-", "None", "nan"):
+        return None
+    c = str(val).strip().upper()
+    if c == "MB": return 7.0
+    if c == "B": return 5.5
+    if c == "S": return 4.5
+    if c == "I": return 3.0
+    try:
+        n = float(c.replace(',', '.'))
+        return n if 1.0 <= n <= 7.0 else None
+    except Exception:
+        return None
+
 def apply_clean_theme():
     """
     Aplica el diseño limpio y minimalista solicitado:
@@ -4013,14 +4067,17 @@ elif st.session_state.current_module == 'notas':
         if not txt or txt in ["—", "-", "None", "nan", "null"]:
             return None, "", True
 
-        # Verificar conceptos oficiales: I (Insuficiente), S (Suficiente), B (Bueno), MB (Muy Bueno)
+        if es_conceptual:
+            # En asignaturas conceptuales (Religión y Orientación) se admiten y traducen I, S, B, MB
+            conc = nota_a_concepto(txt)
+            if conc in ["I", "S", "B", "MB"]:
+                return None, conc, True
+            return None, txt, False
+
+        # Verificar si en una asignatura cuantitativa se ingresó un concepto
         txt_upper = txt.upper()
         if txt_upper in ["I", "S", "B", "MB"]:
             return None, txt_upper, True
-
-        if es_conceptual:
-            # En asignaturas conceptuales solo se admiten I, S, B, MB
-            return None, txt, False
 
         norm = txt.replace(',', '.')
         try:
@@ -6419,7 +6476,7 @@ elif st.session_state.current_module == 'preacta':
                             if not m_s1.empty:
                                 p1_raw = m_s1.iloc[0].get("Promedio", "")
                                 if es_conceptual:
-                                    p1_val = str(p1_raw).strip()
+                                    p1_val = nota_a_concepto(p1_raw)
                                 else:
                                     num1 = parsear_prom_num(p1_raw)
                                     if num1 is not None:
@@ -6429,7 +6486,7 @@ elif st.session_state.current_module == 'preacta':
                             if not m_s2.empty:
                                 p2_raw = m_s2.iloc[0].get("Promedio", "")
                                 if es_conceptual:
-                                    p2_val = str(p2_raw).strip()
+                                    p2_val = nota_a_concepto(p2_raw)
                                 else:
                                     num2 = parsear_prom_num(p2_raw)
                                     if num2 is not None:
@@ -7135,11 +7192,14 @@ elif st.session_state.current_module == 'informes':
                                 k_n = f"N{i}"
                                 if k_n in row_s1 and str(row_s1[k_n]).strip() != "":
                                     val_ni = row_s1[k_n]
-                                    num_ni = parsear_prom_inf(val_ni)
-                                    n_s1[i-1] = f"{num_ni:.1f}".replace('.', ',') if num_ni is not None else str(val_ni).strip()
+                                    if asig_es_conceptual:
+                                        n_s1[i-1] = nota_a_concepto(val_ni)
+                                    else:
+                                        num_ni = parsear_prom_inf(val_ni)
+                                        n_s1[i-1] = f"{num_ni:.1f}".replace('.', ',') if num_ni is not None else str(val_ni).strip()
                             p1_raw = row_s1.get("Promedio", "")
                             if asig_es_conceptual:
-                                p1_val = str(p1_raw).strip()
+                                p1_val = nota_a_concepto(p1_raw)
                             else:
                                 num_p1 = parsear_prom_inf(p1_raw)
                                 if num_p1 is not None:
@@ -7157,11 +7217,14 @@ elif st.session_state.current_module == 'informes':
                                 k_n = f"N{i}"
                                 if k_n in row_s2 and str(row_s2[k_n]).strip() != "":
                                     val_ni = row_s2[k_n]
-                                    num_ni = parsear_prom_inf(val_ni)
-                                    n_s2[i-1] = f"{num_ni:.1f}".replace('.', ',') if num_ni is not None else str(val_ni).strip()
+                                    if asig_es_conceptual:
+                                        n_s2[i-1] = nota_a_concepto(val_ni)
+                                    else:
+                                        num_ni = parsear_prom_inf(val_ni)
+                                        n_s2[i-1] = f"{num_ni:.1f}".replace('.', ',') if num_ni is not None else str(val_ni).strip()
                             p2_raw = row_s2.get("Promedio", "")
                             if asig_es_conceptual:
-                                p2_val = str(p2_raw).strip()
+                                p2_val = nota_a_concepto(p2_raw)
                             else:
                                 num_p2 = parsear_prom_inf(p2_raw)
                                 if num_p2 is not None:
@@ -7457,7 +7520,7 @@ elif st.session_state.current_module == 'informes':
                             if not m_s1.empty:
                                 p1_raw = m_s1.iloc[0].get("Promedio", "")
                                 if asig_es_conceptual:
-                                    p1_val = str(p1_raw).strip()
+                                    p1_val = nota_a_concepto(p1_raw)
                                 else:
                                     num1 = parsear_prom_inf(p1_raw)
                                     if num1 is not None:
@@ -7467,7 +7530,7 @@ elif st.session_state.current_module == 'informes':
                             if not m_s2.empty:
                                 p2_raw = m_s2.iloc[0].get("Promedio", "")
                                 if asig_es_conceptual:
-                                    p2_val = str(p2_raw).strip()
+                                    p2_val = nota_a_concepto(p2_raw)
                                 else:
                                     num2 = parsear_prom_inf(p2_raw)
                                     if num2 is not None:

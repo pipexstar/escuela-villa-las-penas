@@ -148,11 +148,20 @@ class SupabaseSheet:
                     record[db_col] = None
                 else:
                     if self._table == 'notas' and db_col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'promedio']:
-                        val_str = str(val).strip().replace(',', '.')
-                        try:
-                            record[db_col] = float(val_str)
-                        except ValueError:
-                            record[db_col] = str(val).strip()
+                        val_str = str(val).strip().upper()
+                        if val_str == 'MB':
+                            record[db_col] = 7.0
+                        elif val_str == 'B':
+                            record[db_col] = 5.5
+                        elif val_str == 'S':
+                            record[db_col] = 4.5
+                        elif val_str == 'I':
+                            record[db_col] = 3.0
+                        else:
+                            try:
+                                record[db_col] = float(val_str.replace(',', '.'))
+                            except ValueError:
+                                record[db_col] = None
                     else:
                         record[db_col] = val
 
@@ -236,11 +245,20 @@ class SupabaseSheet:
                     record[db_col] = None
                 else:
                     if self._table == 'notas' and db_col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'promedio']:
-                        val_str = str(val).strip().replace(',', '.')
-                        try:
-                            record[db_col] = float(val_str)
-                        except ValueError:
-                            record[db_col] = str(val).strip()
+                        val_str = str(val).strip().upper()
+                        if val_str == 'MB':
+                            record[db_col] = 7.0
+                        elif val_str == 'B':
+                            record[db_col] = 5.5
+                        elif val_str == 'S':
+                            record[db_col] = 4.5
+                        elif val_str == 'I':
+                            record[db_col] = 3.0
+                        else:
+                            try:
+                                record[db_col] = float(val_str.replace(',', '.'))
+                            except ValueError:
+                                record[db_col] = None
                     else:
                         record[db_col] = val
 
