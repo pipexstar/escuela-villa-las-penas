@@ -7039,8 +7039,76 @@ elif st.session_state.current_module == 'preacta':
                         m_l = re.search(r'([A-Da-d])\s*$', str(curso_sige_picker))
                     letra_sige = m_l.group(1).upper() if m_l else "A"
 
+                    # Si el curso SIGE picker difiere del curso principal, reconstruir la matriz para ese curso
+                    if curso_sige_picker != curso_preacta_sel:
+                        df_curso_sg = df_al[df_al[col_c].astype(str).str.strip() == str(curso_sige_picker).strip()].copy()
+                        if col_o in df_curso_sg.columns:
+                            df_curso_sg['_ord'] = pd.to_numeric(df_curso_sg[col_o], errors='coerce').fillna(999).astype(int)
+                        else:
+                            df_curso_sg['_ord'] = range(1, len(df_curso_sg) + 1)
+                        df_curso_sg = df_curso_sg.sort_values(by=['_ord'])
+                        filas_sige = []
+                        sumas_sg = {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}
+                        for _, r_al_sg in df_curso_sg.iterrows():
+                            r_raw_sg = str(r_al_sg.get(col_r, '')).strip()
+                            r_limpio_sg = r_raw_sg.replace('.', '').strip()
+                            r_norm_sg = r_limpio_sg.lower()
+                            nom_sg = str(r_al_sg.get(col_n, '')).strip().upper()
+                            n_lista_sg = int(r_al_sg.get('_ord', 1))
+                            val_baja_sg = str(r_al_sg.get(col_baja, '')).strip() if col_baja in r_al_sg else ""
+                            es_ret_sg = bool(val_baja_sg and val_baja_sg not in ['', 'nan', 'None'] and not pd.isna(r_al_sg.get(col_baja)))
+                            if es_ret_sg:
+                                filas_sige.append({"lista": n_lista_sg, "rut": r_limpio_sg, "rut_norm": r_norm_sg,
+                                    "nombre": nom_sg, "es_retirado": True, "fecha_baja": val_baja_sg,
+                                    "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
+                                    "prom_gral_num": 0.0, "prom_gral_str": "—", "pct_asist": 0.0, "rojas": 0,
+                                    "situacion": "RETIRADO", "promovido_chk": False,
+                                    "observaciones": f"RETIRADO ({val_baja_sg})" if val_baja_sg else "RETIRADO"})
+                                continue
+                            df_n_sg = df_notas[df_notas['RUT_NORM'] == r_norm_sg] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
+                            proms_sg = {}
+                            proms_comp_sg = []
+                            for asig_full, asig_corta, _ in asigs_catalogo:
+                                es_conc = any(k in asig_full.lower() for k in ['religi', 'orientac'])
+                                p1v, p2v = "", ""
+                                if not df_n_sg.empty:
+                                    ms1 = df_n_sg[df_n_sg[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_sg[col_s_n].astype(str).str.contains('1')]
+                                    if not ms1.empty:
+                                        p1r = ms1.iloc[0].get("Promedio", "")
+                                        p1v = nota_a_concepto(p1r) if es_conc else (f"{redondear_nota(parsear_prom_num(p1r)):.1f}" if parsear_prom_num(p1r) is not None else "")
+                                    ms2 = df_n_sg[df_n_sg[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_sg[col_s_n].astype(str).str.contains('2')]
+                                    if not ms2.empty:
+                                        p2r = ms2.iloc[0].get("Promedio", "")
+                                        p2v = nota_a_concepto(p2r) if es_conc else (f"{redondear_nota(parsear_prom_num(p2r)):.1f}" if parsear_prom_num(p2r) is not None else "")
+                                nf = p2v if p2v else p1v if es_conc else ""
+                                if not es_conc:
+                                    try:
+                                        f1, f2 = (float(p1v) if p1v else None), (float(p2v) if p2v else None)
+                                        if f1 and f2: pa = redondear_nota((f1+f2)/2.0,1); nf = f"{pa:.1f}".replace('.',','); proms_comp_sg.append(pa); sumas_sg[asig_corta].append(pa)
+                                        elif f1: pa = redondear_nota(f1,1); nf = f"{pa:.1f}".replace('.',','); proms_comp_sg.append(pa); sumas_sg[asig_corta].append(pa)
+                                        elif f2: pa = redondear_nota(f2,1); nf = f"{pa:.1f}".replace('.',','); proms_comp_sg.append(pa); sumas_sg[asig_corta].append(pa)
+                                    except: pass
+                                proms_sg[asig_corta] = nf
+                            pg_sg = redondear_nota(sum(proms_comp_sg)/len(proms_comp_sg),1) if proms_comp_sg else 0.0
+                            asis_sg = calcular_asistencia_estudiante(r_al_sg, df_asist, curso_sige_picker, periodo='anual', config_inst=conf_inst_pre)
+                            k_mod_sg = f"preacta_mod_{curso_sige_picker}_{r_norm_sg}"
+                            if k_mod_sg in st.session_state:
+                                sit_sg = st.session_state[k_mod_sg].get("situacion", "Promovido(a)")
+                                obs_sg = st.session_state[k_mod_sg].get("observaciones", "")
+                            else:
+                                sit_sg = "Promovido(a)" if proms_comp_sg and all(p >= 4.0 for p in proms_comp_sg) or not proms_comp_sg else ("Reprobado(a)" if sum(1 for p in proms_comp_sg if p < 4.0) > 0 else "Promovido(a)")
+                                obs_sg = ""
+                            filas_sige.append({"lista": n_lista_sg, "rut": r_limpio_sg, "rut_norm": r_norm_sg,
+                                "nombre": nom_sg, "es_retirado": False, "fecha_baja": "",
+                                "promedios_asig": proms_sg, "prom_gral_num": pg_sg,
+                                "prom_gral_str": f"{pg_sg:.1f}".replace('.',',') if pg_sg > 0 else "—",
+                                "pct_asist": asis_sg["pct_asist"], "rojas": sum(1 for p in proms_comp_sg if p < 4.0),
+                                "situacion": sit_sg, "observaciones": obs_sg})
+                    else:
+                        filas_sige = filas_matriz
+
                     # Filtrar lista de estudiantes según la opción de retirados
-                    estudiantes_sige = [f for f in filas_matriz if not (chk_excluir_ret and f['es_retirado'])]
+                    estudiantes_sige = [f for f in filas_sige if not (chk_excluir_ret and f['es_retirado'])]
 
                     if not estudiantes_sige:
                         st.warning(f"No hay estudiantes para procesar en {curso_sige_picker}.")
