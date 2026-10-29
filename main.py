@@ -6320,703 +6320,600 @@ elif st.session_state.current_module == 'preacta':
                 if not any(k in c.upper() for k in ['NT1', 'NT2', 'PRE-K', 'KINDER', 'PARV'])
             ] if not df_al.empty and col_c in df_al.columns else ["1° Básico A"]
 
-            # Pestañas principales: cada una tiene su propio selector de curso
+            # Año escolar (compartido por todas las pestañas)
+            anio_preacta_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_preacta_global")
+
+            # Pestañas principales: cada una tiene su propio selector de curso independiente
             tab_preacta, tab_decretos, tab_sige = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones", "💾 Archivos Magnéticos SIGE"])
 
-            # ── función interna reutilizable ──────────────────────────────────
-            def _compute_filas_curso(curso_sel, anio_sel):
-                """Retorna (filas_matriz, sumas_asig, profesor_jefe) para el curso dado."""
-                df_c = df_al[df_al[col_c].astype(str).str.strip() == str(curso_sel).strip()].copy()
-                if df_c.empty:
-                    return [], {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}, "Profesor(a) Jefe"
-                if col_o in df_c.columns:
-                    df_c['_ord'] = pd.to_numeric(df_c[col_o], errors='coerce').fillna(999).astype(int)
+            with tab_preacta:
+                # Selector de curso independiente para esta pestaña
+                cp1, cp2 = st.columns([2.5, 1.5])
+                with cp1:
+                    curso_preacta_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_tab_preacta")
+                with cp2:
+                    st.write("")
+
+                # Cargar alumnos del curso (incluyendo retirados para el registro oficial completo)
+                df_curso = df_al[df_al[col_c].astype(str).str.strip() == str(curso_preacta_sel).strip()].copy()
+
+                if df_curso.empty:
+                    st.warning(f"No hay alumnos registrados en {curso_preacta_sel}.")
                 else:
-                    df_c['_ord'] = range(1, len(df_c) + 1)
-                df_c = df_c.sort_values(by=['_ord'])
-
-                # Profesor jefe
-                pjefe = "Profesor(a) Jefe"
-                if sheet_asignaciones:
-                    try:
-                        recs_asig_fn = sheet_asignaciones.get_all_records()
-                        if recs_asig_fn:
-                            df_asig_fn = pd.DataFrame(recs_asig_fn)
-                            col_as_c_fn = next((c for c in df_asig_fn.columns if 'curs' in c.lower()), 'Curso')
-                            col_as_p_fn = next((c for c in df_asig_fn.columns if 'prof' in c.lower() and 'nomb' in c.lower()), 'Nombre_Profesor')
-                            col_as_m_fn = next((c for c in df_asig_fn.columns if 'asig' in c.lower()), 'Asignatura')
-                            cur_norm_fn = _norm_cmp_jefe(curso_sel)
-                            m_jef_fn = df_asig_fn[
-                                df_asig_fn[col_as_c_fn].apply(lambda x: _norm_cmp_jefe(x) == cur_norm_fn) &
-                                df_asig_fn[col_as_m_fn].astype(str).str.strip().str.upper().eq('JEFATURA')
-                            ]
-                            if not m_jef_fn.empty:
-                                nom_p_fn = str(m_jef_fn.iloc[0].get(col_as_p_fn, '')).strip()
-                                if nom_p_fn:
-                                    pjefe = nom_p_fn
-                    except Exception:
-                        pass
-
-                sumas_a = {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}
-                filas = []
-                for _, r_al in df_c.iterrows():
-                    r_raw = str(r_al.get(col_r, '')).strip()
-                    r_limpio = r_raw.replace('.', '').strip()
-                    r_norm = r_limpio.lower()
-                    nom_al = str(r_al.get(col_n, '')).strip().upper()
-                    n_lista = int(r_al.get('_ord', 1))
-                    val_baja = str(r_al.get(col_baja, '')).strip() if col_baja in r_al else ""
-                    es_ret = bool(val_baja and val_baja not in ['', 'nan', 'None'] and not pd.isna(r_al.get(col_baja)))
-                    if es_ret:
-                        filas.append({"lista": n_lista, "rut": r_limpio, "rut_norm": r_norm,
-                            "nombre": nom_al, "es_retirado": True, "fecha_baja": val_baja,
-                            "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
-                            "prom_gral_num": 0.0, "prom_gral_str": "—", "pct_asist": 0.0, "rojas": 0,
-                            "situacion": "RETIRADO", "promovido_chk": False,
-                            "observaciones": f"RETIRADO ({val_baja})" if val_baja else "RETIRADO"})
-                        continue
-                    df_n_al = df_notas[df_notas['RUT_NORM'] == r_norm] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
-                    proms_asig = {}
-                    proms_comp = []
-                    for asig_full, asig_corta, _ in asigs_catalogo:
-                        es_conc = any(k in asig_full.lower() for k in ['religi', 'orientac'])
-                        p1v, p2v = "", ""
-                        if not df_n_al.empty:
-                            ms1 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('1')]
-                            if not ms1.empty:
-                                p1r = ms1.iloc[0].get("Promedio", "")
-                                p1v = nota_a_concepto(p1r) if es_conc else (f"{redondear_nota(parsear_prom_num(p1r)):.1f}" if parsear_prom_num(p1r) is not None else "")
-                            ms2 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('2')]
-                            if not ms2.empty:
-                                p2r = ms2.iloc[0].get("Promedio", "")
-                                p2v = nota_a_concepto(p2r) if es_conc else (f"{redondear_nota(parsear_prom_num(p2r)):.1f}" if parsear_prom_num(p2r) is not None else "")
-                        nf = ""
-                        if es_conc:
-                            nf = p2v if p2v else p1v
-                        else:
-                            try:
-                                f1 = float(p1v) if p1v else None
-                                f2 = float(p2v) if p2v else None
-                                if f1 and f2:
-                                    pa = redondear_nota((f1+f2)/2.0, 1); nf = f"{pa:.1f}".replace('.', ','); proms_comp.append(pa); sumas_a[asig_corta].append(pa)
-                                elif f1:
-                                    pa = redondear_nota(f1, 1); nf = f"{pa:.1f}".replace('.', ','); proms_comp.append(pa); sumas_a[asig_corta].append(pa)
-                                elif f2:
-                                    pa = redondear_nota(f2, 1); nf = f"{pa:.1f}".replace('.', ','); proms_comp.append(pa); sumas_a[asig_corta].append(pa)
-                            except:
-                                pass
-                        proms_asig[asig_corta] = nf
-                    pg_num = redondear_nota(sum(proms_comp)/len(proms_comp), 1) if proms_comp else 0.0
-                    pg_str = f"{pg_num:.1f}".replace('.', ',') if pg_num > 0 else "—"
-                    asis_d = calcular_asistencia_estudiante(r_al, df_asist, curso_sel, periodo='anual', config_inst=conf_inst_pre)
-                    k_mod = f"preacta_mod_{curso_sel}_{r_norm}"
-                    if k_mod in st.session_state:
-                        sit = st.session_state[k_mod].get("situacion", "Promovido(a)")
-                        obs = st.session_state[k_mod].get("observaciones", "")
-                    elif not df_preacta_existente.empty and 'RUT_NORM' in df_preacta_existente.columns:
-                        coincid = df_preacta_existente[
-                            (df_preacta_existente['RUT_NORM'] == r_norm) &
-                            (df_preacta_existente.get('Año_STR', pd.Series(dtype=str)) == str(anio_sel).strip())
-                        ]
-                        if not coincid.empty:
-                            row_p = coincid.iloc[-1]
-                            sit = str(row_p.get('Situacion_Final', 'Promovido(a)')).strip() or 'Promovido(a)'
-                            obs = str(row_p.get('Observaciones', '')).strip()
-                        else:
-                            sit = "Promovido(a)"; obs = ""
+                    if col_o in df_curso.columns:
+                        df_curso['_ord'] = pd.to_numeric(df_curso[col_o], errors='coerce').fillna(999).astype(int)
                     else:
-                        sit = "Promovido(a)"; obs = ""
-                    filas.append({"lista": n_lista, "rut": r_limpio, "rut_norm": r_norm,
-                        "nombre": nom_al, "es_retirado": False, "fecha_baja": "",
-                        "promedios_asig": proms_asig, "prom_gral_num": pg_num, "prom_gral_str": pg_str,
-                        "pct_asist": asis_d["pct_asist"], "rojas": sum(1 for p in proms_comp if p < 4.0),
-                        "situacion": sit, "observaciones": obs})
-                return filas, sumas_a, pjefe
-            # ── fin función ───────────────────────────────────────────────────
+                        df_curso['_ord'] = range(1, len(df_curso) + 1)
+                    df_curso = df_curso.sort_values(by=['_ord'])
 
-                if col_o in df_curso.columns:
-                    df_curso['_ord'] = pd.to_numeric(df_curso[col_o], errors='coerce').fillna(999).astype(int)
-                else:
-                    df_curso['_ord'] = range(1, len(df_curso) + 1)
-                df_curso = df_curso.sort_values(by=['_ord'])
+                    # Buscar nombre del Profesor(a) Jefe en asignaciones docentes
+                    profesor_jefe_nombre = "Profesor(a) Jefe"
+                    if sheet_asignaciones:
+                        try:
+                            recs_asig = sheet_asignaciones.get_all_records()
+                            if recs_asig:
+                                df_asig_temp = pd.DataFrame(recs_asig)
+                                col_as_c = next((c for c in df_asig_temp.columns if 'curs' in c.lower()), 'Curso')
+                                col_as_p = next((c for c in df_asig_temp.columns if 'prof' in c.lower() and 'nomb' in c.lower()), 'Nombre_Profesor')
+                                col_as_m = next((c for c in df_asig_temp.columns if 'asig' in c.lower()), 'Asignatura')
 
-                # Buscar nombre del Profesor(a) Jefe en asignaciones docentes
-                profesor_jefe_nombre = "Profesor(a) Jefe"
-                if sheet_asignaciones:
-                    try:
-                        recs_asig = sheet_asignaciones.get_all_records()
-                        if recs_asig:
-                            df_asig_temp = pd.DataFrame(recs_asig)
-                            col_as_c = next((c for c in df_asig_temp.columns if 'curs' in c.lower()), 'Curso')
-                            col_as_p = next((c for c in df_asig_temp.columns if 'prof' in c.lower() and 'nomb' in c.lower()), 'Nombre_Profesor')
-                            col_as_m = next((c for c in df_asig_temp.columns if 'asig' in c.lower()), 'Asignatura')
-                            
-                            import unicodedata
-                            def _norm_cmp_jefe(s):
-                                return "".join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('°','').replace('.','').strip()
+                                import unicodedata
+                                def _norm_cmp_jefe(s):
+                                    return "".join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('°','').replace('.','').strip()
 
-                            cur_preacta_norm = _norm_cmp_jefe(curso_preacta_sel)
-                            m_jef = df_asig_temp[
-                                df_asig_temp[col_as_c].apply(lambda x: _norm_cmp_jefe(x) == cur_preacta_norm) &
-                                df_asig_temp[col_as_m].astype(str).str.strip().str.upper().eq('JEFATURA')
+                                cur_preacta_norm = _norm_cmp_jefe(curso_preacta_sel)
+                                m_jef = df_asig_temp[
+                                    df_asig_temp[col_as_c].apply(lambda x: _norm_cmp_jefe(x) == cur_preacta_norm) &
+                                    df_asig_temp[col_as_m].astype(str).str.strip().str.upper().eq('JEFATURA')
+                                ]
+                                if not m_jef.empty:
+                                    nom_p = str(m_jef.iloc[0].get(col_as_p, '')).strip()
+                                    if nom_p:
+                                        profesor_jefe_nombre = nom_p
+                        except Exception:
+                            pass
+
+                    # Cargar Notas
+                    df_notas = pd.DataFrame(sheet_notas.get_all_records()) if sheet_notas else pd.DataFrame()
+                    if not df_notas.empty:
+                        df_notas.columns = [str(c).strip() for c in df_notas.columns]
+                        col_r_n = next((c for c in df_notas.columns if 'rut' in c.lower()), 'RUT')
+                        col_a_n = next((c for c in df_notas.columns if 'asig' in c.lower()), 'Asignatura')
+                        col_s_n = next((c for c in df_notas.columns if 'sem' in c.lower()), 'Semestre')
+                        df_notas['RUT_NORM'] = df_notas[col_r_n].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
+
+                    # Cargar Asistencia
+                    df_asist = pd.DataFrame(sheet_asistencia.get_all_records()) if sheet_asistencia else pd.DataFrame()
+                    if not df_asist.empty:
+                        df_asist.columns = [str(c).strip() for c in df_asist.columns]
+
+                    # Cargar registros previos de Preacta guardados
+                    recs_preacta = sheet_preacta.get_all_records()
+                    df_preacta_existente = pd.DataFrame(recs_preacta) if recs_preacta else pd.DataFrame()
+                    if not df_preacta_existente.empty:
+                        df_preacta_existente.columns = [str(c).strip() for c in df_preacta_existente.columns]
+                        if 'RUT' in df_preacta_existente.columns:
+                            df_preacta_existente['RUT_NORM'] = df_preacta_existente['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
+                        if 'Año' in df_preacta_existente.columns:
+                            df_preacta_existente['Año_STR'] = df_preacta_existente['Año'].astype(str).str.strip()
+
+                    # Asignaturas oficiales con división de Religión (Evangélica y Católica):
+                    asigs_catalogo = [
+                        ("Lengua y Literatura", "Lenguaje", "Leng"),
+                        ("Idioma Extranjero Inglés", "Inglés", "Ing"),
+                        ("Matemática", "Matemática", "Mat"),
+                        ("Historia, Geografía y Ciencias Sociales", "Historia", "Hist"),
+                        ("Ciencias Naturales", "Ciencias", "Cien"),
+                        ("Tecnología", "Tecnología", "Tec"),
+                        ("Música", "Música", "Mús"),
+                        ("Educación Física y Salud", "Ed. Física", "EF"),
+                        ("Artes Visuales", "Artes", "Art"),
+                        ("Religión Evangélica", "Rel. Evang.", "R.Ev"),
+                        ("Religión Católica", "Rel. Cat.", "R.Cat"),
+                        ("Orientación", "Orientación", "Ori")
+                    ]
+
+                    # Asistencia del curso y fechas de semestres institucionales
+                    conf_inst_pre = cargar_datos_configuracion_reportes()
+                    f_inicio_semestre_1_pre = conf_inst_pre.get("s1_ini", datetime.date(anio_preacta_sel, 3, 4))
+                    f_fin_semestre_1_pre    = conf_inst_pre.get("s1_fin", datetime.date(anio_preacta_sel, 6, 18))
+                    f_inicio_semestre_2_pre = conf_inst_pre.get("s2_ini", datetime.date(anio_preacta_sel, 7, 6))
+                    f_fin_semestre_2_pre    = conf_inst_pre.get("s2_fin", datetime.date(anio_preacta_sel, 12, 11))
+
+                    total_dias_asis = 0
+                    df_c_asist = pd.DataFrame()
+                    col_f_asist = 'Fecha'
+                    col_d_asist = 'Datos'
+                    if not df_asist.empty and 'Curso' in df_asist.columns:
+                        col_cur_asist = next((c for c in df_asist.columns if 'curs' in c.lower()), 'Curso')
+                        df_c_asist = df_asist[df_asist[col_cur_asist].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_preacta_sel))]
+                        total_dias_asis = len(df_c_asist)
+                        col_f_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['fecha', 'fec', 'dia'])), 'Fecha')
+                        col_d_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
+
+                    def match_asig(nombre_bd, asig_cat_full):
+                        nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
+                        ncat = str(asig_cat_full).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
+                        if nbd == ncat or nbd in ncat or ncat in nbd: return True
+                        if 'matemat' in nbd and 'matemat' in ncat: return True
+                        if ('lengua' in nbd or 'lenguaje' in nbd) and ('lengua' in ncat or 'lenguaje' in ncat): return True
+                        if 'ingles' in nbd and 'ingles' in ncat: return True
+                        if 'ciencias nat' in nbd and 'ciencias nat' in ncat: return True
+                        if 'historia' in nbd and 'historia' in ncat: return True
+                        if 'musica' in nbd and 'musica' in ncat: return True
+                        if 'arte' in nbd and 'arte' in ncat: return True
+                        if 'tecnol' in nbd and 'tecnol' in ncat: return True
+                        if 'fisic' in nbd and 'fisic' in ncat: return True
+                        if 'evangel' in nbd and 'evangel' in ncat: return True
+                        if 'catolic' in nbd and 'catolic' in ncat: return True
+                        if 'orientac' in nbd and 'orientac' in ncat: return True
+                        if 'religi' in nbd and not any(k in nbd for k in ['evangel', 'catolic']) and 'evangel' in ncat: return True
+                        return False
+
+                    def parsear_prom_num(val_raw):
+                        if val_raw is None or str(val_raw).strip() in ['', 'None', 'nan']:
+                            return None
+                        try:
+                            num = float(str(val_raw).replace(',', '.'))
+                            if num > 10.0:
+                                num = redondear_nota(num / 10.0, 1)
+                            return num
+                        except:
+                            return None
+
+                    # Construir matriz de datos de cada alumno
+                    filas_matriz = []
+                    sumas_asig = {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}
+
+                    for _, r_al in df_curso.iterrows():
+                        r_raw = str(r_al.get(col_r, '')).strip()
+                        r_limpio = r_raw.replace('.', '').strip()
+                        r_norm = r_limpio.lower()
+                        nom_al = str(r_al.get(col_n, '')).strip().upper()
+                        n_lista = int(r_al.get('_ord', 1))
+
+                        # Detección de Retirado
+                        val_baja = str(r_al.get(col_baja, '')).strip() if col_baja in r_al else ""
+                        es_ret = bool(val_baja and val_baja not in ['', 'nan', 'None'] and not pd.isna(r_al.get(col_baja)))
+
+                        if es_ret:
+                            filas_matriz.append({
+                                "lista": n_lista,
+                                "rut": r_limpio,
+                                "rut_norm": r_norm,
+                                "nombre": nom_al,
+                                "es_retirado": True,
+                                "fecha_baja": val_baja,
+                                "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
+                                "prom_gral_num": 0.0,
+                                "prom_gral_str": "—",
+                                "pct_asist": 0.0,
+                                "rojas": 0,
+                                "situacion": "RETIRADO",
+                                "promovido_chk": False,
+                                "observaciones": f"RETIRADO ({val_baja})" if val_baja else "RETIRADO"
+                            })
+                            continue
+
+                        # Alumno regular activo
+                        df_n_al = df_notas[df_notas['RUT_NORM'] == r_norm] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
+
+                        promedios_asignaturas = {}
+                        promedios_computables = []
+
+                        for asig_full, asig_corta, _ in asigs_catalogo:
+                            es_conceptual = any(k in asig_full.lower() for k in ['religi', 'orientac'])
+                            p1_val, p2_val = "", ""
+                            if not df_n_al.empty:
+                                m_s1 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('1')]
+                                if not m_s1.empty:
+                                    p1_raw = m_s1.iloc[0].get("Promedio", "")
+                                    if es_conceptual:
+                                        p1_val = nota_a_concepto(p1_raw)
+                                    else:
+                                        num1 = parsear_prom_num(p1_raw)
+                                        if num1 is not None:
+                                            p1_val = f"{redondear_nota(num1):.1f}"
+
+                                m_s2 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('2')]
+                                if not m_s2.empty:
+                                    p2_raw = m_s2.iloc[0].get("Promedio", "")
+                                    if es_conceptual:
+                                        p2_val = nota_a_concepto(p2_raw)
+                                    else:
+                                        num2 = parsear_prom_num(p2_raw)
+                                        if num2 is not None:
+                                            p2_val = f"{redondear_nota(num2):.1f}"
+
+                            nf_final = ""
+                            if es_conceptual:
+                                nf_final = p2_val if p2_val else p1_val
+                            else:
+                                try:
+                                    f1 = float(p1_val) if p1_val else None
+                                    f2 = float(p2_val) if p2_val else None
+                                    if f1 is not None and f2 is not None:
+                                        prom_a = redondear_nota((f1 + f2) / 2.0, 1)
+                                        nf_final = f"{prom_a:.1f}".replace('.', ',')
+                                        promedios_computables.append(prom_a)
+                                        sumas_asig[asig_corta].append(prom_a)
+                                    elif f1 is not None:
+                                        prom_a = redondear_nota(f1, 1)
+                                        nf_final = f"{prom_a:.1f}".replace('.', ',')
+                                        promedios_computables.append(prom_a)
+                                        sumas_asig[asig_corta].append(prom_a)
+                                    elif f2 is not None:
+                                        prom_a = redondear_nota(f2, 1)
+                                        nf_final = f"{prom_a:.1f}".replace('.', ',')
+                                        promedios_computables.append(prom_a)
+                                        sumas_asig[asig_corta].append(prom_a)
+                                except:
+                                    pass
+
+                            promedios_asignaturas[asig_corta] = nf_final
+
+                        # Promedio General Anual
+                        if promedios_computables:
+                            prom_gral_num = redondear_nota(sum(promedios_computables) / len(promedios_computables), 1)
+                            prom_gral_str = f"{prom_gral_num:.1f}".replace('.', ',')
+                        else:
+                            prom_gral_num = 0.0
+                            prom_gral_str = "—"
+
+                        # Asistencia del Alumno considerando fecha de matrícula / ingreso oficial
+                        asis_pre = calcular_asistencia_estudiante(r_al, df_asist, curso_preacta_sel, periodo='anual', config_inst=conf_inst_pre)
+                        dias_clase_al = asis_pre["dias_clase"]
+                        inasist_al = asis_pre["dias_inasist"]
+                        pct_asist_num = asis_pre["pct_asist"]
+
+                        # Conteo de rojas numéricas (< 4.0)
+                        cant_rojas = sum(1 for p in promedios_computables if p < 4.0)
+
+                        # Verificar si ya tenía datos guardados en Preacta
+                        sit_guardada = None
+                        obs_guardada = ""
+                        if not df_preacta_existente.empty and 'RUT_NORM' in df_preacta_existente.columns:
+                            coincid = df_preacta_existente[
+                                (df_preacta_existente['RUT_NORM'] == r_norm) &
+                                (df_preacta_existente.get('Año_STR', '') == str(anio_preacta_sel).strip())
                             ]
-                            if not m_jef.empty:
-                                nom_p = str(m_jef.iloc[0].get(col_as_p, '')).strip()
-                                if nom_p:
-                                    profesor_jefe_nombre = nom_p
-                    except Exception:
-                        pass
+                            if not coincid.empty:
+                                row_p = coincid.iloc[-1]
+                                sit_guardada = str(row_p.get('Situacion_Final', '')).strip()
+                                obs_guardada = str(row_p.get('Observaciones', '')).strip()
 
-                # Cargar Notas
-                df_notas = pd.DataFrame(sheet_notas.get_all_records()) if sheet_notas else pd.DataFrame()
-                if not df_notas.empty:
-                    df_notas.columns = [str(c).strip() for c in df_notas.columns]
-                    col_r_n = next((c for c in df_notas.columns if 'rut' in c.lower()), 'RUT')
-                    col_a_n = next((c for c in df_notas.columns if 'asig' in c.lower()), 'Asignatura')
-                    col_s_n = next((c for c in df_notas.columns if 'sem' in c.lower()), 'Semestre')
-                    df_notas['RUT_NORM'] = df_notas[col_r_n].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
+                        # Verificar si el usuario modificó manualmente en la sesión actual
+                        k_mod = f"preacta_mod_{curso_preacta_sel}_{r_norm}"
+                        if k_mod in st.session_state:
+                            sit_base = st.session_state[k_mod].get("situacion", "Promovido(a)")
+                            obs_base = st.session_state[k_mod].get("observaciones", "")
+                        elif sit_guardada:
+                            sit_base = sit_guardada
+                            obs_base = obs_guardada
+                        else:
+                            sit_base = "Promovido(a)"
+                            obs_base = ""
 
-                # Cargar Asistencia
-                df_asist = pd.DataFrame(sheet_asistencia.get_all_records()) if sheet_asistencia else pd.DataFrame()
-                if not df_asist.empty:
-                    df_asist.columns = [str(c).strip() for c in df_asist.columns]
-
-                # Cargar registros previos de Preacta guardados
-                recs_preacta = sheet_preacta.get_all_records()
-                df_preacta_existente = pd.DataFrame(recs_preacta) if recs_preacta else pd.DataFrame()
-                if not df_preacta_existente.empty:
-                    df_preacta_existente.columns = [str(c).strip() for c in df_preacta_existente.columns]
-                    if 'RUT' in df_preacta_existente.columns:
-                        df_preacta_existente['RUT_NORM'] = df_preacta_existente['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
-                    if 'Año' in df_preacta_existente.columns:
-                        df_preacta_existente['Año_STR'] = df_preacta_existente['Año'].astype(str).str.strip()
-
-                # Asignaturas oficiales con división de Religión (Evangélica y Católica):
-                asigs_catalogo = [
-                    ("Lengua y Literatura", "Lenguaje", "Leng"),
-                    ("Idioma Extranjero Inglés", "Inglés", "Ing"),
-                    ("Matemática", "Matemática", "Mat"),
-                    ("Historia, Geografía y Ciencias Sociales", "Historia", "Hist"),
-                    ("Ciencias Naturales", "Ciencias", "Cien"),
-                    ("Tecnología", "Tecnología", "Tec"),
-                    ("Música", "Música", "Mús"),
-                    ("Educación Física y Salud", "Ed. Física", "EF"),
-                    ("Artes Visuales", "Artes", "Art"),
-                    ("Religión Evangélica", "Rel. Evang.", "R.Ev"),
-                    ("Religión Católica", "Rel. Cat.", "R.Cat"),
-                    ("Orientación", "Orientación", "Ori")
-                ]
-
-                # Asistencia del curso y fechas de semestres institucionales
-                conf_inst_pre = cargar_datos_configuracion_reportes()
-                f_inicio_semestre_1_pre = conf_inst_pre.get("s1_ini", datetime.date(anio_preacta_sel, 3, 4))
-                f_fin_semestre_1_pre    = conf_inst_pre.get("s1_fin", datetime.date(anio_preacta_sel, 6, 18))
-                f_inicio_semestre_2_pre = conf_inst_pre.get("s2_ini", datetime.date(anio_preacta_sel, 7, 6))
-                f_fin_semestre_2_pre    = conf_inst_pre.get("s2_fin", datetime.date(anio_preacta_sel, 12, 11))
-
-                total_dias_asis = 0
-                df_c_asist = pd.DataFrame()
-                col_f_asist = 'Fecha'
-                col_d_asist = 'Datos'
-                if not df_asist.empty and 'Curso' in df_asist.columns:
-                    col_cur_asist = next((c for c in df_asist.columns if 'curs' in c.lower()), 'Curso')
-                    df_c_asist = df_asist[df_asist[col_cur_asist].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_preacta_sel))]
-                    total_dias_asis = len(df_c_asist)
-                    col_f_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['fecha', 'fec', 'dia'])), 'Fecha')
-                    col_d_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
-
-                def match_asig(nombre_bd, asig_cat_full):
-                    nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
-                    ncat = str(asig_cat_full).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
-                    if nbd == ncat or nbd in ncat or ncat in nbd: return True
-                    if 'matemat' in nbd and 'matemat' in ncat: return True
-                    if ('lengua' in nbd or 'lenguaje' in nbd) and ('lengua' in ncat or 'lenguaje' in ncat): return True
-                    if 'ingles' in nbd and 'ingles' in ncat: return True
-                    if 'ciencias nat' in nbd and 'ciencias nat' in ncat: return True
-                    if 'historia' in nbd and 'historia' in ncat: return True
-                    if 'musica' in nbd and 'musica' in ncat: return True
-                    if 'arte' in nbd and 'arte' in ncat: return True
-                    if 'tecnol' in nbd and 'tecnol' in ncat: return True
-                    if 'fisic' in nbd and 'fisic' in ncat: return True
-                    if 'evangel' in nbd and 'evangel' in ncat: return True
-                    if 'catolic' in nbd and 'catolic' in ncat: return True
-                    if 'orientac' in nbd and 'orientac' in ncat: return True
-                    if 'religi' in nbd and not any(k in nbd for k in ['evangel', 'catolic']) and 'evangel' in ncat: return True
-                    return False
-
-                def parsear_prom_num(val_raw):
-                    if val_raw is None or str(val_raw).strip() in ['', 'None', 'nan']:
-                        return None
-                    try:
-                        num = float(str(val_raw).replace(',', '.'))
-                        if num > 10.0:
-                            num = redondear_nota(num / 10.0, 1)
-                        return num
-                    except:
-                        return None
-
-                # Construir matriz de datos de cada alumno
-                filas_matriz = []
-                sumas_asig = {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}
-
-                for _, r_al in df_curso.iterrows():
-                    r_raw = str(r_al.get(col_r, '')).strip()
-                    r_limpio = r_raw.replace('.', '').strip()
-                    r_norm = r_limpio.lower()
-                    nom_al = str(r_al.get(col_n, '')).strip().upper()
-                    n_lista = int(r_al.get('_ord', 1))
-
-                    # Detección de Retirado
-                    val_baja = str(r_al.get(col_baja, '')).strip() if col_baja in r_al else ""
-                    es_ret = bool(val_baja and val_baja not in ['', 'nan', 'None'] and not pd.isna(r_al.get(col_baja)))
-
-                    if es_ret:
                         filas_matriz.append({
                             "lista": n_lista,
                             "rut": r_limpio,
                             "rut_norm": r_norm,
                             "nombre": nom_al,
-                            "es_retirado": True,
-                            "fecha_baja": val_baja,
-                            "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
-                            "prom_gral_num": 0.0,
-                            "prom_gral_str": "—",
-                            "pct_asist": 0.0,
-                            "rojas": 0,
-                            "situacion": "RETIRADO",
-                            "promovido_chk": False,
-                            "observaciones": f"RETIRADO ({val_baja})" if val_baja else "RETIRADO"
+                            "es_retirado": False,
+                            "fecha_baja": "",
+                            "promedios_asig": promedios_asignaturas,
+                            "prom_gral_num": prom_gral_num,
+                            "prom_gral_str": prom_gral_str,
+                            "pct_asist": pct_asist_num,
+                            "rojas": cant_rojas,
+                            "situacion": sit_base,
+                            "observaciones": obs_base
                         })
-                        continue
 
-                    # Alumno regular activo
-                    df_n_al = df_notas[df_notas['RUT_NORM'] == r_norm] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
+                    # Métricas superiores resumen del curso (calculadas sobre estudiantes activos)
+                    total_al = len(filas_matriz)
+                    total_retirados = sum(1 for f in filas_matriz if f['es_retirado'])
+                    alumnos_activos = [f for f in filas_matriz if not f['es_retirado']]
+                    total_activos = len(alumnos_activos)
+                    total_promovidos = sum(1 for f in alumnos_activos if f['situacion'] == "Promovido(a)")
+                    total_reprobados = total_activos - total_promovidos
+                    proms_validos = [f['prom_gral_num'] for f in alumnos_activos if f['prom_gral_num'] > 0]
+                    prom_curso_gral = redondear_nota(sum(proms_validos) / len(proms_validos), 1) if proms_validos else 0.0
+                    prom_curso_str = f"{prom_curso_gral:.1f}".replace('.', ',') if prom_curso_gral > 0 else "—"
+                    pct_promovidos = round(total_promovidos / total_activos * 100, 1) if total_activos else 100
+                    fecha_emision_str = datetime.date.today().strftime('%d/%m/%Y')
 
-                    promedios_asignaturas = {}
-                    promedios_computables = []
+                    # (Las métricas y el botón de imprimir se despliegan en la cabecera de la pestaña oficial)
 
-                    for asig_full, asig_corta, _ in asigs_catalogo:
-                        es_conceptual = any(k in asig_full.lower() for k in ['religi', 'orientac'])
-                        p1_val, p2_val = "", ""
-                        if not df_n_al.empty:
-                            m_s1 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('1')]
-                            if not m_s1.empty:
-                                p1_raw = m_s1.iloc[0].get("Promedio", "")
-                                if es_conceptual:
-                                    p1_val = nota_a_concepto(p1_raw)
-                                else:
-                                    num1 = parsear_prom_num(p1_raw)
-                                    if num1 is not None:
-                                        p1_val = f"{redondear_nota(num1):.1f}"
 
-                            m_s2 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('2')]
-                            if not m_s2.empty:
-                                p2_raw = m_s2.iloc[0].get("Promedio", "")
-                                if es_conceptual:
-                                    p2_val = nota_a_concepto(p2_raw)
-                                else:
-                                    num2 = parsear_prom_num(p2_raw)
-                                    if num2 is not None:
-                                        p2_val = f"{redondear_nota(num2):.1f}"
-
-                        nf_final = ""
-                        if es_conceptual:
-                            nf_final = p2_val if p2_val else p1_val
+                    # Construir Tabla Oficial en HTML para pantalla:
+                    # - Los nombres se muestran completos sin cortarse y sin que el usuario deba estirar celdas.
+                    # - Las notas menores a 4.0 aparecen en texto rojo en negrita (#dc2626) con fondo suave (#fff1f2).
+                    # - Los retirados se destacan con franja roja institucional.
+                    filas_html_pantalla = ""
+                    for f in filas_matriz:
+                        if f["es_retirado"]:
+                            celdas_ret = "".join(["<td style='text-align:center;padding:5px 2px;color:#cbd5e1;border:1px solid #e2e8f0;'>—</td>" for _ in asigs_catalogo])
+                            filas_html_pantalla += f"""
+                            <tr style='background-color:#fef2f2;border-left:4px solid #ef4444;'>
+                                <td style='text-align:center;font-weight:700;color:#991b1b;padding:5px 4px;border:1px solid #fecaca;'>{f['lista']}</td>
+                                <td style='padding:5px 8px;font-weight:700;color:#991b1b;white-space:nowrap;border:1px solid #fecaca;'>
+                                    {f['nombre']} <span style='background:#fee2e2;color:#b91c1c;border:1px solid #f87171;font-size:0.68rem;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;'>RETIRADO</span>
+                                </td>
+                                {celdas_ret}
+                                <td style='text-align:center;color:#cbd5e1;font-weight:bold;border:1px solid #fecaca;'>—</td>
+                                <td style='text-align:center;color:#cbd5e1;border:1px solid #fecaca;'>—</td>
+                                <td style='text-align:center;padding:5px 4px;border:1px solid #fecaca;'><span style='background:#fee2e2;color:#dc2626;font-weight:800;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>RETIRADO</span></td>
+                                <td style='padding:5px 10px;font-size:0.75rem;color:#b91c1c;border:1px solid #fecaca;min-width:240px;white-space:normal;word-break:break-word;line-height:1.3;'>{f['observaciones']}</td>
+                            </tr>
+                            """
                         else:
-                            try:
-                                f1 = float(p1_val) if p1_val else None
-                                f2 = float(p2_val) if p2_val else None
-                                if f1 is not None and f2 is not None:
-                                    prom_a = redondear_nota((f1 + f2) / 2.0, 1)
-                                    nf_final = f"{prom_a:.1f}".replace('.', ',')
-                                    promedios_computables.append(prom_a)
-                                    sumas_asig[asig_corta].append(prom_a)
-                                elif f1 is not None:
-                                    prom_a = redondear_nota(f1, 1)
-                                    nf_final = f"{prom_a:.1f}".replace('.', ',')
-                                    promedios_computables.append(prom_a)
-                                    sumas_asig[asig_corta].append(prom_a)
-                                elif f2 is not None:
-                                    prom_a = redondear_nota(f2, 1)
-                                    nf_final = f"{prom_a:.1f}".replace('.', ',')
-                                    promedios_computables.append(prom_a)
-                                    sumas_asig[asig_corta].append(prom_a)
-                            except:
-                                pass
+                            celdas_asig_p = ""
+                            for _, asig_corta, _ in asigs_catalogo:
+                                val = f["promedios_asig"].get(asig_corta, "")
+                                es_roja = False
+                                try:
+                                    if float(str(val).replace(',', '.')) < 4.0:
+                                        es_roja = True
+                                except:
+                                    pass
+                                if es_roja:
+                                    celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#dc2626;font-weight:800;background:#fff1f2;border:1px solid #e2e8f0;'>{val}</td>"
+                                elif val:
+                                    celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#1e293b;border:1px solid #e2e8f0;'>{val}</td>"
+                                else:
+                                    celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#cbd5e1;border:1px solid #e2e8f0;'>—</td>"
 
-                        promedios_asignaturas[asig_corta] = nf_final
+                            color_prom_gen = "#dc2626" if f["prom_gral_num"] > 0 and f["prom_gral_num"] < 4.0 else "#008F39"
+                            badge_sit = (
+                                "<span style='background:#dcfce7;color:#15803d;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>✓ Promovido(a)</span>"
+                                if f["situacion"] == "Promovido(a)" else
+                                "<span style='background:#fee2e2;color:#b91c1c;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>✗ Reprobado(a)</span>"
+                            )
+                            filas_html_pantalla += f"""
+                            <tr style='border-bottom:1px solid #f1f5f9;'>
+                                <td style='text-align:center;color:#64748b;padding:5px 4px;border:1px solid #e2e8f0;'>{f['lista']}</td>
+                                <td style='padding:5px 8px;font-weight:600;color:#0f172a;white-space:nowrap;border:1px solid #e2e8f0;'>{f['nombre']}</td>
+                                {celdas_asig_p}
+                                <td style='text-align:center;font-weight:800;color:{color_prom_gen};background:#f8fafc;padding:5px 4px;border:1px solid #e2e8f0;'>{f['prom_gral_str']}</td>
+                                <td style='text-align:center;color:#475569;background:#f8fafc;padding:5px 4px;border:1px solid #e2e8f0;'>{f['pct_asist']}%</td>
+                                <td style='text-align:center;padding:5px 4px;border:1px solid #e2e8f0;'>{badge_sit}</td>
+                                <td style='padding:5px 10px;font-size:0.75rem;color:#475569;border:1px solid #e2e8f0;min-width:240px;white-space:normal;word-break:break-word;line-height:1.3;'>{f['observaciones']}</td>
+                            </tr>
+                            """
 
-                    # Promedio General Anual
-                    if promedios_computables:
-                        prom_gral_num = redondear_nota(sum(promedios_computables) / len(promedios_computables), 1)
-                        prom_gral_str = f"{prom_gral_num:.1f}".replace('.', ',')
-                    else:
-                        prom_gral_num = 0.0
-                        prom_gral_str = "—"
+                    celdas_prom_pie = ""
+                    for _, asig_corta, _ in asigs_catalogo:
+                        arr = sumas_asig[asig_corta]
+                        prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
+                        celdas_prom_pie += f"<th style='text-align:center;font-weight:800;color:#1e293b;padding:5px 3px;border:1px solid #cbd5e1;'>{prom_c}</th>"
 
-                    # Asistencia del Alumno considerando fecha de matrícula / ingreso oficial
-                    asis_pre = calcular_asistencia_estudiante(r_al, df_asist, curso_preacta_sel, periodo='anual', config_inst=conf_inst_pre)
-                    dias_clase_al = asis_pre["dias_clase"]
-                    inasist_al = asis_pre["dias_inasist"]
-                    pct_asist_num = asis_pre["pct_asist"]
+                    headers_asig_th = "".join([f"<th style='padding:6px 3px;text-align:center;border:1px solid #cbd5e1;font-size:0.75rem;' title='{asig_full}'>{abrev}</th>" for asig_full, _, abrev in asigs_catalogo])
 
-                    # Conteo de rojas numéricas (< 4.0)
-                    cant_rojas = sum(1 for p in promedios_computables if p < 4.0)
-
-                    # Verificar si ya tenía datos guardados en Preacta
-                    sit_guardada = None
-                    obs_guardada = ""
-                    if not df_preacta_existente.empty and 'RUT_NORM' in df_preacta_existente.columns:
-                        coincid = df_preacta_existente[
-                            (df_preacta_existente['RUT_NORM'] == r_norm) &
-                            (df_preacta_existente.get('Año_STR', '') == str(anio_preacta_sel).strip())
-                        ]
-                        if not coincid.empty:
-                            row_p = coincid.iloc[-1]
-                            sit_guardada = str(row_p.get('Situacion_Final', '')).strip()
-                            obs_guardada = str(row_p.get('Observaciones', '')).strip()
-
-                    # Verificar si el usuario modificó manualmente en la sesión actual
-                    k_mod = f"preacta_mod_{curso_preacta_sel}_{r_norm}"
-                    if k_mod in st.session_state:
-                        sit_base = st.session_state[k_mod].get("situacion", "Promovido(a)")
-                        obs_base = st.session_state[k_mod].get("observaciones", "")
-                    elif sit_guardada:
-                        sit_base = sit_guardada
-                        obs_base = obs_guardada
-                    else:
-                        sit_base = "Promovido(a)"
-                        obs_base = ""
-
-                    filas_matriz.append({
-                        "lista": n_lista,
-                        "rut": r_limpio,
-                        "rut_norm": r_norm,
-                        "nombre": nom_al,
-                        "es_retirado": False,
-                        "fecha_baja": "",
-                        "promedios_asig": promedios_asignaturas,
-                        "prom_gral_num": prom_gral_num,
-                        "prom_gral_str": prom_gral_str,
-                        "pct_asist": pct_asist_num,
-                        "rojas": cant_rojas,
-                        "situacion": sit_base,
-                        "observaciones": obs_base
-                    })
-
-                # Métricas superiores resumen del curso (calculadas sobre estudiantes activos)
-                total_al = len(filas_matriz)
-                total_retirados = sum(1 for f in filas_matriz if f['es_retirado'])
-                alumnos_activos = [f for f in filas_matriz if not f['es_retirado']]
-                total_activos = len(alumnos_activos)
-                total_promovidos = sum(1 for f in alumnos_activos if f['situacion'] == "Promovido(a)")
-                total_reprobados = total_activos - total_promovidos
-                proms_validos = [f['prom_gral_num'] for f in alumnos_activos if f['prom_gral_num'] > 0]
-                prom_curso_gral = redondear_nota(sum(proms_validos) / len(proms_validos), 1) if proms_validos else 0.0
-                prom_curso_str = f"{prom_curso_gral:.1f}".replace('.', ',') if prom_curso_gral > 0 else "—"
-                pct_promovidos = round(total_promovidos / total_activos * 100, 1) if total_activos else 100
-                fecha_emision_str = datetime.date.today().strftime('%d/%m/%Y')
-
-                # (Las métricas y el botón de imprimir se despliegan en la cabecera de la pestaña oficial)
-
-
-                # Construir Tabla Oficial en HTML para pantalla:
-                # - Los nombres se muestran completos sin cortarse y sin que el usuario deba estirar celdas.
-                # - Las notas menores a 4.0 aparecen en texto rojo en negrita (#dc2626) con fondo suave (#fff1f2).
-                # - Los retirados se destacan con franja roja institucional.
-                filas_html_pantalla = ""
-                for f in filas_matriz:
-                    if f["es_retirado"]:
-                        celdas_ret = "".join(["<td style='text-align:center;padding:5px 2px;color:#cbd5e1;border:1px solid #e2e8f0;'>—</td>" for _ in asigs_catalogo])
-                        filas_html_pantalla += f"""
-                        <tr style='background-color:#fef2f2;border-left:4px solid #ef4444;'>
-                            <td style='text-align:center;font-weight:700;color:#991b1b;padding:5px 4px;border:1px solid #fecaca;'>{f['lista']}</td>
-                            <td style='padding:5px 8px;font-weight:700;color:#991b1b;white-space:nowrap;border:1px solid #fecaca;'>
-                                {f['nombre']} <span style='background:#fee2e2;color:#b91c1c;border:1px solid #f87171;font-size:0.68rem;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;'>RETIRADO</span>
-                            </td>
-                            {celdas_ret}
-                            <td style='text-align:center;color:#cbd5e1;font-weight:bold;border:1px solid #fecaca;'>—</td>
-                            <td style='text-align:center;color:#cbd5e1;border:1px solid #fecaca;'>—</td>
-                            <td style='text-align:center;padding:5px 4px;border:1px solid #fecaca;'><span style='background:#fee2e2;color:#dc2626;font-weight:800;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>RETIRADO</span></td>
-                            <td style='padding:5px 10px;font-size:0.75rem;color:#b91c1c;border:1px solid #fecaca;min-width:240px;white-space:normal;word-break:break-word;line-height:1.3;'>{f['observaciones']}</td>
-                        </tr>
-                        """
-                    else:
-                        celdas_asig_p = ""
-                        for _, asig_corta, _ in asigs_catalogo:
-                            val = f["promedios_asig"].get(asig_corta, "")
-                            es_roja = False
-                            try:
-                                if float(str(val).replace(',', '.')) < 4.0:
-                                    es_roja = True
-                            except:
-                                pass
-                            if es_roja:
-                                celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#dc2626;font-weight:800;background:#fff1f2;border:1px solid #e2e8f0;'>{val}</td>"
-                            elif val:
-                                celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#1e293b;border:1px solid #e2e8f0;'>{val}</td>"
-                            else:
-                                celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#cbd5e1;border:1px solid #e2e8f0;'>—</td>"
-
-                        color_prom_gen = "#dc2626" if f["prom_gral_num"] > 0 and f["prom_gral_num"] < 4.0 else "#008F39"
-                        badge_sit = (
-                            "<span style='background:#dcfce7;color:#15803d;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>✓ Promovido(a)</span>"
-                            if f["situacion"] == "Promovido(a)" else
-                            "<span style='background:#fee2e2;color:#b91c1c;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>✗ Reprobado(a)</span>"
-                        )
-                        filas_html_pantalla += f"""
-                        <tr style='border-bottom:1px solid #f1f5f9;'>
-                            <td style='text-align:center;color:#64748b;padding:5px 4px;border:1px solid #e2e8f0;'>{f['lista']}</td>
-                            <td style='padding:5px 8px;font-weight:600;color:#0f172a;white-space:nowrap;border:1px solid #e2e8f0;'>{f['nombre']}</td>
-                            {celdas_asig_p}
-                            <td style='text-align:center;font-weight:800;color:{color_prom_gen};background:#f8fafc;padding:5px 4px;border:1px solid #e2e8f0;'>{f['prom_gral_str']}</td>
-                            <td style='text-align:center;color:#475569;background:#f8fafc;padding:5px 4px;border:1px solid #e2e8f0;'>{f['pct_asist']}%</td>
-                            <td style='text-align:center;padding:5px 4px;border:1px solid #e2e8f0;'>{badge_sit}</td>
-                            <td style='padding:5px 10px;font-size:0.75rem;color:#475569;border:1px solid #e2e8f0;min-width:240px;white-space:normal;word-break:break-word;line-height:1.3;'>{f['observaciones']}</td>
-                        </tr>
-                        """
-
-                celdas_prom_pie = ""
-                for _, asig_corta, _ in asigs_catalogo:
-                    arr = sumas_asig[asig_corta]
-                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
-                    celdas_prom_pie += f"<th style='text-align:center;font-weight:800;color:#1e293b;padding:5px 3px;border:1px solid #cbd5e1;'>{prom_c}</th>"
-
-                headers_asig_th = "".join([f"<th style='padding:6px 3px;text-align:center;border:1px solid #cbd5e1;font-size:0.75rem;' title='{asig_full}'>{abrev}</th>" for asig_full, _, abrev in asigs_catalogo])
-
-                tabla_pantalla_html = f"""
-                <div style='width:100%;overflow-x:auto;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);background:#ffffff;margin:8px 0 12px 0;'>
-                <table style='width:100%;min-width:1300px;border-collapse:collapse;font-size:0.78rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'>
-                    <thead>
-                        <tr style='background:#f1f5f9;color:#0f172a;'>
-                            <th style='padding:6px 4px;width:28px;text-align:center;border:1px solid #cbd5e1;'>N°</th>
-                            <th style='padding:6px 8px;text-align:left;border:1px solid #cbd5e1;white-space:nowrap;'>Estudiante</th>
-                            {headers_asig_th}
-                            <th style='padding:6px 4px;width:42px;text-align:center;border:1px solid #cbd5e1;background:#e2e8f0;font-weight:800;'>Prom.</th>
-                            <th style='padding:6px 4px;width:44px;text-align:center;border:1px solid #cbd5e1;background:#e2e8f0;'>% Asis</th>
-                            <th style='padding:6px 6px;width:115px;text-align:center;border:1px solid #cbd5e1;white-space:nowrap;'>Situación Final</th>
-                            <th style='padding:6px 10px;text-align:left;border:1px solid #cbd5e1;min-width:240px;white-space:nowrap;'>Observaciones / Decretos</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filas_html_pantalla}
-                    </tbody>
-                    <tfoot>
-                        <tr style='background:#f8fafc;border-top:2px solid #cbd5e1;'>
-                            <th colspan='2' style='text-align:right;padding:6px 8px;border:1px solid #cbd5e1;font-weight:700;color:#334155;'>PROMEDIO CURSO:</th>
-                            {celdas_prom_pie}
-                            <th style='text-align:center;font-weight:900;color:#008F39;padding:6px 4px;border:1px solid #cbd5e1;background:#e2e8f0;'>{prom_curso_str}</th>
-                            <th colspan='3' style='text-align:left;padding:6px 10px;border:1px solid #cbd5e1;font-size:0.73rem;color:#64748b;white-space:nowrap;'>Decreto Supremo N° 67/2018 Mineduc</th>
-                        </tr>
-                    </tfoot>
-                </table>
-                </div>
-                """
-
-                # Renderizar tabla limpia y adaptativa (eliminando saltos de línea con sangría para que Markdown no lo interprete como código preformateado)
-                tabla_pantalla_html_limpia = re.sub(r'\n\s*', ' ', tabla_pantalla_html).strip()
-
-
-                # Construir HTML oficial para impresión apaisada (Landscape)
-                # Título exacto: Preacta de Calificaciones
-                # Comuna dinámica de configuración: Mulchén
-                # Firmas: Profesor(a) Jefe (nombre desde asignaciones) y Director (con firma gráfica b64)
-                filas_html_print = ""
-                for f in filas_matriz:
-                    if f["es_retirado"]:
-                        celdas_asig_ret = "".join(["<td style='text-align:center;padding:3px;color:#94a3b8;'>—</td>" for _ in asigs_catalogo])
-                        filas_html_print += f"""
-                        <tr style='background-color:#fee2e2;color:#991b1b;'>
-                            <td style='text-align:center;padding:3px;font-weight:bold;'>{f['lista']}</td>
-                            <td style='padding:3px;font-family:monospace;font-size:8pt;'>{f['rut']}</td>
-                            <td style='padding:3px;font-size:8.5pt;font-weight:bold;'>{f['nombre']}</td>
-                            {celdas_asig_ret}
-                            <td style='text-align:center;font-weight:bold;padding:3px;'>—</td>
-                            <td style='text-align:center;padding:3px;'>—</td>
-                            <td style='text-align:center;font-weight:bold;color:#dc2626;padding:3px;'>RETIRADO</td>
-                            <td style='padding:3px;font-size:7.5pt;color:#b91c1c;'>{f['observaciones']}</td>
-                        </tr>
-                        """
-                    else:
-                        celdas_asig_print = ""
-                        for _, asig_corta, _ in asigs_catalogo:
-                            val = f["promedios_asig"].get(asig_corta, "")
-                            es_roja = False
-                            try:
-                                if float(str(val).replace(',', '.')) < 4.0: es_roja = True
-                            except: pass
-                            st_roja = "color:#dc2626;font-weight:bold;" if es_roja else ""
-                            celdas_asig_print += f"<td style='text-align:center;padding:3px;{st_roja}'>{val if val else '—'}</td>"
-
-                        col_sit = "#166534" if f["situacion"] == "Promovido(a)" else "#991b1b"
-                        filas_html_print += f"""
-                        <tr>
-                            <td style='text-align:center;padding:3px;'>{f['lista']}</td>
-                            <td style='padding:3px;font-family:monospace;font-size:8pt;'>{f['rut']}</td>
-                            <td style='padding:3px;font-size:8.5pt;'>{f['nombre']}</td>
-                            {celdas_asig_print}
-                            <td style='text-align:center;font-weight:bold;padding:3px;'>{f['prom_gral_str']}</td>
-                            <td style='text-align:center;padding:3px;'>{f['pct_asist']}%</td>
-                            <td style='text-align:center;font-weight:bold;color:{col_sit};padding:3px;'>{f['situacion']}</td>
-                            <td style='padding:3px;font-size:7.5pt;'>{f['observaciones']}</td>
-                        </tr>
-                        """
-
-                celdas_prom_pie_print = ""
-                for _, asig_corta, _ in asigs_catalogo:
-                    arr = sumas_asig[asig_corta]
-                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
-                    celdas_prom_pie_print += f"<td style='text-align:center;font-weight:bold;padding:3px;'>{prom_c}</td>"
-
-                headers_asig_print = "".join([f"<th style='padding:3px;font-size:7.5pt;'>{abrev}</th>" for _, _, abrev in asigs_catalogo])
-                img_tag_print = f'<img src="data:image/png;base64,{insignia_b64}" style="height:42px;width:auto;" />' if insignia_b64 else ''
-
-                # Estampa de firma del director si existe en base64 en configuración
-                firma_director_html = (
-                    f'<img src="data:image/png;base64,{firma_director_b64}" style="max-height:50px;display:block;margin:0 auto -8px auto;" />'
-                    if firma_director_b64 else '<div style="height:45px;"></div>'
-                )
-
-                # Token único para que cada clic en imprimir recargue limpiamente el diálogo del navegador
-                print_token = int(time.time() * 1000)
-
-                html_doc_impresion = f"""
-                <!DOCTYPE html>
-                <!-- print_token_{print_token} -->
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <title>Preacta de Calificaciones - {curso_preacta_sel} ({anio_preacta_sel})</title>
-                    <style>
-                        @page {{
-                            size: letter landscape;
-                            margin: 8mm 10mm;
-                        }}
-                        body {{
-                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-                            font-size: 8pt;
-                            color: #111827;
-                            margin: 0;
-                            padding: 0;
-                            -webkit-print-color-adjust: exact;
-                            print-color-adjust: exact;
-                        }}
-                        table {{
-                            width: 100%;
-                            border-collapse: collapse;
-                            margin-top: 6px;
-                        }}
-                        th, td {{
-                            border: 1px solid #94a3b8;
-                            font-size: 8pt;
-                        }}
-                        th {{
-                            background-color: #f1f5f9 !important;
-                            color: #0f172a;
-                            font-weight: 700;
-                        }}
-                        .header-box {{
-                            display: flex;
-                            align-items: center;
-                            justify-content: space-between;
-                            border-bottom: 2px solid #008F39;
-                            padding-bottom: 4px;
-                            margin-bottom: 6px;
-                        }}
-                        .firmas-container {{
-                            display: flex;
-                            justify-content: space-around;
-                            margin-top: 35px;
-                            page-break-inside: avoid;
-                        }}
-                        .firma-box {{
-                            text-align: center;
-                            width: 35%;
-                            font-size: 8pt;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="header-box">
-                        <div style="display:flex;align-items:center;gap:10px;">
-                            {img_tag_print}
-                            <div>
-                                <div style="font-weight:800;font-size:10pt;color:#008F39;">{nombre_colegio}</div>
-                                <div style="font-size:7.5pt;color:#475569;">RBD: {rbd_colegio} | Comuna: {comuna_colegio}</div>
-                            </div>
-                        </div>
-                        <div style="text-align:center;">
-                            <div style="font-weight:900;font-size:13pt;letter-spacing:0.5px;">Preacta de Calificaciones</div>
-                            <div style="font-size:8.5pt;color:#334155;">AÑO ESCOLAR {anio_preacta_sel} — CURSO: {curso_preacta_sel}</div>
-                        </div>
-                        <div style="text-align:right;font-size:7.5pt;color:#475569;">
-                            Fecha de Emisión: {fecha_emision_str}<br>
-                            Matrícula: {total_activos} Activos {f'+ {total_retirados} Retirados' if total_retirados else ''} | Promovidos: {total_promovidos} ({pct_promovidos}%)
-                        </div>
-                    </div>
-
-                    <table>
+                    tabla_pantalla_html = f"""
+                    <div style='width:100%;overflow-x:auto;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);background:#ffffff;margin:8px 0 12px 0;'>
+                    <table style='width:100%;min-width:1300px;border-collapse:collapse;font-size:0.78rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'>
                         <thead>
-                            <tr>
-                                <th style="width:25px;padding:3px;">N°</th>
-                                <th style="width:75px;padding:3px;">RUN</th>
-                                <th style="padding:3px;text-align:left;">Apellidos y Nombres</th>
-                                {headers_asig_print}
-                                <th style="width:38px;padding:3px;">Prom</th>
-                                <th style="width:38px;padding:3px;">% Asis</th>
-                                <th style="width:80px;padding:3px;">Situación</th>
-                                <th style="width:180px;padding:3px;white-space:nowrap;">Observaciones / Decretos</th>
+                            <tr style='background:#f1f5f9;color:#0f172a;'>
+                                <th style='padding:6px 4px;width:28px;text-align:center;border:1px solid #cbd5e1;'>N°</th>
+                                <th style='padding:6px 8px;text-align:left;border:1px solid #cbd5e1;white-space:nowrap;'>Estudiante</th>
+                                {headers_asig_th}
+                                <th style='padding:6px 4px;width:42px;text-align:center;border:1px solid #cbd5e1;background:#e2e8f0;font-weight:800;'>Prom.</th>
+                                <th style='padding:6px 4px;width:44px;text-align:center;border:1px solid #cbd5e1;background:#e2e8f0;'>% Asis</th>
+                                <th style='padding:6px 6px;width:115px;text-align:center;border:1px solid #cbd5e1;white-space:nowrap;'>Situación Final</th>
+                                <th style='padding:6px 10px;text-align:left;border:1px solid #cbd5e1;min-width:240px;white-space:nowrap;'>Observaciones / Decretos</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filas_html_print}
-                            <tr style="background-color:#f8fafc;font-weight:bold;">
-                                <td colspan="3" style="text-align:right;padding:3px;font-size:8pt;">PROMEDIO CURSO:</td>
-                                {celdas_prom_pie_print}
-                                <td style="text-align:center;padding:3px;font-size:8.5pt;">{prom_curso_str}</td>
-                                <td colspan="3" style="padding:3px;font-size:7.5pt;color:#64748b;">Decreto Supremo N° 67/2018 Mineduc</td>
-                            </tr>
+                            {filas_html_pantalla}
                         </tbody>
+                        <tfoot>
+                            <tr style='background:#f8fafc;border-top:2px solid #cbd5e1;'>
+                                <th colspan='2' style='text-align:right;padding:6px 8px;border:1px solid #cbd5e1;font-weight:700;color:#334155;'>PROMEDIO CURSO:</th>
+                                {celdas_prom_pie}
+                                <th style='text-align:center;font-weight:900;color:#008F39;padding:6px 4px;border:1px solid #cbd5e1;background:#e2e8f0;'>{prom_curso_str}</th>
+                                <th colspan='3' style='text-align:left;padding:6px 10px;border:1px solid #cbd5e1;font-size:0.73rem;color:#64748b;white-space:nowrap;'>Decreto Supremo N° 67/2018 Mineduc</th>
+                            </tr>
+                        </tfoot>
                     </table>
-
-                    <div class="firmas-container">
-                        <div class="firma-box">
-                            <div style="height:45px;"></div>
-                            <div style="border-top:1px solid #475569;padding-top:4px;">
-                                <b>{profesor_jefe_nombre}</b><br>
-                                Profesor(a) Jefe
-                            </div>
-                        </div>
-                        <div class="firma-box">
-                            {firma_director_html}
-                            <div style="border-top:1px solid #475569;padding-top:4px;">
-                                <b>{director_colegio}</b><br>
-                                Director del Establecimiento
-                            </div>
-                        </div>
                     </div>
+                    """
 
-                    <script>
-                        setTimeout(function() {{
-                            window.focus();
-                            window.print();
-                        }}, 150);
-                    </script>
-                </body>
-                </html>
-                """
+                    # Renderizar tabla limpia y adaptativa (eliminando saltos de línea con sangría para que Markdown no lo interprete como código preformateado)
+                    tabla_pantalla_html_limpia = re.sub(r'\n\s*', ' ', tabla_pantalla_html).strip()
 
-                with tab_preacta:
-                    cp1, cp2 = st.columns([2.5, 1.5])
-                    with cp1:
-                        curso_preacta_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_tab_preacta")
-                    with cp2:
-                        anio_preacta_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_tab_preacta")
-                    filas_matriz, sumas_asig, profesor_jefe_nombre = _compute_filas_curso(curso_preacta_sel, anio_preacta_sel)
-                    if not filas_matriz:
-                        st.warning(f"No hay alumnos registrados en {curso_preacta_sel}.")
-                    else:
-                      col_met, col_btn = st.columns([3.8, 1.2])
+
+                    # Construir HTML oficial para impresión apaisada (Landscape)
+                    # Título exacto: Preacta de Calificaciones
+                    # Comuna dinámica de configuración: Mulchén
+                    # Firmas: Profesor(a) Jefe (nombre desde asignaciones) y Director (con firma gráfica b64)
+                    filas_html_print = ""
+                    for f in filas_matriz:
+                        if f["es_retirado"]:
+                            celdas_asig_ret = "".join(["<td style='text-align:center;padding:3px;color:#94a3b8;'>—</td>" for _ in asigs_catalogo])
+                            filas_html_print += f"""
+                            <tr style='background-color:#fee2e2;color:#991b1b;'>
+                                <td style='text-align:center;padding:3px;font-weight:bold;'>{f['lista']}</td>
+                                <td style='padding:3px;font-family:monospace;font-size:8pt;'>{f['rut']}</td>
+                                <td style='padding:3px;font-size:8.5pt;font-weight:bold;'>{f['nombre']}</td>
+                                {celdas_asig_ret}
+                                <td style='text-align:center;font-weight:bold;padding:3px;'>—</td>
+                                <td style='text-align:center;padding:3px;'>—</td>
+                                <td style='text-align:center;font-weight:bold;color:#dc2626;padding:3px;'>RETIRADO</td>
+                                <td style='padding:3px;font-size:7.5pt;color:#b91c1c;'>{f['observaciones']}</td>
+                            </tr>
+                            """
+                        else:
+                            celdas_asig_print = ""
+                            for _, asig_corta, _ in asigs_catalogo:
+                                val = f["promedios_asig"].get(asig_corta, "")
+                                es_roja = False
+                                try:
+                                    if float(str(val).replace(',', '.')) < 4.0: es_roja = True
+                                except: pass
+                                st_roja = "color:#dc2626;font-weight:bold;" if es_roja else ""
+                                celdas_asig_print += f"<td style='text-align:center;padding:3px;{st_roja}'>{val if val else '—'}</td>"
+
+                            col_sit = "#166534" if f["situacion"] == "Promovido(a)" else "#991b1b"
+                            filas_html_print += f"""
+                            <tr>
+                                <td style='text-align:center;padding:3px;'>{f['lista']}</td>
+                                <td style='padding:3px;font-family:monospace;font-size:8pt;'>{f['rut']}</td>
+                                <td style='padding:3px;font-size:8.5pt;'>{f['nombre']}</td>
+                                {celdas_asig_print}
+                                <td style='text-align:center;font-weight:bold;padding:3px;'>{f['prom_gral_str']}</td>
+                                <td style='text-align:center;padding:3px;'>{f['pct_asist']}%</td>
+                                <td style='text-align:center;font-weight:bold;color:{col_sit};padding:3px;'>{f['situacion']}</td>
+                                <td style='padding:3px;font-size:7.5pt;'>{f['observaciones']}</td>
+                            </tr>
+                            """
+
+                    celdas_prom_pie_print = ""
+                    for _, asig_corta, _ in asigs_catalogo:
+                        arr = sumas_asig[asig_corta]
+                        prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
+                        celdas_prom_pie_print += f"<td style='text-align:center;font-weight:bold;padding:3px;'>{prom_c}</td>"
+
+                    headers_asig_print = "".join([f"<th style='padding:3px;font-size:7.5pt;'>{abrev}</th>" for _, _, abrev in asigs_catalogo])
+                    img_tag_print = f'<img src="data:image/png;base64,{insignia_b64}" style="height:42px;width:auto;" />' if insignia_b64 else ''
+
+                    # Estampa de firma del director si existe en base64 en configuración
+                    firma_director_html = (
+                        f'<img src="data:image/png;base64,{firma_director_b64}" style="max-height:50px;display:block;margin:0 auto -8px auto;" />'
+                        if firma_director_b64 else '<div style="height:45px;"></div>'
+                    )
+
+                    # Token único para que cada clic en imprimir recargue limpiamente el diálogo del navegador
+                    print_token = int(time.time() * 1000)
+
+                    html_doc_impresion = f"""
+                    <!DOCTYPE html>
+                    <!-- print_token_{print_token} -->
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>Preacta de Calificaciones - {curso_preacta_sel} ({anio_preacta_sel})</title>
+                        <style>
+                            @page {{
+                                size: letter landscape;
+                                margin: 8mm 10mm;
+                            }}
+                            body {{
+                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                                font-size: 8pt;
+                                color: #111827;
+                                margin: 0;
+                                padding: 0;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }}
+                            table {{
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-top: 6px;
+                            }}
+                            th, td {{
+                                border: 1px solid #94a3b8;
+                                font-size: 8pt;
+                            }}
+                            th {{
+                                background-color: #f1f5f9 !important;
+                                color: #0f172a;
+                                font-weight: 700;
+                            }}
+                            .header-box {{
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                border-bottom: 2px solid #008F39;
+                                padding-bottom: 4px;
+                                margin-bottom: 6px;
+                            }}
+                            .firmas-container {{
+                                display: flex;
+                                justify-content: space-around;
+                                margin-top: 35px;
+                                page-break-inside: avoid;
+                            }}
+                            .firma-box {{
+                                text-align: center;
+                                width: 35%;
+                                font-size: 8pt;
+                            }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header-box">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                {img_tag_print}
+                                <div>
+                                    <div style="font-weight:800;font-size:10pt;color:#008F39;">{nombre_colegio}</div>
+                                    <div style="font-size:7.5pt;color:#475569;">RBD: {rbd_colegio} | Comuna: {comuna_colegio}</div>
+                                </div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-weight:900;font-size:13pt;letter-spacing:0.5px;">Preacta de Calificaciones</div>
+                                <div style="font-size:8.5pt;color:#334155;">AÑO ESCOLAR {anio_preacta_sel} — CURSO: {curso_preacta_sel}</div>
+                            </div>
+                            <div style="text-align:right;font-size:7.5pt;color:#475569;">
+                                Fecha de Emisión: {fecha_emision_str}<br>
+                                Matrícula: {total_activos} Activos {f'+ {total_retirados} Retirados' if total_retirados else ''} | Promovidos: {total_promovidos} ({pct_promovidos}%)
+                            </div>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:25px;padding:3px;">N°</th>
+                                    <th style="width:75px;padding:3px;">RUN</th>
+                                    <th style="padding:3px;text-align:left;">Apellidos y Nombres</th>
+                                    {headers_asig_print}
+                                    <th style="width:38px;padding:3px;">Prom</th>
+                                    <th style="width:38px;padding:3px;">% Asis</th>
+                                    <th style="width:80px;padding:3px;">Situación</th>
+                                    <th style="width:180px;padding:3px;white-space:nowrap;">Observaciones / Decretos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filas_html_print}
+                                <tr style="background-color:#f8fafc;font-weight:bold;">
+                                    <td colspan="3" style="text-align:right;padding:3px;font-size:8pt;">PROMEDIO CURSO:</td>
+                                    {celdas_prom_pie_print}
+                                    <td style="text-align:center;padding:3px;font-size:8.5pt;">{prom_curso_str}</td>
+                                    <td colspan="3" style="padding:3px;font-size:7.5pt;color:#64748b;">Decreto Supremo N° 67/2018 Mineduc</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="firmas-container">
+                            <div class="firma-box">
+                                <div style="height:45px;"></div>
+                                <div style="border-top:1px solid #475569;padding-top:4px;">
+                                    <b>{profesor_jefe_nombre}</b><br>
+                                    Profesor(a) Jefe
+                                </div>
+                            </div>
+                            <div class="firma-box">
+                                {firma_director_html}
+                                <div style="border-top:1px solid #475569;padding-top:4px;">
+                                    <b>{director_colegio}</b><br>
+                                    Director del Establecimiento
+                                </div>
+                            </div>
+                        </div>
+
+                        <script>
+                            setTimeout(function() {{
+                                window.focus();
+                                window.print();
+                            }}, 150);
+                        </script>
+                    </body>
+                    </html>
+                    """
+
+                    # Pestañas principales de navegación del módulo Preacta
+                    col_met, col_btn = st.columns([3.8, 1.2])
                     with col_met:
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Estudiantes Matriculados", f"{total_activos} Activos", delta=f"{total_retirados} Retirado(s)" if total_retirados > 0 else None, delta_color="inverse")
@@ -7033,13 +6930,71 @@ elif st.session_state.current_module == 'preacta':
                     st.markdown("<hr style='margin:10px 0 12px 0;'>", unsafe_allow_html=True)
                     st.markdown(tabla_pantalla_html_limpia, unsafe_allow_html=True)
 
-                with tab_decretos:
-                    cd1, cd2 = st.columns([2.5, 1.5])
-                    with cd1:
-                        curso_dec_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_tab_decretos")
-                    with cd2:
-                        anio_dec_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_tab_decretos")
-                    filas_matriz, _, _ = _compute_filas_curso(curso_dec_sel, anio_dec_sel)
+
+            with tab_decretos:
+                # Selector de curso independiente para esta pestaña
+                cd1, cd2 = st.columns([2.5, 1.5])
+                with cd1:
+                    curso_dec_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_tab_decretos")
+                with cd2:
+                    st.write("")
+
+                # Reconstruir filas_matriz para el curso seleccionado
+                df_cd = df_al[df_al[col_c].astype(str).str.strip() == str(curso_dec_sel).strip()].copy()
+                if not df_cd.empty:
+                    if col_o in df_cd.columns:
+                        df_cd['_ord'] = pd.to_numeric(df_cd[col_o], errors='coerce').fillna(999).astype(int)
+                    else:
+                        df_cd['_ord'] = range(1, len(df_cd) + 1)
+                    df_cd = df_cd.sort_values(by=['_ord'])
+                    filas_matriz = []
+                    for _, ral in df_cd.iterrows():
+                        rraw = str(ral.get(col_r, '')).strip()
+                        rlim = rraw.replace('.', '').strip()
+                        rnorm = rlim.lower()
+                        nnom = str(ral.get(col_n, '')).strip().upper()
+                        nlst = int(ral.get('_ord', 1))
+                        vbaj = str(ral.get(col_baja, '')).strip() if col_baja in ral else ""
+                        esret = bool(vbaj and vbaj not in ['', 'nan', 'None'] and not pd.isna(ral.get(col_baja)))
+                        if esret:
+                            filas_matriz.append({"lista": nlst, "rut": rlim, "rut_norm": rnorm,
+                                "nombre": nnom, "es_retirado": True, "fecha_baja": vbaj,
+                                "promedios_asig": {ac: "—" for _, ac, _ in asigs_catalogo},
+                                "prom_gral_num": 0.0, "prom_gral_str": "—", "pct_asist": 0.0,
+                                "rojas": 0, "situacion": "RETIRADO", "promovido_chk": False,
+                                "observaciones": f"RETIRADO ({vbaj})" if vbaj else "RETIRADO"})
+                            continue
+                        dfnd = df_notas[df_notas['RUT_NORM'] == rnorm] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
+                        prmd = {}; prcd = []
+                        for af, ac, _ in asigs_catalogo:
+                            ecc = any(k in af.lower() for k in ['religi', 'orientac'])
+                            p1d, p2d = "", ""
+                            if not dfnd.empty:
+                                ms1 = dfnd[dfnd[col_a_n].apply(lambda x: match_asig(x, af)) & dfnd[col_s_n].astype(str).str.contains('1')]
+                                if not ms1.empty: p1r=ms1.iloc[0].get('Promedio',''); p1d=nota_a_concepto(p1r) if ecc else (f'{redondear_nota(parsear_prom_num(p1r)):.1f}' if parsear_prom_num(p1r) is not None else '')
+                                ms2 = dfnd[dfnd[col_a_n].apply(lambda x: match_asig(x, af)) & dfnd[col_s_n].astype(str).str.contains('2')]
+                                if not ms2.empty: p2r=ms2.iloc[0].get('Promedio',''); p2d=nota_a_concepto(p2r) if ecc else (f'{redondear_nota(parsear_prom_num(p2r)):.1f}' if parsear_prom_num(p2r) is not None else '')
+                            nfd = p2d if p2d else p1d if ecc else ""
+                            if not ecc:
+                                try:
+                                    f1d=float(p1d) if p1d else None; f2d=float(p2d) if p2d else None
+                                    if f1d and f2d: pad=redondear_nota((f1d+f2d)/2.0,1); nfd=f'{pad:.1f}'.replace('.',','); prcd.append(pad)
+                                    elif f1d: pad=redondear_nota(f1d,1); nfd=f'{pad:.1f}'.replace('.',','); prcd.append(pad)
+                                    elif f2d: pad=redondear_nota(f2d,1); nfd=f'{pad:.1f}'.replace('.',','); prcd.append(pad)
+                                except: pass
+                            prmd[ac] = nfd
+                        pgd = redondear_nota(sum(prcd)/len(prcd),1) if prcd else 0.0
+                        asd = calcular_asistencia_estudiante(ral, df_asist, curso_dec_sel, periodo='anual', config_inst=conf_inst_pre)
+                        kmd = f"preacta_mod_{curso_dec_sel}_{rnorm}"
+                        sitd = st.session_state[kmd].get('situacion','Promovido(a)') if kmd in st.session_state else 'Promovido(a)'
+                        obsd = st.session_state[kmd].get('observaciones','') if kmd in st.session_state else ''
+                        filas_matriz.append({"lista": nlst, "rut": rlim, "rut_norm": rnorm,
+                            "nombre": nnom, "es_retirado": False, "fecha_baja": "",
+                            "promedios_asig": prmd, "prom_gral_num": pgd,
+                            "prom_gral_str": f'{pgd:.1f}'.replace('.',',') if pgd > 0 else '—',
+                            "pct_asist": asd['pct_asist'], "rojas": sum(1 for p in prcd if p < 4.0),
+                            "situacion": sitd, "observaciones": obsd})
+
                     st.markdown("#### ⚖️ Gestión de Situación Final y Decretos de Promoción")
                     st.caption("Ajusta la condición final de estudiantes (promovido/reprobado) o registra decretos normativos (ej: Decreto Supremo N° 67/2018) para ser incluidos en el acta oficial.")
 
@@ -7076,7 +7031,7 @@ elif st.session_state.current_module == 'preacta':
                             c_b1, c_b2 = st.columns([1.5, 1.0])
                             with c_b1:
                                 if st.button("💾 Guardar Cambios del Estudiante", type="primary", use_container_width=True, key=f"btn_save_tab_{obj_sel['rut_norm']}"):
-                                    st.session_state[f"preacta_mod_{curso_preacta_sel}_{obj_sel['rut_norm']}"] = {
+                                    st.session_state[f"preacta_mod_{curso_dec_sel}_{obj_sel['rut_norm']}"] = {
                                         "situacion": nueva_sit,
                                         "observaciones": obs_val.strip()
                                     }
@@ -7113,14 +7068,16 @@ elif st.session_state.current_module == 'preacta':
 
                     c_cur_sg1, c_cur_sg2 = st.columns([2.5, 1.2])
                     with c_cur_sg1:
-                        idx_cur_sg = 0
+                        idx_cur_sg = cursos_disp.index(curso_preacta_sel) if curso_preacta_sel in cursos_disp else 0
                         curso_sige_picker = st.selectbox(
                             "📚 Seleccionar Curso a Generar:",
                             cursos_disp,
                             index=idx_cur_sg,
                             key="sige_picker_course"
                         )
-                        # curso_sige_picker se usa directamente para generar los archivos SIGE
+                        if curso_sige_picker != curso_preacta_sel:
+                            st.session_state["sel_curso_preacta"] = curso_sige_picker
+                            st.rerun()
 
                     with c_cur_sg2:
                         st.write("")
@@ -7128,7 +7085,7 @@ elif st.session_state.current_module == 'preacta':
                         chk_excluir_ret = st.checkbox(
                             "Excluir estudiantes retirados",
                             value=True,
-                            key=f"sige_excl_ret_{curso_sige_picker}"
+                            key=f"sige_excl_ret_{curso_preacta_sel}"
                         )
 
                     # Parámetros institucionales fijos para SIGE
@@ -7145,86 +7102,18 @@ elif st.session_state.current_module == 'preacta':
                     anio_sige = int(anio_preacta_sel)
 
                     # Extraer grado y letra automáticamente del curso seleccionado
-                    m_g = re.search(r'(\d+)', str(curso_sige_picker))
+                    m_g = re.search(r'(\d+)', str(curso_preacta_sel))
                     grado_sige = m_g.group(1) if m_g else "1"
-                    m_l = re.search(r'\b([A-Za-z])\b', str(curso_sige_picker))
+                    m_l = re.search(r'\b([A-Za-z])\b', str(curso_preacta_sel))
                     if not m_l:
-                        m_l = re.search(r'([A-Da-d])\s*$', str(curso_sige_picker))
+                        m_l = re.search(r'([A-Da-d])\s*$', str(curso_preacta_sel))
                     letra_sige = m_l.group(1).upper() if m_l else "A"
 
-                    # Si el curso SIGE picker difiere del curso principal, reconstruir la matriz para ese curso
-                    if curso_sige_picker != curso_preacta_sel:
-                        df_curso_sg = df_al[df_al[col_c].astype(str).str.strip() == str(curso_sige_picker).strip()].copy()
-                        if col_o in df_curso_sg.columns:
-                            df_curso_sg['_ord'] = pd.to_numeric(df_curso_sg[col_o], errors='coerce').fillna(999).astype(int)
-                        else:
-                            df_curso_sg['_ord'] = range(1, len(df_curso_sg) + 1)
-                        df_curso_sg = df_curso_sg.sort_values(by=['_ord'])
-                        filas_sige = []
-                        sumas_sg = {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}
-                        for _, r_al_sg in df_curso_sg.iterrows():
-                            r_raw_sg = str(r_al_sg.get(col_r, '')).strip()
-                            r_limpio_sg = r_raw_sg.replace('.', '').strip()
-                            r_norm_sg = r_limpio_sg.lower()
-                            nom_sg = str(r_al_sg.get(col_n, '')).strip().upper()
-                            n_lista_sg = int(r_al_sg.get('_ord', 1))
-                            val_baja_sg = str(r_al_sg.get(col_baja, '')).strip() if col_baja in r_al_sg else ""
-                            es_ret_sg = bool(val_baja_sg and val_baja_sg not in ['', 'nan', 'None'] and not pd.isna(r_al_sg.get(col_baja)))
-                            if es_ret_sg:
-                                filas_sige.append({"lista": n_lista_sg, "rut": r_limpio_sg, "rut_norm": r_norm_sg,
-                                    "nombre": nom_sg, "es_retirado": True, "fecha_baja": val_baja_sg,
-                                    "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
-                                    "prom_gral_num": 0.0, "prom_gral_str": "—", "pct_asist": 0.0, "rojas": 0,
-                                    "situacion": "RETIRADO", "promovido_chk": False,
-                                    "observaciones": f"RETIRADO ({val_baja_sg})" if val_baja_sg else "RETIRADO"})
-                                continue
-                            df_n_sg = df_notas[df_notas['RUT_NORM'] == r_norm_sg] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
-                            proms_sg = {}
-                            proms_comp_sg = []
-                            for asig_full, asig_corta, _ in asigs_catalogo:
-                                es_conc = any(k in asig_full.lower() for k in ['religi', 'orientac'])
-                                p1v, p2v = "", ""
-                                if not df_n_sg.empty:
-                                    ms1 = df_n_sg[df_n_sg[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_sg[col_s_n].astype(str).str.contains('1')]
-                                    if not ms1.empty:
-                                        p1r = ms1.iloc[0].get("Promedio", "")
-                                        p1v = nota_a_concepto(p1r) if es_conc else (f"{redondear_nota(parsear_prom_num(p1r)):.1f}" if parsear_prom_num(p1r) is not None else "")
-                                    ms2 = df_n_sg[df_n_sg[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_sg[col_s_n].astype(str).str.contains('2')]
-                                    if not ms2.empty:
-                                        p2r = ms2.iloc[0].get("Promedio", "")
-                                        p2v = nota_a_concepto(p2r) if es_conc else (f"{redondear_nota(parsear_prom_num(p2r)):.1f}" if parsear_prom_num(p2r) is not None else "")
-                                nf = p2v if p2v else p1v if es_conc else ""
-                                if not es_conc:
-                                    try:
-                                        f1, f2 = (float(p1v) if p1v else None), (float(p2v) if p2v else None)
-                                        if f1 and f2: pa = redondear_nota((f1+f2)/2.0,1); nf = f"{pa:.1f}".replace('.',','); proms_comp_sg.append(pa); sumas_sg[asig_corta].append(pa)
-                                        elif f1: pa = redondear_nota(f1,1); nf = f"{pa:.1f}".replace('.',','); proms_comp_sg.append(pa); sumas_sg[asig_corta].append(pa)
-                                        elif f2: pa = redondear_nota(f2,1); nf = f"{pa:.1f}".replace('.',','); proms_comp_sg.append(pa); sumas_sg[asig_corta].append(pa)
-                                    except: pass
-                                proms_sg[asig_corta] = nf
-                            pg_sg = redondear_nota(sum(proms_comp_sg)/len(proms_comp_sg),1) if proms_comp_sg else 0.0
-                            asis_sg = calcular_asistencia_estudiante(r_al_sg, df_asist, curso_sige_picker, periodo='anual', config_inst=conf_inst_pre)
-                            k_mod_sg = f"preacta_mod_{curso_sige_picker}_{r_norm_sg}"
-                            if k_mod_sg in st.session_state:
-                                sit_sg = st.session_state[k_mod_sg].get("situacion", "Promovido(a)")
-                                obs_sg = st.session_state[k_mod_sg].get("observaciones", "")
-                            else:
-                                sit_sg = "Promovido(a)" if proms_comp_sg and all(p >= 4.0 for p in proms_comp_sg) or not proms_comp_sg else ("Reprobado(a)" if sum(1 for p in proms_comp_sg if p < 4.0) > 0 else "Promovido(a)")
-                                obs_sg = ""
-                            filas_sige.append({"lista": n_lista_sg, "rut": r_limpio_sg, "rut_norm": r_norm_sg,
-                                "nombre": nom_sg, "es_retirado": False, "fecha_baja": "",
-                                "promedios_asig": proms_sg, "prom_gral_num": pg_sg,
-                                "prom_gral_str": f"{pg_sg:.1f}".replace('.',',') if pg_sg > 0 else "—",
-                                "pct_asist": asis_sg["pct_asist"], "rojas": sum(1 for p in proms_comp_sg if p < 4.0),
-                                "situacion": sit_sg, "observaciones": obs_sg})
-                    else:
-                        filas_sige = filas_matriz
-
                     # Filtrar lista de estudiantes según la opción de retirados
-                    estudiantes_sige = [f for f in filas_sige if not (chk_excluir_ret and f['es_retirado'])]
+                    estudiantes_sige = [f for f in filas_matriz if not (chk_excluir_ret and f['es_retirado'])]
 
                     if not estudiantes_sige:
-                        st.warning(f"No hay estudiantes para procesar en {curso_sige_picker}.")
+                        st.warning(f"No hay estudiantes para procesar en {curso_preacta_sel}.")
                     else:
                         # Mapeo oficial de las 12 asignaturas oficiales a códigos SIGE (Orientación fija en 413)
                         mapa_sige_asigs = {
@@ -7335,7 +7224,7 @@ elif st.session_state.current_module == 'preacta':
                                     <span style='font-size:1.4rem;'>📊</span>
                                     <div>
                                         <b style='color:#166534;font-size:1.02rem;'>Archivo Tipo 4 (.txt)</b>
-                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales — {curso_sige_picker}</div>
+                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales — {curso_preacta_sel}</div>
                                     </div>
                                 </div>
                             </div>
@@ -7349,7 +7238,7 @@ elif st.session_state.current_module == 'preacta':
                                 mime="text/plain",
                                 type="primary",
                                 use_container_width=True,
-                                key=f"btn_dl_t4_{curso_sige_picker}"
+                                key=f"btn_dl_t4_{curso_preacta_sel}"
                             )
 
                         with col_arc_t5:
@@ -7359,7 +7248,7 @@ elif st.session_state.current_module == 'preacta':
                                     <span style='font-size:1.4rem;'>🎓</span>
                                     <div>
                                         <b style='color:#1e40af;font-size:1.02rem;'>Archivo Tipo 5 (.txt)</b>
-                                        <div style='font-size:0.8rem;color:#1d4ed8;'>Situación Final y Promoción — {curso_sige_picker}</div>
+                                        <div style='font-size:0.8rem;color:#1d4ed8;'>Situación Final y Promoción — {curso_preacta_sel}</div>
                                     </div>
                                 </div>
                             </div>
@@ -7373,7 +7262,7 @@ elif st.session_state.current_module == 'preacta':
                                 mime="text/plain",
                                 type="primary",
                                 use_container_width=True,
-                                key=f"btn_dl_t5_{curso_sige_picker}"
+                                key=f"btn_dl_t5_{curso_preacta_sel}"
                             )
 
 
