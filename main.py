@@ -6484,7 +6484,7 @@ elif st.session_state.current_module == 'preacta':
                 asigs_catalogo = plan_cur['asigs_catalogo']
                 df_cur = df_al[df_al[col_c].astype(str).str.strip() == str(cur_sel).strip()].copy()
                 if df_cur.empty:
-                    return df_cur, [], {ac: [] for _, ac, _ in asigs_catalogo}, "Profesor(a) Jefe"
+                    return df_cur, [], {ac: [] for _, ac, _ in asigs_catalogo}, "Profesor(a) Jefe", asigs_catalogo
                 if col_o in df_cur.columns:
                     df_cur['_ord'] = pd.to_numeric(df_cur[col_o], errors='coerce').fillna(999).astype(int)
                 else:
@@ -6626,7 +6626,7 @@ elif st.session_state.current_module == 'preacta':
                         "situacion": sit_base, "observaciones": obs_base
                     })
 
-                return df_cur, filas, sumas, prof_jefe
+                return df_cur, filas, sumas, prof_jefe, asigs_catalogo
 
             # Pestañas principales de navegación del módulo Preacta
             tab_preacta, tab_decretos, tab_sige = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones", "💾 Archivos Magnéticos SIGE"])
@@ -6638,7 +6638,7 @@ elif st.session_state.current_module == 'preacta':
                 with cp2:
                     st.write("")
 
-                df_curso, filas_matriz, sumas_asig, profesor_jefe_nombre = obtener_datos_preacta_curso(curso_preacta_sel)
+                df_curso, filas_matriz, sumas_asig, profesor_jefe_nombre, asigs_catalogo = obtener_datos_preacta_curso(curso_preacta_sel)
 
                 if df_curso.empty:
                     st.warning(f"No hay alumnos registrados en {curso_preacta_sel}.")
@@ -6717,7 +6717,7 @@ elif st.session_state.current_module == 'preacta':
 
                     celdas_prom_pie = ""
                     for _, asig_corta, _ in asigs_catalogo:
-                        arr = sumas_asig[asig_corta]
+                        arr = sumas_asig.get(asig_corta, [])
                         prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
                         celdas_prom_pie += f"<th style='text-align:center;font-weight:800;color:#1e293b;padding:5px 3px;border:1px solid #cbd5e1;'>{prom_c}</th>"
 
@@ -6803,7 +6803,7 @@ elif st.session_state.current_module == 'preacta':
 
                     celdas_prom_pie_print = ""
                     for _, asig_corta, _ in asigs_catalogo:
-                        arr = sumas_asig[asig_corta]
+                        arr = sumas_asig.get(asig_corta, [])
                         prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
                         celdas_prom_pie_print += f"<td style='text-align:center;font-weight:bold;padding:3px;'>{prom_c}</td>"
 
@@ -6972,7 +6972,7 @@ elif st.session_state.current_module == 'preacta':
                 with cd2:
                     st.write("")
 
-                df_cd, filas_matriz_dec, _, _ = obtener_datos_preacta_curso(curso_dec_sel)
+                df_cd, filas_matriz_dec, _, _, asigs_catalogo_dec = obtener_datos_preacta_curso(curso_dec_sel)
 
                 if not filas_matriz_dec:
                     st.warning(f"No hay alumnos registrados en {curso_dec_sel}.")
@@ -7086,7 +7086,7 @@ elif st.session_state.current_module == 'preacta':
                 letra_sige = m_l.group(1).upper() if m_l else "A"
 
                 # Obtener matriz de estudiantes correspondiente al curso de SIGE
-                df_csg, filas_matriz_sige, _, _ = obtener_datos_preacta_curso(curso_sige_picker)
+                df_csg, filas_matriz_sige, _, _, asigs_catalogo_sige = obtener_datos_preacta_curso(curso_sige_picker)
                 estudiantes_sige = [f for f in filas_matriz_sige if not (chk_excluir_ret and f['es_retirado'])]
 
                 if not estudiantes_sige:
@@ -7094,6 +7094,7 @@ elif st.session_state.current_module == 'preacta':
                 else:
                     mapa_sige_asigs = {
                         "Lenguaje": 28,
+                        "Lengua": 28,
                         "Inglés": 6,
                         "Matemática": 9845,
                         "Historia": 19,
@@ -7125,7 +7126,7 @@ elif st.session_state.current_module == 'preacta':
                         if not r_cuerpo:
                             continue
 
-                        for _, asig_corta, _ in asigs_catalogo:
+                        for _, asig_corta, _ in asigs_catalogo_sige:
                             val_nota = al["promedios_asig"].get(asig_corta, "")
                             if not val_nota or str(val_nota).strip() in ["—", "None", "nan", ""]:
                                 continue
