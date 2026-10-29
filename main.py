@@ -6314,7 +6314,11 @@ elif st.session_state.current_module == 'preacta':
             col_baja = next((c for c in df_al.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
             col_ing_pre = next((c for c in df_al.columns if any(x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
 
-            cursos_disp = sorted([str(c).strip() for c in df_al[col_c].unique() if str(c).strip()], key=orden_curso_sistema) if not df_al.empty and col_c in df_al.columns else ["1° Básico"]
+            # Filtrar exclusivamente cursos de Educación Básica (1° a 8°) ya que Preacta y SIGE Tipo 4/5 corresponden al plan de asignaturas
+            cursos_disp = [
+                c for c in sorted([str(c).strip() for c in df_al[col_c].unique() if str(c).strip()], key=orden_curso_sistema)
+                if not any(k in c.upper() for k in ['NT1', 'NT2', 'PRE-K', 'KINDER', 'PARV'])
+            ] if not df_al.empty and col_c in df_al.columns else ["1° Básico A"]
 
             # Barra superior de filtros
             c_p1, c_p2 = st.columns([2.5, 1.5])
@@ -6946,7 +6950,6 @@ elif st.session_state.current_module == 'preacta':
                             </div>
                             """, unsafe_allow_html=True)
 
-                            idx_rad = 0 if obj_sel["situacion"] == "Promovido(a)" else 1
                             nueva_sit = st.radio("Situación Final de Promoción:", ["Promovido(a)", "Reprobado(a)"], index=idx_rad, horizontal=True, key=f"tab_radio_sit_{obj_sel['rut_norm']}")
                             obs_val = st.text_area(
                                 "Observaciones / Decretos aplicados:",
@@ -6993,58 +6996,57 @@ elif st.session_state.current_module == 'preacta':
 
                 with tab_sige:
                     st.markdown("#### 💾 Generación de Archivos Magnéticos Oficiales para SIGE (Mineduc)")
-                    st.caption("Genera y descarga los archivos de texto (.txt) tabulados para la carga masiva oficial de fin de año en la plataforma SIGE.")
 
-                    # Parámetros oficiales SIGE
-                    with st.expander("⚙️ Parámetros y Configuración Institucional SIGE", expanded=False):
-                        c_sg1, c_sg2, c_sg3, c_sg4 = st.columns(4)
-                        rbd_default = "4410"
-                        dv_default = "5"
-                        if "-" in str(rbd_colegio):
-                            p_rbd = str(rbd_colegio).split("-")
-                            rbd_default = p_rbd[0].strip()
-                            dv_default = p_rbd[1].strip()
-                        elif rbd_colegio:
-                            rbd_default = str(rbd_colegio).strip()
-
-                        rbd_sige = c_sg1.text_input("RBD:", value=rbd_default, key=f"sige_rbd_{curso_preacta_sel}")
-                        dv_sige = c_sg2.text_input("DV RBD:", value=dv_default, key=f"sige_dv_{curso_preacta_sel}")
-                        cod_ens_sige = c_sg3.text_input("Cod. Enseñanza:", value="110", key=f"sige_codens_{curso_preacta_sel}", help="110 = Educación Básica Regular")
-                        anio_sige = c_sg4.number_input("Año Escolar SIGE:", min_value=2020, max_value=2035, value=int(anio_preacta_sel), key=f"sige_anio_{curso_preacta_sel}")
-
-                        # Detección automática de grado y letra
-                        m_g = re.search(r'(\d+)', str(curso_preacta_sel))
-                        g_detectado = m_g.group(1) if m_g else "1"
-                        m_l = re.search(r'\b([A-Za-z])\b', str(curso_preacta_sel))
-                        if not m_l:
-                            m_l = re.search(r'([A-Da-d])\s*$', str(curso_preacta_sel))
-                        l_detectado = m_l.group(1).upper() if m_l else "A"
-
-                        c_sg5, c_sg6, c_sg7 = st.columns([1, 1, 2])
-                        grado_sige = c_sg5.text_input("Grado:", value=g_detectado, key=f"sige_grado_{curso_preacta_sel}")
-                        letra_sige = c_sg6.text_input("Letra:", value=l_detectado, key=f"sige_letra_{curso_preacta_sel}").upper().strip()
-                        cod_ori_sel = c_sg7.selectbox(
-                            "Cod. SIGE Orientación:",
-                            ["413 (Plan de Estudio General)", "5953 (Taller / JEC)"],
-                            index=0,
-                            key=f"sige_ori_{curso_preacta_sel}"
+                    c_cur_sg1, c_cur_sg2 = st.columns([2.5, 1.2])
+                    with c_cur_sg1:
+                        idx_cur_sg = cursos_disp.index(curso_preacta_sel) if curso_preacta_sel in cursos_disp else 0
+                        curso_sige_picker = st.selectbox(
+                            "📚 Seleccionar Curso a Generar:",
+                            cursos_disp,
+                            index=idx_cur_sg,
+                            key="sige_picker_course"
                         )
-                        cod_ori_val = 413 if "413" in cod_ori_sel else 5953
+                        if curso_sige_picker != curso_preacta_sel:
+                            st.session_state["sel_curso_preacta"] = curso_sige_picker
+                            st.rerun()
 
+                    with c_cur_sg2:
+                        st.write("")
+                        st.write("")
                         chk_excluir_ret = st.checkbox(
-                            "Excluir estudiantes retirados de los archivos magnéticos (Recomendado)",
+                            "Excluir estudiantes retirados",
                             value=True,
-                            key=f"sige_excl_ret_{curso_preacta_sel}",
-                            help="SIGE procesa la situación final y calificaciones de alumnos que finalizaron el año escolar regular. Los alumnos retirados se gestionan en SIGE con su correspondiente fecha de retiro."
+                            key=f"sige_excl_ret_{curso_preacta_sel}"
                         )
+
+                    # Parámetros institucionales fijos para SIGE
+                    rbd_sige = "4410"
+                    dv_sige = "5"
+                    if "-" in str(rbd_colegio):
+                        p_rbd = str(rbd_colegio).split("-")
+                        rbd_sige = p_rbd[0].strip()
+                        dv_sige = p_rbd[1].strip()
+                    elif rbd_colegio:
+                        rbd_sige = str(rbd_colegio).strip()
+
+                    cod_ens_sige = "110"
+                    anio_sige = int(anio_preacta_sel)
+
+                    # Extraer grado y letra automáticamente del curso seleccionado
+                    m_g = re.search(r'(\d+)', str(curso_preacta_sel))
+                    grado_sige = m_g.group(1) if m_g else "1"
+                    m_l = re.search(r'\b([A-Za-z])\b', str(curso_preacta_sel))
+                    if not m_l:
+                        m_l = re.search(r'([A-Da-d])\s*$', str(curso_preacta_sel))
+                    letra_sige = m_l.group(1).upper() if m_l else "A"
 
                     # Filtrar lista de estudiantes según la opción de retirados
                     estudiantes_sige = [f for f in filas_matriz if not (chk_excluir_ret and f['es_retirado'])]
 
                     if not estudiantes_sige:
-                        st.warning("No hay estudiantes para procesar en este curso.")
+                        st.warning(f"No hay estudiantes para procesar en {curso_preacta_sel}.")
                     else:
-                        # Mapeo oficial de asignaturas a códigos SIGE
+                        # Mapeo oficial de las 12 asignaturas oficiales a códigos SIGE (Orientación fija en 413)
                         mapa_sige_asigs = {
                             "Lenguaje": 28,
                             "Inglés": 6,
@@ -7057,7 +7059,7 @@ elif st.session_state.current_module == 'preacta':
                             "Ed. Física": 517,
                             "Rel. Evang.": 22,
                             "Rel. Cat.": 22,
-                            "Orientación": cod_ori_val
+                            "Orientación": 413
                         }
 
                         def _descomponer_rut_sige(rut_raw):
@@ -7070,7 +7072,6 @@ elif st.session_state.current_module == 'preacta':
                             return limpio, ""
 
                         # 1. Generar contenido ARCHIVO TIPO 4 (Calificaciones por Asignatura)
-                        # Formato oficial: 4 \t RBD \t DV_RBD \t COD_ENS \t GRADO \t LETRA \t ANIO \t RUT_CUERPO \t RUT_DV \t 110 \t 110 \t COD_SIGE \t NOTA_NUM \t CONCEPTO \t \r\n
                         lineas_tipo_4 = []
                         total_notas_t4 = 0
 
@@ -7094,7 +7095,6 @@ elif st.session_state.current_module == 'preacta':
                                     nota_num_str = ""
                                     nota_con_str = val_upper
                                 else:
-                                    # Formato numérico con punto decimal: ej 6.9
                                     n_clean = val_str.replace(',', '.')
                                     try:
                                         f_val = float(n_clean)
@@ -7110,7 +7110,6 @@ elif st.session_state.current_module == 'preacta':
                         contenido_tipo_4 = "\r\n".join(lineas_tipo_4) + "\r\n" if lineas_tipo_4 else ""
 
                         # 2. Generar contenido ARCHIVO TIPO 5 (Situación Final y Promoción)
-                        # Formato oficial: 5 \t RBD \t DV_RBD \t COD_ENS \t GRADO \t LETRA \t ANIO \t RUT_CUERPO \t RUT_DV \t PROM_GRAL \t PCT_ASIST \t OBS \t SIT \t CAUSAL \r\n
                         lineas_tipo_5 = []
                         for al in estudiantes_sige:
                             r_cuerpo, r_dv = _descomponer_rut_sige(al['rut'])
@@ -7138,7 +7137,6 @@ elif st.session_state.current_module == 'preacta':
                                     causal_sige = "1"
                                 else:
                                     sit_sige = "R"
-                                    # En SIGE: 1 = Rendimiento, 2 = Asistencia
                                     causal_sige = "2" if float(pct_asis_sige) < 85 and prom_num >= 4.0 else "1"
 
                             linea_t5 = f"5\t{rbd_sige}\t{dv_sige}\t{cod_ens_sige}\t{grado_sige}\t{letra_sige}\t{anio_sige}\t{r_cuerpo}\t{r_dv}\t{prom_str_sige}\t{pct_asis_sige}\t{obs_sige}\t{sit_sige}\t{causal_sige}"
@@ -7146,18 +7144,18 @@ elif st.session_state.current_module == 'preacta':
 
                         contenido_tipo_5 = "\r\n".join(lineas_tipo_5) + "\r\n" if lineas_tipo_5 else ""
 
-                        st.markdown("<hr style='margin:12px 0 16px 0;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin:10px 0 16px 0;'>", unsafe_allow_html=True)
 
                         col_arc_t4, col_arc_t5 = st.columns(2)
 
                         with col_arc_t4:
-                            st.markdown("""
+                            st.markdown(f"""
                             <div style='background:#f0fdf4;padding:14px;border-radius:8px;border:1px solid #bbf7d0;'>
                                 <div style='display:flex;align-items:center;gap:8px;'>
                                     <span style='font-size:1.4rem;'>📊</span>
                                     <div>
                                         <b style='color:#166534;font-size:1.02rem;'>Archivo Tipo 4 (.txt)</b>
-                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales por Asignatura</div>
+                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales — {curso_preacta_sel}</div>
                                     </div>
                                 </div>
                             </div>
@@ -7173,17 +7171,15 @@ elif st.session_state.current_module == 'preacta':
                                 use_container_width=True,
                                 key=f"btn_dl_t4_{curso_preacta_sel}"
                             )
-                            with st.expander(f"👁️ Ver vista previa ({min(12, len(lineas_tipo_4))} de {len(lineas_tipo_4)} filas)"):
-                                st.code("\n".join(lineas_tipo_4[:12]), language="text")
 
                         with col_arc_t5:
-                            st.markdown("""
+                            st.markdown(f"""
                             <div style='background:#eff6ff;padding:14px;border-radius:8px;border:1px solid #bfdbfe;'>
                                 <div style='display:flex;align-items:center;gap:8px;'>
                                     <span style='font-size:1.4rem;'>🎓</span>
                                     <div>
                                         <b style='color:#1e40af;font-size:1.02rem;'>Archivo Tipo 5 (.txt)</b>
-                                        <div style='font-size:0.8rem;color:#1d4ed8;'>Situación Final y Promoción de Estudiantes</div>
+                                        <div style='font-size:0.8rem;color:#1d4ed8;'>Situación Final y Promoción — {curso_preacta_sel}</div>
                                     </div>
                                 </div>
                             </div>
@@ -7199,16 +7195,6 @@ elif st.session_state.current_module == 'preacta':
                                 use_container_width=True,
                                 key=f"btn_dl_t5_{curso_preacta_sel}"
                             )
-                            with st.expander(f"👁️ Ver vista previa ({len(lineas_tipo_5)} filas)"):
-                                st.code("\n".join(lineas_tipo_5), language="text")
-
-                        st.markdown("<hr style='margin:16px 0 12px 0;'>", unsafe_allow_html=True)
-                        st.info("💡 **Procedimiento de carga en SIGE (Mineduc):**\\n\\n"
-                                "1. Ingrese al portal SIGE con el perfil institucional correspondiente.\\n"
-                                "2. En el menú, diríjase a **Carga Masiva de Archivos**.\\n"
-                                "3. Cargue primero el **Archivo Tipo 4** (Calificaciones por Asignatura) y confirme que el proceso no indique errores de matrícula.\\n"
-                                "4. Una vez procesadas las calificaciones, cargue el **Archivo Tipo 5** (Situación Final y Promoción).\\n"
-                                "5. Si algún estudiante fue promovido por Consejo de Profesores con asistencia inferior al 85%, el archivo ya incluye automáticamente la observación normativa (ej: *Decreto 67, Art. 11*).")
 
 
         except Exception as e:
