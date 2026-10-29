@@ -6902,7 +6902,7 @@ elif st.session_state.current_module == 'preacta':
                 """
 
                 # Pestañas principales de navegación del módulo Preacta
-                tab_preacta, tab_decretos = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones"])
+                tab_preacta, tab_decretos, tab_sige = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones", "💾 Archivos Magnéticos SIGE"])
 
                 with tab_preacta:
                     col_met, col_btn = st.columns([3.8, 1.2])
@@ -6990,6 +6990,225 @@ elif st.session_state.current_module == 'preacta':
                                     """, unsafe_allow_html=True)
                             else:
                                 st.info("No hay excepciones ni observaciones registradas en este curso (todos los estudiantes están promovidos de forma regular).")
+
+                with tab_sige:
+                    st.markdown("#### 💾 Generación de Archivos Magnéticos Oficiales para SIGE (Mineduc)")
+                    st.caption("Genera y descarga los archivos de texto (.txt) tabulados para la carga masiva oficial de fin de año en la plataforma SIGE.")
+
+                    # Parámetros oficiales SIGE
+                    with st.expander("⚙️ Parámetros y Configuración Institucional SIGE", expanded=False):
+                        c_sg1, c_sg2, c_sg3, c_sg4 = st.columns(4)
+                        rbd_default = "4410"
+                        dv_default = "5"
+                        if "-" in str(rbd_colegio):
+                            p_rbd = str(rbd_colegio).split("-")
+                            rbd_default = p_rbd[0].strip()
+                            dv_default = p_rbd[1].strip()
+                        elif rbd_colegio:
+                            rbd_default = str(rbd_colegio).strip()
+
+                        rbd_sige = c_sg1.text_input("RBD:", value=rbd_default, key=f"sige_rbd_{curso_preacta_sel}")
+                        dv_sige = c_sg2.text_input("DV RBD:", value=dv_default, key=f"sige_dv_{curso_preacta_sel}")
+                        cod_ens_sige = c_sg3.text_input("Cod. Enseñanza:", value="110", key=f"sige_codens_{curso_preacta_sel}", help="110 = Educación Básica Regular")
+                        anio_sige = c_sg4.number_input("Año Escolar SIGE:", min_value=2020, max_value=2035, value=int(anio_preacta_sel), key=f"sige_anio_{curso_preacta_sel}")
+
+                        # Detección automática de grado y letra
+                        m_g = re.search(r'(\d+)', str(curso_preacta_sel))
+                        g_detectado = m_g.group(1) if m_g else "1"
+                        m_l = re.search(r'\b([A-Za-z])\b', str(curso_preacta_sel))
+                        if not m_l:
+                            m_l = re.search(r'([A-Da-d])\s*$', str(curso_preacta_sel))
+                        l_detectado = m_l.group(1).upper() if m_l else "A"
+
+                        c_sg5, c_sg6, c_sg7 = st.columns([1, 1, 2])
+                        grado_sige = c_sg5.text_input("Grado:", value=g_detectado, key=f"sige_grado_{curso_preacta_sel}")
+                        letra_sige = c_sg6.text_input("Letra:", value=l_detectado, key=f"sige_letra_{curso_preacta_sel}").upper().strip()
+                        cod_ori_sel = c_sg7.selectbox(
+                            "Cod. SIGE Orientación:",
+                            ["413 (Plan de Estudio General)", "5953 (Taller / JEC)"],
+                            index=0,
+                            key=f"sige_ori_{curso_preacta_sel}"
+                        )
+                        cod_ori_val = 413 if "413" in cod_ori_sel else 5953
+
+                        chk_excluir_ret = st.checkbox(
+                            "Excluir estudiantes retirados de los archivos magnéticos (Recomendado)",
+                            value=True,
+                            key=f"sige_excl_ret_{curso_preacta_sel}",
+                            help="SIGE procesa la situación final y calificaciones de alumnos que finalizaron el año escolar regular. Los alumnos retirados se gestionan en SIGE con su correspondiente fecha de retiro."
+                        )
+
+                    # Filtrar lista de estudiantes según la opción de retirados
+                    estudiantes_sige = [f for f in filas_matriz if not (chk_excluir_ret and f['es_retirado'])]
+
+                    if not estudiantes_sige:
+                        st.warning("No hay estudiantes para procesar en este curso.")
+                    else:
+                        # Mapeo oficial de asignaturas a códigos SIGE
+                        mapa_sige_asigs = {
+                            "Lenguaje": 28,
+                            "Inglés": 6,
+                            "Matemática": 9845,
+                            "Historia": 19,
+                            "Ciencias": 2280,
+                            "Tecnología": 14,
+                            "Artes": 5,
+                            "Música": 288,
+                            "Ed. Física": 517,
+                            "Rel. Evang.": 22,
+                            "Rel. Cat.": 22,
+                            "Orientación": cod_ori_val
+                        }
+
+                        def _descomponer_rut_sige(rut_raw):
+                            limpio = str(rut_raw).replace('.', '').replace(' ', '').strip().upper()
+                            if '-' in limpio:
+                                partes = limpio.split('-')
+                                return partes[0].strip(), partes[1].strip()
+                            elif len(limpio) >= 2:
+                                return limpio[:-1], limpio[-1]
+                            return limpio, ""
+
+                        # 1. Generar contenido ARCHIVO TIPO 4 (Calificaciones por Asignatura)
+                        # Formato oficial: 4 \t RBD \t DV_RBD \t COD_ENS \t GRADO \t LETRA \t ANIO \t RUT_CUERPO \t RUT_DV \t 110 \t 110 \t COD_SIGE \t NOTA_NUM \t CONCEPTO \t \r\n
+                        lineas_tipo_4 = []
+                        total_notas_t4 = 0
+
+                        for al in estudiantes_sige:
+                            r_cuerpo, r_dv = _descomponer_rut_sige(al['rut'])
+                            if not r_cuerpo:
+                                continue
+
+                            for _, asig_corta, _ in asigs_catalogo:
+                                val_nota = al["promedios_asig"].get(asig_corta, "")
+                                if not val_nota or str(val_nota).strip() in ["—", "None", "nan", ""]:
+                                    continue
+
+                                val_str = str(val_nota).strip()
+                                cod_asig_num = mapa_sige_asigs.get(asig_corta)
+                                if not cod_asig_num:
+                                    continue
+
+                                val_upper = val_str.upper()
+                                if val_upper in ["MB", "B", "S", "I"]:
+                                    nota_num_str = ""
+                                    nota_con_str = val_upper
+                                else:
+                                    # Formato numérico con punto decimal: ej 6.9
+                                    n_clean = val_str.replace(',', '.')
+                                    try:
+                                        f_val = float(n_clean)
+                                        nota_num_str = f"{f_val:.1f}"
+                                    except:
+                                        nota_num_str = n_clean
+                                    nota_con_str = ""
+
+                                linea_t4 = f"4\t{rbd_sige}\t{dv_sige}\t{cod_ens_sige}\t{grado_sige}\t{letra_sige}\t{anio_sige}\t{r_cuerpo}\t{r_dv}\t{cod_ens_sige}\t{cod_ens_sige}\t{cod_asig_num}\t{nota_num_str}\t{nota_con_str}\t"
+                                lineas_tipo_4.append(linea_t4)
+                                total_notas_t4 += 1
+
+                        contenido_tipo_4 = "\r\n".join(lineas_tipo_4) + "\r\n" if lineas_tipo_4 else ""
+
+                        # 2. Generar contenido ARCHIVO TIPO 5 (Situación Final y Promoción)
+                        # Formato oficial: 5 \t RBD \t DV_RBD \t COD_ENS \t GRADO \t LETRA \t ANIO \t RUT_CUERPO \t RUT_DV \t PROM_GRAL \t PCT_ASIST \t OBS \t SIT \t CAUSAL \r\n
+                        lineas_tipo_5 = []
+                        for al in estudiantes_sige:
+                            r_cuerpo, r_dv = _descomponer_rut_sige(al['rut'])
+                            if not r_cuerpo:
+                                continue
+
+                            if al['es_retirado']:
+                                prom_str_sige = ""
+                                pct_asis_sige = "0"
+                                obs_sige = al['observaciones'].strip()
+                                sit_sige = "Y"
+                                causal_sige = ""
+                            else:
+                                prom_num = al.get('prom_gral_num', 0.0)
+                                prom_str_sige = f"{prom_num:.1f}" if prom_num > 0 else ""
+                                try:
+                                    pct_asis_sige = str(int(round(float(al.get('pct_asist', 0)))))
+                                except:
+                                    pct_asis_sige = "0"
+
+                                obs_sige = al.get('observaciones', '').strip()
+                                sit_base = al.get('situacion', 'Promovido(a)')
+                                if sit_base in ['Promovido(a)', 'P']:
+                                    sit_sige = "P"
+                                    causal_sige = "1"
+                                else:
+                                    sit_sige = "R"
+                                    # En SIGE: 1 = Rendimiento, 2 = Asistencia
+                                    causal_sige = "2" if float(pct_asis_sige) < 85 and prom_num >= 4.0 else "1"
+
+                            linea_t5 = f"5\t{rbd_sige}\t{dv_sige}\t{cod_ens_sige}\t{grado_sige}\t{letra_sige}\t{anio_sige}\t{r_cuerpo}\t{r_dv}\t{prom_str_sige}\t{pct_asis_sige}\t{obs_sige}\t{sit_sige}\t{causal_sige}"
+                            lineas_tipo_5.append(linea_t5)
+
+                        contenido_tipo_5 = "\r\n".join(lineas_tipo_5) + "\r\n" if lineas_tipo_5 else ""
+
+                        st.markdown("<hr style='margin:12px 0 16px 0;'>", unsafe_allow_html=True)
+
+                        col_arc_t4, col_arc_t5 = st.columns(2)
+
+                        with col_arc_t4:
+                            st.markdown("""
+                            <div style='background:#f0fdf4;padding:14px;border-radius:8px;border:1px solid #bbf7d0;'>
+                                <div style='display:flex;align-items:center;gap:8px;'>
+                                    <span style='font-size:1.4rem;'>📊</span>
+                                    <div>
+                                        <b style='color:#166534;font-size:1.02rem;'>Archivo Tipo 4 (.txt)</b>
+                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales por Asignatura</div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.write("")
+                            st.metric("Registros de Calificaciones", f"{total_notas_t4} notas generadas")
+                            st.download_button(
+                                label="📥 Descargar Archivo Tipo 4 (.txt)",
+                                data=contenido_tipo_4.encode("latin1", errors="replace"),
+                                file_name=f"SIGE_Tipo4_Calificaciones_{anio_sige}_{grado_sige}{letra_sige}.txt",
+                                mime="text/plain",
+                                type="primary",
+                                use_container_width=True,
+                                key=f"btn_dl_t4_{curso_preacta_sel}"
+                            )
+                            with st.expander(f"👁️ Ver vista previa ({min(12, len(lineas_tipo_4))} de {len(lineas_tipo_4)} filas)"):
+                                st.code("\n".join(lineas_tipo_4[:12]), language="text")
+
+                        with col_arc_t5:
+                            st.markdown("""
+                            <div style='background:#eff6ff;padding:14px;border-radius:8px;border:1px solid #bfdbfe;'>
+                                <div style='display:flex;align-items:center;gap:8px;'>
+                                    <span style='font-size:1.4rem;'>🎓</span>
+                                    <div>
+                                        <b style='color:#1e40af;font-size:1.02rem;'>Archivo Tipo 5 (.txt)</b>
+                                        <div style='font-size:0.8rem;color:#1d4ed8;'>Situación Final y Promoción de Estudiantes</div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.write("")
+                            st.metric("Estudiantes Procesados", f"{len(lineas_tipo_5)} alumnos incluidos")
+                            st.download_button(
+                                label="📥 Descargar Archivo Tipo 5 (.txt)",
+                                data=contenido_tipo_5.encode("latin1", errors="replace"),
+                                file_name=f"SIGE_Tipo5_Promocion_{anio_sige}_{grado_sige}{letra_sige}.txt",
+                                mime="text/plain",
+                                type="primary",
+                                use_container_width=True,
+                                key=f"btn_dl_t5_{curso_preacta_sel}"
+                            )
+                            with st.expander(f"👁️ Ver vista previa ({len(lineas_tipo_5)} filas)"):
+                                st.code("\n".join(lineas_tipo_5), language="text")
+
+                        st.markdown("<hr style='margin:16px 0 12px 0;'>", unsafe_allow_html=True)
+                        st.info("💡 **Procedimiento de carga en SIGE (Mineduc):**\\n\\n"
+                                "1. Ingrese al portal SIGE con el perfil institucional correspondiente.\\n"
+                                "2. En el menú, diríjase a **Carga Masiva de Archivos**.\\n"
+                                "3. Cargue primero el **Archivo Tipo 4** (Calificaciones por Asignatura) y confirme que el proceso no indique errores de matrícula.\\n"
+                                "4. Una vez procesadas las calificaciones, cargue el **Archivo Tipo 5** (Situación Final y Promoción).\\n"
+                                "5. Si algún estudiante fue promovido por Consejo de Profesores con asistencia inferior al 85%, el archivo ya incluye automáticamente la observación normativa (ej: *Decreto 67, Art. 11*).")
 
 
         except Exception as e:

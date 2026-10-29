@@ -8,7 +8,7 @@ import json
 import streamlit as st
 from pywebpush import webpush, WebPushException
 
-def _enviar_push_a_suscripcion(sub_row, titulo, mensaje, url="/"):
+def _enviar_push_a_suscripcion(sub_row, titulo, mensaje, url="/", priv_key=None, email=None, client=None):
     try:
         sub_info = {
             "endpoint": sub_row["endpoint"],
@@ -25,8 +25,16 @@ def _enviar_push_a_suscripcion(sub_row, titulo, mensaje, url="/"):
             "badge": "icons/badge-72.png"
         })
         
-        priv_key = st.secrets.get("VAPID_PRIVATE_KEY")
-        email = st.secrets.get("VAPID_EMAIL", "mailto:escuelavillalaspenas@gmail.com")
+        if not priv_key:
+            try:
+                priv_key = st.secrets.get("VAPID_PRIVATE_KEY")
+            except Exception:
+                pass
+        if not email:
+            try:
+                email = st.secrets.get("VAPID_EMAIL", "mailto:escuelavillalaspenas@gmail.com")
+            except Exception:
+                email = "mailto:escuelavillalaspenas@gmail.com"
         
         if not priv_key:
             return
@@ -41,9 +49,11 @@ def _enviar_push_a_suscripcion(sub_row, titulo, mensaje, url="/"):
         # Si la suscripción expiró o fue revocada en el teléfono (404/410), la limpiamos
         if hasattr(ex, "response") and ex.response is not None and ex.response.status_code in (404, 410):
             try:
-                from utils.database import get_supabase_client
-                client = get_supabase_client()
-                client.table("push_subscriptions").delete().eq("id", sub_row["id"]).execute()
+                if client is None:
+                    from utils.database import get_supabase_client
+                    client = get_supabase_client()
+                if client:
+                    client.table("push_subscriptions").delete().eq("id", sub_row["id"]).execute()
             except Exception:
                 pass
     except Exception:
@@ -52,12 +62,24 @@ def _enviar_push_a_suscripcion(sub_row, titulo, mensaje, url="/"):
 def notificar_apoderados_rut(rut: str, titulo: str, mensaje: str, url: str = "/"):
     """
     Busca todas las suscripciones push vinculadas al RUT y envía la alerta en segundo plano.
-    No bloquea ni ralentiza la interfaz de Streamlit.
+    Captura credenciales en el hilo principal de Streamlit para evitar pérdidas de contexto.
     """
-    def _worker():
+    try:
+        from utils.database import get_supabase_client
+        supabase_client = get_supabase_client()
+        vapid_key = st.secrets.get("VAPID_PRIVATE_KEY")
+        vapid_sub_email = st.secrets.get("VAPID_EMAIL", "mailto:escuelavillalaspenas@gmail.com")
+    except Exception:
+        supabase_client = None
+        vapid_key = None
+        vapid_sub_email = None
+
+    def _worker(client, priv_key, email):
         try:
-            from utils.database import get_supabase_client
-            client = get_supabase_client()
+            if client is None:
+                from utils.database import get_supabase_client
+                client = get_supabase_client()
+            
             rut_clean = str(rut).replace(".", "").strip().upper()
             
             # Buscar suscripciones asociadas a este RUT
@@ -65,8 +87,8 @@ def notificar_apoderados_rut(rut: str, titulo: str, mensaje: str, url: str = "/"
             subs = res.data or []
             
             for sub in subs:
-                _enviar_push_a_suscripcion(sub, titulo, mensaje, url)
+                _enviar_push_a_suscripcion(sub, titulo, mensaje, url, priv_key=priv_key, email=email, client=client)
         except Exception:
             pass
 
-    threading.Thread(target=_worker, daemon=True).start()
+    threading.Thread(target=_worker, args=(supabase_client, vapid_key, vapid_sub_email), daemon=True).start()
