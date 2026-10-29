@@ -6950,6 +6950,7 @@ elif st.session_state.current_module == 'preacta':
                             </div>
                             """, unsafe_allow_html=True)
 
+                            idx_rad = 0 if obj_sel.get("situacion", "Promovido(a)") == "Promovido(a)" else 1
                             nueva_sit = st.radio("Situación Final de Promoción:", ["Promovido(a)", "Reprobado(a)"], index=idx_rad, horizontal=True, key=f"tab_radio_sit_{obj_sel['rut_norm']}")
                             obs_val = st.text_area(
                                 "Observaciones / Decretos aplicados:",
@@ -7199,6 +7200,7 @@ elif st.session_state.current_module == 'preacta':
 
         except Exception as e:
             st.error(f"Error al cargar módulo de Preacta: {e}")
+            import traceback; st.code(traceback.format_exc())
 
 
 elif st.session_state.current_module == 'informes':
