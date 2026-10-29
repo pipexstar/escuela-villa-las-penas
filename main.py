@@ -4349,7 +4349,10 @@ elif st.session_state.current_module == 'notas':
     with col_s1:
         curso_sel = st.selectbox("📚 Curso:", cursos_permitidos, key="notas_curso_sel")
     with col_s2:
-        # Si el usuario es profesor, filtrar asignaturas por curso seleccionado (excluyendo JEFATURA)
+        plan_cur_sel = obtener_plan_estudio_curso(curso_sel)
+        asigs_oficiales_cur = plan_cur_sel['asigs_nombres']
+
+        # Si el usuario es profesor, filtrar asignaturas por curso seleccionado con nomenclatura oficial
         if not es_admin and sheet_asignaciones:
             try:
                 df_asig_tmp = pd.DataFrame(sheet_asignaciones.get_all_records())
@@ -4360,14 +4363,26 @@ elif st.session_state.current_module == 'notas':
                     if all([col_rut_t, col_c_t, col_a_t]):
                         df_filt = df_asig_tmp[
                             (df_asig_tmp[col_rut_t].astype(str).str.strip() == str(rut_usuario).strip()) &
-                            (df_asig_tmp[col_c_t].astype(str) == str(curso_sel)) &
+                            (df_asig_tmp[col_c_t].apply(lambda x: calza_nombre_curso(x, curso_sel))) &
                             (df_asig_tmp[col_a_t].astype(str).str.strip().str.upper() != 'JEFATURA')
                         ]
-                        asigs_del_curso = sorted([a for a in df_filt[col_a_t].unique().tolist() if str(a).strip().upper() != 'JEFATURA'])
-                        if asigs_del_curso:
-                            asigs_permitidas = asigs_del_curso
+                        asigs_raw_p = [str(a).strip() for a in df_filt[col_a_t].unique() if str(a).strip().upper() != 'JEFATURA']
+                        asigs_final_prof = []
+                        for a_of in asigs_oficiales_cur:
+                            if any(coincide_asig_bd(a_raw, a_of) for a_raw in asigs_raw_p):
+                                asigs_final_prof.append(a_of)
+                        for a_raw in asigs_raw_p:
+                            if not any(coincide_asig_bd(a_raw, a_f) for a_f in asigs_final_prof):
+                                asigs_final_prof.append(a_raw)
+                        if asigs_final_prof:
+                            asigs_permitidas = asigs_final_prof
+                        else:
+                            asigs_permitidas = asigs_oficiales_cur
             except Exception:
-                pass
+                asigs_permitidas = asigs_oficiales_cur
+        else:
+            asigs_permitidas = asigs_oficiales_cur
+
         asigs_permitidas = [a for a in asigs_permitidas if str(a).strip().upper() != 'JEFATURA']
         asignatura_sel = st.selectbox("📖 Asignatura:", asigs_permitidas, key="notas_asig_sel")
     with col_s3:
