@@ -6320,19 +6320,120 @@ elif st.session_state.current_module == 'preacta':
                 if not any(k in c.upper() for k in ['NT1', 'NT2', 'PRE-K', 'KINDER', 'PARV'])
             ] if not df_al.empty and col_c in df_al.columns else ["1° Básico A"]
 
-            # Barra superior de filtros
-            c_p1, c_p2 = st.columns([2.5, 1.5])
-            with c_p1:
-                curso_preacta_sel = st.selectbox("📚 Selecciona el Curso para Preacta:", cursos_disp, key="sel_curso_preacta")
-            with c_p2:
-                anio_preacta_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_preacta")
+            # Pestañas principales: cada una tiene su propio selector de curso
+            tab_preacta, tab_decretos, tab_sige = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones", "💾 Archivos Magnéticos SIGE"])
 
-            # Cargar alumnos del curso (incluyendo retirados para el registro oficial completo)
-            df_curso = df_al[df_al[col_c].astype(str).str.strip() == str(curso_preacta_sel).strip()].copy()
+            # ── función interna reutilizable ──────────────────────────────────
+            def _compute_filas_curso(curso_sel, anio_sel):
+                """Retorna (filas_matriz, sumas_asig, profesor_jefe) para el curso dado."""
+                df_c = df_al[df_al[col_c].astype(str).str.strip() == str(curso_sel).strip()].copy()
+                if df_c.empty:
+                    return [], {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}, "Profesor(a) Jefe"
+                if col_o in df_c.columns:
+                    df_c['_ord'] = pd.to_numeric(df_c[col_o], errors='coerce').fillna(999).astype(int)
+                else:
+                    df_c['_ord'] = range(1, len(df_c) + 1)
+                df_c = df_c.sort_values(by=['_ord'])
 
-            if df_curso.empty:
-                st.warning(f"No hay alumnos registrados en {curso_preacta_sel}.")
-            else:
+                # Profesor jefe
+                pjefe = "Profesor(a) Jefe"
+                if sheet_asignaciones:
+                    try:
+                        recs_asig_fn = sheet_asignaciones.get_all_records()
+                        if recs_asig_fn:
+                            df_asig_fn = pd.DataFrame(recs_asig_fn)
+                            col_as_c_fn = next((c for c in df_asig_fn.columns if 'curs' in c.lower()), 'Curso')
+                            col_as_p_fn = next((c for c in df_asig_fn.columns if 'prof' in c.lower() and 'nomb' in c.lower()), 'Nombre_Profesor')
+                            col_as_m_fn = next((c for c in df_asig_fn.columns if 'asig' in c.lower()), 'Asignatura')
+                            cur_norm_fn = _norm_cmp_jefe(curso_sel)
+                            m_jef_fn = df_asig_fn[
+                                df_asig_fn[col_as_c_fn].apply(lambda x: _norm_cmp_jefe(x) == cur_norm_fn) &
+                                df_asig_fn[col_as_m_fn].astype(str).str.strip().str.upper().eq('JEFATURA')
+                            ]
+                            if not m_jef_fn.empty:
+                                nom_p_fn = str(m_jef_fn.iloc[0].get(col_as_p_fn, '')).strip()
+                                if nom_p_fn:
+                                    pjefe = nom_p_fn
+                    except Exception:
+                        pass
+
+                sumas_a = {asig_corta: [] for _, asig_corta, _ in asigs_catalogo}
+                filas = []
+                for _, r_al in df_c.iterrows():
+                    r_raw = str(r_al.get(col_r, '')).strip()
+                    r_limpio = r_raw.replace('.', '').strip()
+                    r_norm = r_limpio.lower()
+                    nom_al = str(r_al.get(col_n, '')).strip().upper()
+                    n_lista = int(r_al.get('_ord', 1))
+                    val_baja = str(r_al.get(col_baja, '')).strip() if col_baja in r_al else ""
+                    es_ret = bool(val_baja and val_baja not in ['', 'nan', 'None'] and not pd.isna(r_al.get(col_baja)))
+                    if es_ret:
+                        filas.append({"lista": n_lista, "rut": r_limpio, "rut_norm": r_norm,
+                            "nombre": nom_al, "es_retirado": True, "fecha_baja": val_baja,
+                            "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
+                            "prom_gral_num": 0.0, "prom_gral_str": "—", "pct_asist": 0.0, "rojas": 0,
+                            "situacion": "RETIRADO", "promovido_chk": False,
+                            "observaciones": f"RETIRADO ({val_baja})" if val_baja else "RETIRADO"})
+                        continue
+                    df_n_al = df_notas[df_notas['RUT_NORM'] == r_norm] if not df_notas.empty and 'RUT_NORM' in df_notas.columns else pd.DataFrame()
+                    proms_asig = {}
+                    proms_comp = []
+                    for asig_full, asig_corta, _ in asigs_catalogo:
+                        es_conc = any(k in asig_full.lower() for k in ['religi', 'orientac'])
+                        p1v, p2v = "", ""
+                        if not df_n_al.empty:
+                            ms1 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('1')]
+                            if not ms1.empty:
+                                p1r = ms1.iloc[0].get("Promedio", "")
+                                p1v = nota_a_concepto(p1r) if es_conc else (f"{redondear_nota(parsear_prom_num(p1r)):.1f}" if parsear_prom_num(p1r) is not None else "")
+                            ms2 = df_n_al[df_n_al[col_a_n].apply(lambda x: match_asig(x, asig_full)) & df_n_al[col_s_n].astype(str).str.contains('2')]
+                            if not ms2.empty:
+                                p2r = ms2.iloc[0].get("Promedio", "")
+                                p2v = nota_a_concepto(p2r) if es_conc else (f"{redondear_nota(parsear_prom_num(p2r)):.1f}" if parsear_prom_num(p2r) is not None else "")
+                        nf = ""
+                        if es_conc:
+                            nf = p2v if p2v else p1v
+                        else:
+                            try:
+                                f1 = float(p1v) if p1v else None
+                                f2 = float(p2v) if p2v else None
+                                if f1 and f2:
+                                    pa = redondear_nota((f1+f2)/2.0, 1); nf = f"{pa:.1f}".replace('.', ','); proms_comp.append(pa); sumas_a[asig_corta].append(pa)
+                                elif f1:
+                                    pa = redondear_nota(f1, 1); nf = f"{pa:.1f}".replace('.', ','); proms_comp.append(pa); sumas_a[asig_corta].append(pa)
+                                elif f2:
+                                    pa = redondear_nota(f2, 1); nf = f"{pa:.1f}".replace('.', ','); proms_comp.append(pa); sumas_a[asig_corta].append(pa)
+                            except:
+                                pass
+                        proms_asig[asig_corta] = nf
+                    pg_num = redondear_nota(sum(proms_comp)/len(proms_comp), 1) if proms_comp else 0.0
+                    pg_str = f"{pg_num:.1f}".replace('.', ',') if pg_num > 0 else "—"
+                    asis_d = calcular_asistencia_estudiante(r_al, df_asist, curso_sel, periodo='anual', config_inst=conf_inst_pre)
+                    k_mod = f"preacta_mod_{curso_sel}_{r_norm}"
+                    if k_mod in st.session_state:
+                        sit = st.session_state[k_mod].get("situacion", "Promovido(a)")
+                        obs = st.session_state[k_mod].get("observaciones", "")
+                    elif not df_preacta_existente.empty and 'RUT_NORM' in df_preacta_existente.columns:
+                        coincid = df_preacta_existente[
+                            (df_preacta_existente['RUT_NORM'] == r_norm) &
+                            (df_preacta_existente.get('Año_STR', pd.Series(dtype=str)) == str(anio_sel).strip())
+                        ]
+                        if not coincid.empty:
+                            row_p = coincid.iloc[-1]
+                            sit = str(row_p.get('Situacion_Final', 'Promovido(a)')).strip() or 'Promovido(a)'
+                            obs = str(row_p.get('Observaciones', '')).strip()
+                        else:
+                            sit = "Promovido(a)"; obs = ""
+                    else:
+                        sit = "Promovido(a)"; obs = ""
+                    filas.append({"lista": n_lista, "rut": r_limpio, "rut_norm": r_norm,
+                        "nombre": nom_al, "es_retirado": False, "fecha_baja": "",
+                        "promedios_asig": proms_asig, "prom_gral_num": pg_num, "prom_gral_str": pg_str,
+                        "pct_asist": asis_d["pct_asist"], "rojas": sum(1 for p in proms_comp if p < 4.0),
+                        "situacion": sit, "observaciones": obs})
+                return filas, sumas_a, pjefe
+            # ── fin función ───────────────────────────────────────────────────
+
                 if col_o in df_curso.columns:
                     df_curso['_ord'] = pd.to_numeric(df_curso[col_o], errors='coerce').fillna(999).astype(int)
                 else:
@@ -6905,11 +7006,17 @@ elif st.session_state.current_module == 'preacta':
                 </html>
                 """
 
-                # Pestañas principales de navegación del módulo Preacta
-                tab_preacta, tab_decretos, tab_sige = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones", "💾 Archivos Magnéticos SIGE"])
-
                 with tab_preacta:
-                    col_met, col_btn = st.columns([3.8, 1.2])
+                    cp1, cp2 = st.columns([2.5, 1.5])
+                    with cp1:
+                        curso_preacta_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_tab_preacta")
+                    with cp2:
+                        anio_preacta_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_tab_preacta")
+                    filas_matriz, sumas_asig, profesor_jefe_nombre = _compute_filas_curso(curso_preacta_sel, anio_preacta_sel)
+                    if not filas_matriz:
+                        st.warning(f"No hay alumnos registrados en {curso_preacta_sel}.")
+                    else:
+                      col_met, col_btn = st.columns([3.8, 1.2])
                     with col_met:
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Estudiantes Matriculados", f"{total_activos} Activos", delta=f"{total_retirados} Retirado(s)" if total_retirados > 0 else None, delta_color="inverse")
@@ -6927,6 +7034,12 @@ elif st.session_state.current_module == 'preacta':
                     st.markdown(tabla_pantalla_html_limpia, unsafe_allow_html=True)
 
                 with tab_decretos:
+                    cd1, cd2 = st.columns([2.5, 1.5])
+                    with cd1:
+                        curso_dec_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_tab_decretos")
+                    with cd2:
+                        anio_dec_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_tab_decretos")
+                    filas_matriz, _, _ = _compute_filas_curso(curso_dec_sel, anio_dec_sel)
                     st.markdown("#### ⚖️ Gestión de Situación Final y Decretos de Promoción")
                     st.caption("Ajusta la condición final de estudiantes (promovido/reprobado) o registra decretos normativos (ej: Decreto Supremo N° 67/2018) para ser incluidos en el acta oficial.")
 
@@ -6970,7 +7083,7 @@ elif st.session_state.current_module == 'preacta':
                                     st.toast(f"✅ Situación de {obj_sel['nombre']} actualizada.", icon="✨")
                                     st.rerun()
                             with c_b2:
-                                k_mod = f"preacta_mod_{curso_preacta_sel}_{obj_sel['rut_norm']}"
+                                k_mod = f"preacta_mod_{curso_dec_sel}_{obj_sel['rut_norm']}"
                                 if k_mod in st.session_state:
                                     if st.button("Restablecer", use_container_width=True, key=f"btn_reset_tab_{obj_sel['rut_norm']}"):
                                         del st.session_state[k_mod]
@@ -7000,7 +7113,7 @@ elif st.session_state.current_module == 'preacta':
 
                     c_cur_sg1, c_cur_sg2 = st.columns([2.5, 1.2])
                     with c_cur_sg1:
-                        idx_cur_sg = cursos_disp.index(curso_preacta_sel) if curso_preacta_sel in cursos_disp else 0
+                        idx_cur_sg = 0
                         curso_sige_picker = st.selectbox(
                             "📚 Seleccionar Curso a Generar:",
                             cursos_disp,
