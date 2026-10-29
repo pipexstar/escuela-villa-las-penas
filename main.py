@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import datetime
 import base64
@@ -9,13 +9,13 @@ import re
 from utils.database import get_sheets, get_asistencia_sheet, get_config_sheet, get_preacta_sheet, get_desarrollo_personal_sheet, get_cursos_sheet
 from decimal import Decimal, ROUND_HALF_UP
 
-# ConfiguraciÃ³n inicial (Debe ser el primer comando de Streamlit)
-st.set_page_config(page_title="Dashboard Escolar", page_icon="ðŸ«", layout="wide")
+# Configuración inicial (Debe ser el primer comando de Streamlit)
+st.set_page_config(page_title="Dashboard Escolar", page_icon="🏫", layout="wide")
 
 def redondear_nota(valor, decimales=1):
     """
-    Redondeo estÃ¡ndar educacional (ROUND_HALF_UP / Decreto 67 de EvaluaciÃ³n Escolar).
-    Aproxima 0.05 o superior a la dÃ©cima superior (ej: 6.25 -> 6.3, 4.45 -> 4.5).
+    Redondeo estándar educacional (ROUND_HALF_UP / Decreto 67 de Evaluación Escolar).
+    Aproxima 0.05 o superior a la décima superior (ej: 6.25 -> 6.3, 4.45 -> 4.5).
     Reemplaza el 'banker's rounding' nativo de Python que truncaba 6.25 a 6.2.
     """
     if valor is None:
@@ -35,12 +35,12 @@ def nota_a_concepto(val):
     - 5.0 a 5.9 -> B (Bueno)
     - 4.0 a 4.9 -> S (Suficiente)
     - 1.0 a 3.9 -> I (Insuficiente)
-    Si ya es un concepto vÃ¡lido (I, S, B, MB) lo preserva limpio en mayÃºscula.
+    Si ya es un concepto válido (I, S, B, MB) lo preserva limpio en mayúscula.
     """
     if val is None:
         return ""
     s = str(val).strip().upper()
-    if not s or s in ("â€”", "-", "NONE", "NAN", "NULL"):
+    if not s or s in ("—", "-", "NONE", "NAN", "NULL"):
         return ""
     if s in ("MB", "B", "S", "I"):
         return s
@@ -62,7 +62,7 @@ def nota_a_concepto(val):
 
 def concepto_a_numero_db(val):
     """
-    Convierte un concepto oficial (MB, B, S, I) a su valor numÃ©rico estÃ¡ndar representativo
+    Convierte un concepto oficial (MB, B, S, I) a su valor numérico estándar representativo
     para almacenar en columnas de base de datos de tipo 'numeric':
     - MB -> 7.0
     - B  -> 5.5
@@ -84,10 +84,10 @@ def concepto_a_numero_db(val):
 
 def apply_clean_theme():
     """
-    Aplica el diseÃ±o limpio y minimalista solicitado:
+    Aplica el diseño limpio y minimalista solicitado:
     - Escala compacta estilo SaaS/ERP (aprovecha la pantalla sin scroll innecesario)
     - Fondo blanco y tarjetas sutiles
-    - TipografÃ­a ajustada y controlada
+    - Tipografía ajustada y controlada
     - Inputs y selectores de menor altura
     - Detalles en el verde institucional (#008F39)
     """
@@ -98,12 +98,12 @@ def apply_clean_theme():
         background-color: #FFFFFF;
     }
 
-    /* Ocultar barra flotante de herramientas en todas las tablas (descarga, bÃºsqueda, pantalla completa) */
+    /* Ocultar barra flotante de herramientas en todas las tablas (descarga, búsqueda, pantalla completa) */
     [data-testid="stDataFrameToolbar"] {
         display: none !important;
     }
 
-    /* Barra superior transparente para no tapar contenido pero manteniendo accesible el botÃ³n de abrir la barra lateral */
+    /* Barra superior transparente para no tapar contenido pero manteniendo accesible el botón de abrir la barra lateral */
     header[data-testid="stHeader"] {
         background: transparent !important;
         color: inherit !important;
@@ -130,7 +130,7 @@ def apply_clean_theme():
         max-width: 98% !important;
     }
     
-    /* Encabezados y tÃ­tulos compactos con respiro para que no se corten */
+    /* Encabezados y títulos compactos con respiro para que no se corten */
     h1 {
         font-size: 1.45rem !important;
         font-weight: 700 !important;
@@ -184,7 +184,7 @@ def apply_clean_theme():
         border-color: #008F39; 
     }
     
-    /* TipografÃ­a compacta y de altura fija para tÃ­tulos de las tarjetas del dashboard */
+    /* Tipografía compacta y de altura fija para títulos de las tarjetas del dashboard */
     .modulo-card-title {
         color: #1e293b;
         font-weight: 600;
@@ -201,7 +201,7 @@ def apply_clean_theme():
         overflow: hidden;
     }
 
-    /* SubtÃ­tulos o descripciones con altura uniforme */
+    /* Subtítulos o descripciones con altura uniforme */
     .modulo-card-sub {
         color: #64748b;
         font-size: 0.72rem;
@@ -273,7 +273,7 @@ def apply_clean_theme():
         background-color: #006b2b !important;
     }
 
-    /* BotÃ³n de escape/volver mÃ¡s sobrio, cÃ³modo y sin cortes */
+    /* Botón de escape/volver más sobrio, cómodo y sin cortes */
     .btn-volver-container .stButton>button {
         height: 34px !important;
         min-height: 34px !important;
@@ -289,7 +289,7 @@ def apply_clean_theme():
         border-color: #4A5568 !important;
     }
 
-    /* ReducciÃ³n de altura y mÃ¡rgenes de inputs y selectboxes */
+    /* Reducción de altura y márgenes de inputs y selectboxes */
     div[data-testid="stTextInput"] input, 
     div[data-testid="stDateInput"] input,
     div[data-testid="stSelectbox"] div[role="combobox"] {
@@ -307,7 +307,7 @@ def apply_clean_theme():
         color: #333333 !important;
     }
 
-    /* Bloqueo de ediciÃ³n manual en listas desplegables (stSelectbox) */
+    /* Bloqueo de edición manual en listas desplegables (stSelectbox) */
     div[data-testid="stSelectbox"] input {
         caret-color: transparent !important;
         cursor: pointer !important;
@@ -318,7 +318,7 @@ def apply_clean_theme():
         cursor: pointer !important;
     }
 
-    /* Espaciado mÃ¡s compacto entre filas verticales de Streamlit */
+    /* Espaciado más compacto entre filas verticales de Streamlit */
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.5rem !important;
     }
@@ -329,7 +329,7 @@ def apply_clean_theme():
 apply_clean_theme()
 
 # ==========================================
-# GESTIÃ“N OFICIAL DE FECHA Y HORA CHILE
+# GESTIÓN OFICIAL DE FECHA Y HORA CHILE
 # ==========================================
 def obtener_ahora_chile() -> datetime.datetime:
     """Devuelve la fecha y hora oficial de Chile (America/Santiago con soporte horario verano/invierno)."""
@@ -337,7 +337,7 @@ def obtener_ahora_chile() -> datetime.datetime:
         from zoneinfo import ZoneInfo
         return datetime.datetime.now(ZoneInfo("America/Santiago"))
     except Exception:
-        # Fallback inteligente si zoneinfo o tzdata no estÃ¡n disponibles
+        # Fallback inteligente si zoneinfo o tzdata no están disponibles
         utc_now = datetime.datetime.now(datetime.timezone.utc)
         m = utc_now.month
         # Regla general Chile continental: UTC-4 en invierno (mayo a agosto inclusive), UTC-3 en verano
@@ -351,7 +351,7 @@ def obtener_ahora_chile() -> datetime.datetime:
             offset_hours = -3
         return utc_now.astimezone(datetime.timezone(datetime.timedelta(hours=offset_hours)))
 
-# Keep-alive heartbeat silencioso en cliente para evitar suspensiÃ³n de pestaÃ±as
+# Keep-alive heartbeat silencioso en cliente para evitar suspensión de pestañas
 try:
     import streamlit.components.v1 as _comp_v1
     _comp_v1.html("""
@@ -377,7 +377,7 @@ except Exception:
     pass
 
 # =========================================================================
-# GESTIÃ“N CENTRALIZADA DE ROLES Y MATRIZ DE PERMISOS DE MÃ“DULOS
+# GESTIÓN CENTRALIZADA DE ROLES Y MATRIZ DE PERMISOS DE MÓDULOS
 # =========================================================================
 ROLES_TODOS = ["Director", "Jefe UTP", "Profesor", "Inspector", "Administrador Total", "Secretaria"]
 ROLES_CONFIGURABLES = ["Director", "Jefe UTP", "Profesor", "Inspector", "Secretaria"]
@@ -388,13 +388,13 @@ MODULOS_SISTEMA = [
     {"id": "asistencia", "titulo": "Asistencia", "sub": "Control diario escolar"},
     {"id": "notas", "titulo": "Carga de Notas", "sub": "Registro y promedios"},
     {"id": "desarrollo_personal", "titulo": "Desarrollo Personal", "sub": "Informe y observaciones"},
-    {"id": "asignaciones", "titulo": "AsignaciÃ³n Docente", "sub": "Asignaturas y docentes"},
-    {"id": "preacta", "titulo": "Preacta Anual", "sub": "PromociÃ³n Decreto 67"},
+    {"id": "asignaciones", "titulo": "Asignación Docente", "sub": "Asignaturas y docentes"},
+    {"id": "preacta", "titulo": "Preacta Anual", "sub": "Promoción Decreto 67"},
     {"id": "informes", "titulo": "Informes y Certificados", "sub": "Notas y certificados"},
-    {"id": "alumnos", "titulo": "Alumnos", "sub": "Fichas y nÃ³mina escolar"},
-    {"id": "cursos", "titulo": "Cursos", "sub": "CatÃ¡logo y jefaturas"},
+    {"id": "alumnos", "titulo": "Alumnos", "sub": "Fichas y nómina escolar"},
+    {"id": "cursos", "titulo": "Cursos", "sub": "Catálogo y jefaturas"},
     {"id": "funcionarios", "titulo": "Funcionarios", "sub": "Personal y accesos"},
-    {"id": "configuracion", "titulo": "ConfiguraciÃ³n", "sub": "Colegio, firmas y fechas"}
+    {"id": "configuracion", "titulo": "Configuración", "sub": "Colegio, firmas y fechas"}
 ]
 
 TODOS_MODULOS_IDS = [m["id"] for m in MODULOS_SISTEMA]
@@ -408,7 +408,7 @@ DEFAULT_PERMISOS_ROLES = {
 }
 
 def normalizar_nombre_rol(rol_raw):
-    """Estandariza cualquier variante del rol a su denominaciÃ³n oficial."""
+    """Estandariza cualquier variante del rol a su denominación oficial."""
     r = str(rol_raw or "").strip().lower()
     if "admin" in r:
         return "Administrador Total"
@@ -448,7 +448,7 @@ def obtener_matriz_permisos(sheet_config=None):
     return {k: v.copy() for k, v in DEFAULT_PERMISOS_ROLES.items()}
 
 def rol_tiene_permiso(rol_usuario, modulo_id, matriz_permisos=None):
-    """EvalÃºa si un rol tiene acceso a un mÃ³dulo determinado."""
+    """Evalúa si un rol tiene acceso a un módulo determinado."""
     if not rol_usuario:
         return False
     rol_norm = normalizar_nombre_rol(rol_usuario)
@@ -460,14 +460,14 @@ def rol_tiene_permiso(rol_usuario, modulo_id, matriz_permisos=None):
     return modulo_id in permisos_rol
 
 # ==========================================
-# FUNCIÃ“N DE LIMPIEZA UNIVERSAL
+# FUNCIÓN DE LIMPIEZA UNIVERSAL
 # ==========================================
 def limpiar_universal_ticketera(texto):
     reemplazos = {
-        'Ã¡': 'A', 'Ã©': 'E', 'Ã­': 'I', 'Ã³': 'O', 'Ãº': 'U',
-        'Ã': 'A', 'Ã‰': 'E', 'Ã': 'I', 'Ã“': 'O', 'Ãš': 'U',
-        'Ã±': 'N', 'Ã‘': 'N', 'Ã¼': 'U', 'Ãœ': 'U',
-        'Â°': ' '
+        'á': 'A', 'é': 'E', 'í': 'I', 'ó': 'O', 'ú': 'U',
+        'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
+        'ñ': 'N', 'Ñ': 'N', 'ü': 'U', 'Ü': 'U',
+        '°': ' '
     }
     txt = str(texto)
     for original, limpio in reemplazos.items():
@@ -475,17 +475,17 @@ def limpiar_universal_ticketera(texto):
     return txt.upper().strip()
 
 # =========================================================================
-# LÃ“GICA CENTRALIZADA DE CURSOS INSTITUCIONALES (CERO DUPLICADOS)
+# LÓGICA CENTRALIZADA DE CURSOS INSTITUCIONALES (CERO DUPLICADOS)
 # =========================================================================
 def normalizar_cadena_curso(texto):
     if not texto: return ""
     t = str(texto).strip().lower()
-    t = t.replace('Â°', '').replace('Âº', '').replace('.', '')
-    t = t.replace('Ã¡', 'a').replace('Ã©', 'e').replace('Ã­', 'i').replace('Ã³', 'o').replace('Ãº', 'u')
+    t = t.replace('°', '').replace('º', '').replace('.', '')
+    t = t.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
     return " ".join(t.split())
 
 def extraer_clave_curso(texto):
-    """Devuelve tupla (nivel_norm, letra_norm) para deduplicaciÃ³n estricta."""
+    """Devuelve tupla (nivel_norm, letra_norm) para deduplicación estricta."""
     norm = normalizar_cadena_curso(texto)
     partes = norm.split()
     if not partes:
@@ -497,7 +497,7 @@ def extraer_clave_curso(texto):
         nivel = norm
         letra = "a"
 
-    # Erradicar Prekinder y Kinder convirtiÃ©ndolos obligatoriamente a NT1 y NT2
+    # Erradicar Prekinder y Kinder convirtiéndolos obligatoriamente a NT1 y NT2
     if any(x in nivel for x in ['prekinder', 'pre-kinder', 'pre kinder', 'prek', 'pre-k']):
         nivel = "nt1"
     elif any(x in nivel for x in ['kinder', 'kndr']) and 'pre' not in nivel:
@@ -511,7 +511,7 @@ def extraer_clave_curso(texto):
 
 def calza_nombre_curso(c_al, c_sel):
     if not c_al or not c_sel: return False
-    if str(c_sel).strip() == "ðŸ” Todos los Cursos": return True
+    if str(c_sel).strip() == "🔍 Todos los Cursos": return True
     return extraer_clave_curso(c_al) == extraer_clave_curso(c_sel)
 
 NIVELES_ORDEN_PEDAGOGICO = ["nt1", "nt2", "1 basico", "2 basico", "3 basico", "4 basico", "5 basico", "6 basico", "7 basico", "8 basico"]
@@ -523,8 +523,8 @@ def orden_curso_sistema(nom_c):
 
 def obtener_cursos_oficiales_sistema():
     """
-    Obtiene la lista oficial, Ãºnica y ordenada de cursos directamente desde el mÃ³dulo de Cursos (Google Sheets).
-    Asegura que todos los mÃ³dulos (Informes, Desarrollo Personal, Alumnos, Notas, etc.) utilicen la misma fuente de verdad.
+    Obtiene la lista oficial, única y ordenada de cursos directamente desde el módulo de Cursos (Google Sheets).
+    Asegura que todos los módulos (Informes, Desarrollo Personal, Alumnos, Notas, etc.) utilicen la misma fuente de verdad.
     """
     if 'cursos_oficiales_cache' in st.session_state and st.session_state.cursos_oficiales_cache:
         return list(st.session_state.cursos_oficiales_cache)
@@ -564,11 +564,11 @@ def obtener_cursos_oficiales_sistema():
     if not cursos_encontrados:
         cursos_encontrados = [
             "NT1 A", "NT2 A",
-            "1Â° BÃ¡sico A", "2Â° BÃ¡sico A", "3Â° BÃ¡sico A", "4Â° BÃ¡sico A",
-            "5Â° BÃ¡sico A", "6Â° BÃ¡sico A", "7Â° BÃ¡sico A", "8Â° BÃ¡sico A"
+            "1° Básico A", "2° Básico A", "3° Básico A", "4° Básico A",
+            "5° Básico A", "6° Básico A", "7° Básico A", "8° Básico A"
         ]
 
-    # Deduplicar preservando clave canÃ³nica
+    # Deduplicar preservando clave canónica
     dict_unicos = {}
     for c in cursos_encontrados:
         k = extraer_clave_curso(c)
@@ -586,7 +586,7 @@ def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
     if not nom_curso:
         return "NO ASIGNADO"
 
-    # 1. Buscar en catÃ¡logo de Cursos (fuente principal y oficial)
+    # 1. Buscar en catálogo de Cursos (fuente principal y oficial)
     try:
         sheet_c = get_cursos_sheet()
         if sheet_c:
@@ -595,7 +595,7 @@ def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
                 nom_c = str(rc.get("Nombre", "")).strip()
                 if calza_nombre_curso(nom_c, nom_curso):
                     pj = str(rc.get("Profesor_Jefe", "")).strip()
-                    if pj and pj != "â€” Sin Asignar â€”":
+                    if pj and pj != "— Sin Asignar —":
                         return pj
     except Exception:
         pass
@@ -607,7 +607,7 @@ def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
             for ra in recs_asig:
                 if calza_nombre_curso(ra.get("Curso", ""), nom_curso) and str(ra.get("Asignatura", "")).strip().upper() == "JEFATURA":
                     prof_n = str(ra.get("Nombre_Profesor", "")).strip()
-                    if prof_n and prof_n != "â€” Sin Asignar â€”":
+                    if prof_n and prof_n != "— Sin Asignar —":
                         return prof_n
         except Exception:
             pass
@@ -615,36 +615,36 @@ def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
     return "NO ASIGNADO"
 
 # ==========================================
-# FUNCIÃ“N UNIVERSAL DE INSIGNIA
+# FUNCIÓN UNIVERSAL DE INSIGNIA
 # ==========================================
 def renderizar_insignia_universal():
     """
     La insignia institucional ahora reside de forma permanente y elegante en la barra lateral (sidebar),
-    evitando cortes en pantallas y despejando el Ã¡rea de trabajo en los mÃ³dulos.
+    evitando cortes en pantallas y despejando el área de trabajo en los módulos.
     """
     pass
 
 
-# Control de Versiones Estructurales para Evitar CachÃ© Corrupto
+# Control de Versiones Estructurales para Evitar Caché Corrupto
 APP_VERSION = "4.1"
 if 'app_version' not in st.session_state or st.session_state.app_version != APP_VERSION:
-    # Limpiamos todo el estado de sesiÃ³n si hay cambios estructurales
+    # Limpiamos todo el estado de sesión si hay cambios estructurales
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.session_state.app_version = APP_VERSION
 
-# Inicializar estado de navegaciÃ³n sincronizado con la URL (query_params)
+# Inicializar estado de navegación sincronizado con la URL (query_params)
 param_mod = st.query_params.get("m", "home")
 if 'current_module' not in st.session_state:
     st.session_state.current_module = param_mod if param_mod else 'home'
     st.session_state['_previous_module'] = None
 else:
-    # Si la URL tiene un mÃ³dulo distinto (por ejemplo botÃ³n AtrÃ¡s/Adelante del navegador)
+    # Si la URL tiene un módulo distinto (por ejemplo botón Atrás/Adelante del navegador)
     if param_mod and param_mod != st.session_state.current_module:
         st.session_state['_previous_module'] = st.session_state.current_module
         st.session_state.current_module = param_mod
 
-# â”€â”€ Persistencia de SesiÃ³n de Usuario (Token en URL) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Persistencia de Sesión de Usuario (Token en URL) ────────────────────────
 def _generar_token_sesion(u_dict):
     try:
         raw = f"{u_dict['rut']}###{u_dict['nombre']}###{u_dict['rol']}###{u_dict['pin']}###{u_dict.get('estado','Activo')}"
@@ -678,12 +678,12 @@ if tok and (st.session_state.user is None):
         st.session_state.user = u_recup
 
 def navigate(module_name):
-    """Navega a un mÃ³dulo y actualiza la URL del navegador manteniendo la sesiÃ³n."""
+    """Navega a un módulo y actualiza la URL del navegador manteniendo la sesión."""
     _NOTAS_KEYS = [
         'notas_curso_sel', 'notas_asig_sel', 'notas_sem_seg',
         'notas_grilla_cargada', 'notas_curso_activo', 'notas_asig_activa', 'notas_sem_activo'
     ]
-    # Si se sale del mÃ³dulo de notas, limpiar toda la grilla
+    # Si se sale del módulo de notas, limpiar toda la grilla
     if module_name != 'notas':
         for _k in _NOTAS_KEYS:
             st.session_state.pop(_k, None)
@@ -713,7 +713,7 @@ def render_sidebar_auth():
                 f"""
                 <div style="text-align: center; padding: 10px 0 6px 0;">
                     <img src="data:image/png;base64,{img_b64}"
-                         alt="Escuela Villa Las PeÃ±as"
+                         alt="Escuela Villa Las Peñas"
                          style="max-height: 90px; width: auto; object-fit: contain; display: inline-block;">
                 </div>
                 """,
@@ -722,20 +722,20 @@ def render_sidebar_auth():
         except Exception:
             pass
 
-    st.sidebar.markdown("<h3 style='text-align:center;color:#1a5c32;font-size:1.15rem;margin:2px 0 10px 0;'>Escuela Villa Las PeÃ±as</h3>", unsafe_allow_html=True)
+    st.sidebar.markdown("<h3 style='text-align:center;color:#1a5c32;font-size:1.15rem;margin:2px 0 10px 0;'>Escuela Villa Las Peñas</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
     
     if st.session_state.user is None:
         st.sidebar.markdown(
             "<div style='text-align:center;color:#666;font-size:0.82rem;padding:6px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;'>"
-            "ðŸ”’ <b>Sistema Bloqueado</b><br>Ingresa tus credenciales en la pantalla principal para acceder a los mÃ³dulos.</div>",
+            "🔒 <b>Sistema Bloqueado</b><br>Ingresa tus credenciales en la pantalla principal para acceder a los módulos.</div>",
             unsafe_allow_html=True
         )
     else:
         u = st.session_state.user
-        st.sidebar.success(f"ðŸ‘¤ **{u['nombre']}**\n\nðŸŽ­ **Rol:** `{u['rol']}`")
+        st.sidebar.success(f"👤 **{u['nombre']}**\n\n🎭 **Rol:** `{u['rol']}`")
         
-        with st.sidebar.expander("ðŸ”‘ Cambiar Mi Clave"):
+        with st.sidebar.expander("🔑 Cambiar Mi Clave"):
             with st.form("form_cambio_clave_user"):
                 c_act = st.text_input("Clave Actual:", type="password", max_chars=4)
                 c_nueva = st.text_input("Nueva Clave (4 dig):", type="password", max_chars=4)
@@ -746,7 +746,7 @@ def render_sidebar_auth():
                     if c_act != u['pin']:
                         st.error("La clave actual no coincide.")
                     elif len(c_nueva) != 4 or not c_nueva.isdigit():
-                        st.error("La clave debe tener 4 nÃºmeros.")
+                        st.error("La clave debe tener 4 números.")
                     elif c_nueva != c_conf:
                         st.error("Las nuevas claves no coinciden.")
                     else:
@@ -757,35 +757,35 @@ def render_sidebar_auth():
                                 if cell:
                                     sheet_funcionarios.update_cell(cell.row, 4, str(c_nueva))
                                     st.session_state.user['pin'] = str(c_nueva)
-                                    st.success("âœ… Â¡Clave modificada exitosamente!")
+                                    st.success("✅ ¡Clave modificada exitosamente!")
                                     st.rerun()
                                 else:
-                                    st.error("No se encontrÃ³ el registro de usuario.")
+                                    st.error("No se encontró el registro de usuario.")
                             except Exception as e:
                                 st.error(f"Error al guardar: {e}")
 
-        if st.sidebar.button("ðŸšª Cerrar SesiÃ³n", key="btn_logout_user"):
+        if st.sidebar.button("🚪 Cerrar Sesión", key="btn_logout_user"):
             st.session_state.user = None
             st.session_state.current_module = 'home'
             try:
                 st.query_params.clear()
             except Exception:
                 pass
-            # Limpiar cachÃ©s sensibles de la sesiÃ³n
+            # Limpiar cachés sensibles de la sesión
             for k in list(st.session_state.keys()):
                 if k not in ['app_version', 'current_module']:
                     del st.session_state[k]
             st.session_state.user = None
             st.rerun()
 
-# Inyectar barra lateral de autenticaciÃ³n
+# Inyectar barra lateral de autenticación
 render_sidebar_auth()
 
 # ---------------------------------------------------------
-# PORTAL DE LOGIN CENTRALIZADO (SI NO HAY SESIÃ“N ACTIVA)
+# PORTAL DE LOGIN CENTRALIZADO (SI NO HAY SESIÓN ACTIVA)
 # ---------------------------------------------------------
 if st.session_state.user is None:
-    # No hay usuario autenticado: se renderizarÃ¡ el portal de login abajo y se detendrÃ¡ la ejecuciÃ³n
+    # No hay usuario autenticado: se renderizará el portal de login abajo y se detendrá la ejecución
     pass
 
     st.markdown("<div style='height:1.5rem;'></div>", unsafe_allow_html=True)
@@ -796,7 +796,7 @@ if st.session_state.user is None:
             st.markdown(
                 """
                 <div style='text-align:center;padding:10px 0 6px 0;'>
-                    <h2 style='color:#1a5c32;margin-bottom:2px;font-size:1.35rem;'>ðŸ« Escuela Villa Las PeÃ±as</h2>
+                    <h2 style='color:#1a5c32;margin-bottom:2px;font-size:1.35rem;'>🏫 Escuela Villa Las Peñas</h2>
                     <p style='color:#666;font-size:0.84rem;margin-top:0;'>Portal de Acceso Institucional</p>
                 </div>
                 """,
@@ -806,13 +806,13 @@ if st.session_state.user is None:
             
             with st.form("form_login_central"):
                 rut_in = st.text_input("RUT o Nombre de Usuario:", placeholder="Ej: 12345678-9 o admin").strip()
-                pin_in = st.text_input("Clave de Acceso (PIN 4 dÃ­gitos):", type="password", max_chars=4, placeholder="â€¢â€¢â€¢â€¢").strip()
+                pin_in = st.text_input("Clave de Acceso (PIN 4 dígitos):", type="password", max_chars=4, placeholder="••••").strip()
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-                btn_ingresar = st.form_submit_button("ðŸ” Ingresar al Sistema", type="primary", use_container_width=True)
+                btn_ingresar = st.form_submit_button("🔐 Ingresar al Sistema", type="primary", use_container_width=True)
 
                 if btn_ingresar:
                     if not rut_in or not pin_in:
-                        st.error("âš ï¸ Por favor ingresa tu RUT / Usuario y Clave.")
+                        st.error("⚠️ Por favor ingresa tu RUT / Usuario y Clave.")
                     else:
                         with st.spinner("Validando credenciales..."):
                             _, _, _, sheet_funcionarios, _ = get_sheets()
@@ -828,7 +828,7 @@ if st.session_state.user is None:
                                         if not match.empty:
                                             row = match.iloc[0]
                                             if str(row.get('Estado', 'Activo')).strip().lower() == 'inactivo':
-                                                st.error("âš ï¸ Usuario inactivo. Consulta con el Administrador.")
+                                                st.error("⚠️ Usuario inactivo. Consulta con el Administrador.")
                                             else:
                                                 st.session_state.user = {
                                                     "rut": str(row['RUT']).strip(),
@@ -841,32 +841,32 @@ if st.session_state.user is None:
                                                     st.query_params["u"] = _generar_token_sesion(st.session_state.user)
                                                 except Exception:
                                                     pass
-                                                st.success(f"Â¡Bienvenido/a {row['Nombre']}!")
+                                                st.success(f"¡Bienvenido/a {row['Nombre']}!")
                                                 st.rerun()
                                         else:
-                                            st.error("âŒ RUT o Clave incorrectos.")
+                                            st.error("❌ RUT o Clave incorrectos.")
                                     else:
                                         st.error("No hay base de funcionarios registrada.")
                                 except Exception as e:
                                     st.error(f"Error al verificar credenciales: {e}")
                             else:
-                                st.error("âŒ No hay conexiÃ³n con la base de datos.")
+                                st.error("❌ No hay conexión con la base de datos.")
 
             pass
     st.stop()
 
 # ---------------------------------------------------------
 # ---------------------------------------------------------
-# MÃ“DULOS DE REPORTES INSTITUCIONALES (ATRASOS Y RETIROS)
+# MÓDULOS DE REPORTES INSTITUCIONALES (ATRASOS Y RETIROS)
 # ---------------------------------------------------------
 
 def parse_fecha_flexible(val):
-    """Parsea fechas en diversos formatos estÃ¡ndar (DD-MM-YYYY, YYYY-MM-DD, etc.)."""
+    """Parsea fechas en diversos formatos estándar (DD-MM-YYYY, YYYY-MM-DD, etc.)."""
     if not val or pd.isna(val): return None
     if isinstance(val, datetime.date): return val
     if isinstance(val, datetime.datetime): return val.date()
     val_clean = str(val).strip()
-    if val_clean.lower() in ('', 'nan', 'none', 'â€”'): return None
+    if val_clean.lower() in ('', 'nan', 'none', '—'): return None
     for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
         try:
             return datetime.datetime.strptime(val_clean.split()[0], fmt).date()
@@ -905,15 +905,15 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
                     break
 
     # 2. Buscar fecha de matricula y fecha de alta / ingreso
-    # Primero: bÃºsqueda directa por nombre exacto (DB y display, con/sin tildes)
-    # Esto garantiza detecciÃ³n correcta independiente del orden del dict
+    # Primero: búsqueda directa por nombre exacto (DB y display, con/sin tildes)
+    # Esto garantiza detección correcta independiente del orden del dict
     f_mat = None
     f_alta = None
 
-    # Nombres YA normalizados (sin tildes, minÃºsculas) â€” deben coincidir con norm_key(clave)
+    # Nombres YA normalizados (sin tildes, minúsculas) — deben coincidir con norm_key(clave)
     _NOMBRES_MATRICULA = {
         'fecha_matricula',   # columna DB
-        'fecha matricula',   # display normalizado (norm_key('Fecha MatrÃ­cula'))
+        'fecha matricula',   # display normalizado (norm_key('Fecha Matrícula'))
         'fechamatricula',
         'f_matricula',
         'fec_matricula',
@@ -941,7 +941,7 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
             if parsed is not None:
                 f_alta = parsed
 
-    # Fallback: si no se encontraron por nombre exacto, usar heurÃ­stica de subcadenas
+    # Fallback: si no se encontraron por nombre exacto, usar heurística de subcadenas
     if f_mat is None and f_alta is None:
         for k, v in r_alu.items():
             k_n = norm_key(k)
@@ -1002,7 +1002,7 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
     }
 
 def cargar_datos_configuracion_reportes():
-    """Carga los parÃ¡metros institucionales oficiales desde la tabla de ConfiguraciÃ³n."""
+    """Carga los parámetros institucionales oficiales desde la tabla de Configuración."""
     conf_data = {}
     try:
         sc_conf = get_config_sheet()
@@ -1028,14 +1028,14 @@ def cargar_datos_configuracion_reportes():
     hoy = datetime.date.today()
     anio = hoy.year
 
-    nombre_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÃ‘AS").upper()
+    nombre_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÑAS").upper()
     rbd = conf_data.get("rbd", conf_data.get("rbd_colegio", "4410-5"))
-    ciudad = conf_data.get("ciudad", "MulchÃ©n")
-    region = conf_data.get("region", "BÃOBÃO")
-    nombre_director = conf_data.get("nombre_director", "CÃ‰SAR JULIÃN ROA SOTO").upper()
+    ciudad = conf_data.get("ciudad", "Mulchén")
+    region = conf_data.get("region", "BÍOBÍO")
+    nombre_director = conf_data.get("nombre_director", "CÉSAR JULIÁN ROA SOTO").upper()
     firma_b64 = conf_data.get("firma_director_b64", "")
 
-    # Fechas oficiales de semestre desde configuraciÃ³n (con inicio de clases 04-03-2026)
+    # Fechas oficiales de semestre desde configuración (con inicio de clases 04-03-2026)
     s1_ini = parse_fecha(conf_data.get("semestre_1_inicio"), datetime.date(anio, 3, 4))
     s1_fin = parse_fecha(conf_data.get("semestre_1_fin"), datetime.date(anio, 6, 18))
     s2_ini = parse_fecha(conf_data.get("semestre_2_inicio"), datetime.date(anio, 7, 6))
@@ -1097,7 +1097,7 @@ def calcular_asistencia_estudiante(r_alu, df_asist_all, curso_alumno=None, perio
     if n_lista is None:
         for k in r_alu.keys():
             k_l = str(k).lower()
-            if any(x in k_l for x in ['list', 'orden', 'nÂ°', 'nro']) and 'curs' not in k_l:
+            if any(x in k_l for x in ['list', 'orden', 'n°', 'nro']) and 'curs' not in k_l:
                 try:
                     val_o = r_alu[k]
                     if val_o is not None and str(val_o).strip() != '':
@@ -1187,10 +1187,10 @@ def calcular_asistencia_estudiante(r_alu, df_asist_all, curso_alumno=None, perio
 
 
 def normalizar_fecha_chilena(val):
-    """Convierte cualquier formato de fecha a formato estÃ¡ndar chileno DD/MM/AAAA."""
+    """Convierte cualquier formato de fecha a formato estándar chileno DD/MM/AAAA."""
     s = str(val).strip()
-    if not s or s.lower() in ('nan', 'none', 'â€”', ''):
-        return 'â€”'
+    if not s or s.lower() in ('nan', 'none', '—', ''):
+        return '—'
     for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
         try:
             dt = datetime.datetime.strptime(s.split()[0], fmt)
@@ -1201,9 +1201,9 @@ def normalizar_fecha_chilena(val):
 
 
 def fecha_a_iso_comp(val):
-    """Convierte una fecha a formato YYYY-MM-DD para comparaciÃ³n estricta en filtros."""
+    """Convierte una fecha a formato YYYY-MM-DD para comparación estricta en filtros."""
     s = str(val).strip()
-    if not s or s.lower() in ('nan', 'none', 'â€”', ''):
+    if not s or s.lower() in ('nan', 'none', '—', ''):
         return '1900-01-01'
     for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
         try:
@@ -1217,17 +1217,17 @@ def fecha_a_iso_comp(val):
 def estandarizar_motivo_general(val):
     """Estandariza los motivos de atraso y retiro a la nomenclatura institucional."""
     s = str(val).strip()
-    if not s or s.lower() in ('nan', 'none', 'â€”', ''):
+    if not s or s.lower() in ('nan', 'none', '—', ''):
         return 'Sin Motivo Especificado'
     s_low = s.lower()
-    if 'personal' in s_low or 'tramite' in s_low or 'trÃ¡mite' in s_low:
+    if 'personal' in s_low or 'tramite' in s_low or 'trámite' in s_low:
         return 'Personal'
     if 'enferm' in s_low or 'malestar' in s_low:
         return 'Enfermedad / Malestar'
     if 'dormid' in s_low or 'quedo dorm' in s_low:
-        return 'Se quedÃ³ dormido/a'
+        return 'Se quedó dormido/a'
     if 'medic' in s_low or 'dental' in s_low or 'doctor' in s_low or 'salud' in s_low or 'control' in s_low:
-        return 'Hora mÃ©dica/dental'
+        return 'Hora médica/dental'
     if 'transporte' in s_low or 'furgon' in s_low or 'vehiculo' in s_low or 'micro' in s_low or 'locomocion' in s_low:
         return 'Problema de transporte'
     if 'clima' in s_low or 'lluvia' in s_low or 'temporal' in s_low:
@@ -1242,8 +1242,8 @@ def resolver_curso_estandar(c_raw, rut_raw, alu_curso_map):
         return alu_curso_map[rut_norm]
 
     c_s = str(c_raw).strip()
-    if not c_s or c_s.lower() in ('nan', 'none', 'â€”', ''):
-        return 'â€”'
+    if not c_s or c_s.lower() in ('nan', 'none', '—', ''):
+        return '—'
 
     k = extraer_clave_curso(c_s)
     let = k[1].upper() if k[1] else 'A'
@@ -1251,13 +1251,13 @@ def resolver_curso_estandar(c_raw, rut_raw, alu_curso_map):
     if k[0] == 'nt2': return f"NT2 {let}"
     for num in range(1, 9):
         if f"{num} basico" in k[0] or k[0].startswith(str(num)):
-            return f"{num}Â° BÃ¡sico {let}"
+            return f"{num}° Básico {let}"
     return c_s
 
 
 def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
-    st.markdown("### ðŸ“Š Reporte y EstadÃ­sticas de Atrasos")
-    st.caption("Consolidado para DirecciÃ³n. Monitorea reiteraciones, estadÃ­sticas por curso y emite el informe formal en PDF.")
+    st.markdown("### 📊 Reporte y Estadísticas de Atrasos")
+    st.caption("Consolidado para Dirección. Monitorea reiteraciones, estadísticas por curso y emite el informe formal en PDF.")
 
     if not sheet_registros:
         st.error("No se pudo conectar con la base de datos de registros.")
@@ -1285,11 +1285,11 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                     alu_curso_map[r_k] = c_k
                     alu_nom_map[r_k] = n_k
 
-        # Cursos oficiales del sistema (fuente Ãºnica de verdad)
+        # Cursos oficiales del sistema (fuente única de verdad)
         cursos_oficiales = obtener_cursos_oficiales_sistema()
 
         if df_reg_all.empty:
-            st.info("â„¹ï¸ AÃºn no existen registros de atrasos en el sistema.")
+            st.info("ℹ️ Aún no existen registros de atrasos en el sistema.")
             return
 
         df_reg_all.columns = [str(c).strip() for c in df_reg_all.columns]
@@ -1300,7 +1300,7 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
             df_atrasos = df_reg_all.copy()
 
         if df_atrasos.empty:
-            st.info("â„¹ï¸ No hay atrasos registrados en el sistema.")
+            st.info("ℹ️ No hay atrasos registrados en el sistema.")
             return
 
         # Normalizar columnas
@@ -1328,26 +1328,26 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
             lambda r: resolver_curso_estandar(r.get(col_cur, ''), r['RUT_Clean'], alu_curso_map), axis=1
         )
 
-        # --- SECCIÃ“N DE FILTROS ---
-        with st.expander("ðŸ” Filtros de BÃºsqueda y Rango Temporal", expanded=True):
+        # --- SECCIÓN DE FILTROS ---
+        with st.expander("🔍 Filtros de Búsqueda y Rango Temporal", expanded=True):
             f_col1, f_col2, f_col3, f_col4 = st.columns([1.6, 1.3, 1.4, 1.4])
 
             with f_col1:
                 opciones_periodo = [
                     "Mes Actual",
-                    "Hoy (DÃ­a Actual)",
+                    "Hoy (Día Actual)",
                     "Primer Semestre (Inicio de Clases)",
                     "Segundo Semestre",
-                    "AÃ±o Escolar Completo",
+                    "Año Escolar Completo",
                     "Rango Personalizado"
                 ]
-                filtro_periodo = st.selectbox("ðŸ“… PerÃ­odo:", opciones_periodo, key="rep_atraso_periodo_sel_v2")
+                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_atraso_periodo_sel_v2")
                 hoy_dt = obtener_ahora_chile().date()
 
                 if filtro_periodo == "Mes Actual":
                     f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
                     f_hasta = hoy_dt
-                elif filtro_periodo == "Hoy (DÃ­a Actual)":
+                elif filtro_periodo == "Hoy (Día Actual)":
                     f_desde = hoy_dt
                     f_hasta = hoy_dt
                 elif filtro_periodo == "Primer Semestre (Inicio de Clases)":
@@ -1356,7 +1356,7 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                 elif filtro_periodo == "Segundo Semestre":
                     f_desde = conf["s2_ini"]
                     f_hasta = conf["s2_fin"]
-                elif filtro_periodo == "AÃ±o Escolar Completo":
+                elif filtro_periodo == "Año Escolar Completo":
                     f_desde = conf["s1_ini"]
                     f_hasta = conf["s2_fin"]
                 else:
@@ -1368,11 +1368,11 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
             with f_col2:
                 cursos_filtro = ["Todos los Cursos"] + cursos_oficiales
-                sel_curso_rep = st.selectbox("ðŸ“š Curso:", cursos_filtro, key="rep_atraso_curso_sel")
+                sel_curso_rep = st.selectbox("📚 Curso:", cursos_filtro, key="rep_atraso_curso_sel")
 
             with f_col3:
                 txt_alumno_rep = st.text_input(
-                    "ðŸ‘¤ Alumno (Nombre o RUT):",
+                    "👤 Alumno (Nombre o RUT):",
                     placeholder="Buscar por nombre o RUT...",
                     key="rep_atraso_alumno_txt"
                 ).strip().lower()
@@ -1380,8 +1380,8 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
             with f_col4:
                 motivos_disponibles = sorted(list(set(df_atrasos['Motivo_Clean'].dropna().unique())))
                 sel_motivo_rep = st.selectbox(
-                    "ðŸ“Œ Motivo:",
-                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "â€”"],
+                    "📌 Motivo:",
+                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "—"],
                     key="rep_atraso_motivo_sel"
                 )
 
@@ -1409,23 +1409,23 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
         df_filtrado = df_filtrado.sort_values(by=['Fecha_ISO', 'Hora_Clean'], ascending=[False, False])
 
-        # --- TARJETAS DE MÃ‰TRICAS (KPIs) ---
+        # --- TARJETAS DE MÉTRICAS (KPIs) ---
         total_atrasos_filt = len(df_filtrado)
         alumnos_unicos = df_filtrado['RUT_Clean'].nunique() if not df_filtrado.empty else 0
 
-        # Casos con reiteraciÃ³n
+        # Casos con reiteración
         if not df_filtrado.empty:
             conteo_alumnos = df_filtrado.groupby(['RUT_Clean', 'Nombre_Final', 'Curso_Final']).size().reset_index(name='Total')
             alumnos_reiterados = conteo_alumnos[conteo_alumnos['Total'] >= 3]
             cant_reiterados = len(alumnos_reiterados)
 
-            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != 'â€”']
-            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "â€”"
+            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != '—']
+            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "—"
         else:
             conteo_alumnos = pd.DataFrame()
             alumnos_reiterados = pd.DataFrame()
             cant_reiterados = 0
-            curso_top = "â€”"
+            curso_top = "—"
 
         st.write("")
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -1434,27 +1434,27 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
         with kpi2:
             st.metric("Alumnos Afectados", f"{alumnos_unicos}")
         with kpi3:
-            st.metric("ReiteraciÃ³n (â‰¥3)", f"{cant_reiterados}", delta="Prioridad CitaciÃ³n" if cant_reiterados > 0 else None, delta_color="inverse")
+            st.metric("Reiteración (≥3)", f"{cant_reiterados}", delta="Prioridad Citación" if cant_reiterados > 0 else None, delta_color="inverse")
         with kpi4:
             st.metric("Curso con Mayor Registro", f"{curso_top}")
 
-        # Alerta Directiva de ReiteraciÃ³n
+        # Alerta Directiva de Reiteración
         if cant_reiterados > 0:
             with st.container(border=True):
-                st.warning(f"âš ï¸ **Alerta DirecciÃ³n:** Existen **{cant_reiterados} alumno(s)** con 3 o mÃ¡s atrasos acumulados en este perÃ­odo.")
+                st.warning(f"⚠️ **Alerta Dirección:** Existen **{cant_reiterados} alumno(s)** con 3 o más atrasos acumulados en este período.")
                 cols_reit = st.columns(min(cant_reiterados, 3))
                 for idx_c, (_, r_reit) in enumerate(alumnos_reiterados.iterrows()):
                     with cols_reit[idx_c % len(cols_reit)]:
-                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>ðŸ“š {r_reit['Curso_Final']}<br>ðŸ”´ **{r_reit['Total']} atrasos acumulados**", unsafe_allow_html=True)
+                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>📚 {r_reit['Curso_Final']}<br>🔴 **{r_reit['Total']} atrasos acumulados**", unsafe_allow_html=True)
 
         st.write("---")
 
         if df_filtrado.empty:
-            st.info("ðŸ’¡ No se encontraron atrasos registrados en el rango de fechas seleccionado.")
+            st.info("💡 No se encontraron atrasos registrados en el rango de fechas seleccionado.")
             return
 
         # --- VISTAS: TABLA Y REPORTE IMPRIMIBLE ---
-        tab_tabla, tab_imprimible = st.tabs(["ðŸ“‹ Listado Detallado", "ðŸ–¨ï¸ Informe Oficial Imprimible / PDF"])
+        tab_tabla, tab_imprimible = st.tabs(["📋 Listado Detallado", "🖨️ Informe Oficial Imprimible / PDF"])
 
         with tab_tabla:
             st.markdown(f"**Registros encontrados:** `{len(df_filtrado)}` atrasos")
@@ -1470,22 +1470,22 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
             csv_data = df_mostrar.to_csv(index=False, sep=";").encode('utf-8-sig')
             st.download_button(
-                label="ðŸ“¥ Descargar Planilla Excel (CSV)",
+                label="📥 Descargar Planilla Excel (CSV)",
                 data=csv_data,
                 file_name=f"Reporte_Atrasos_{f_desde.strftime('%d-%m-%Y')}_al_{f_hasta.strftime('%d-%m-%Y')}.csv",
                 mime="text/csv",
                 key="btn_csv_atrasos"
             )
 
-            # --- SECCIÃ“N: ANULAR / ELIMINAR REGISTRO POR ERROR ---
-            with st.expander("ðŸ—‘ï¸ Anular / Eliminar Registro de Atraso por Error", expanded=False):
-                st.caption("Si se cometiÃ³ una equivocaciÃ³n al marcar un atraso, puedes anularlo aquÃ­. Esta acciÃ³n lo eliminarÃ¡ de la base de datos.")
+            # --- SECCIÓN: ANULAR / ELIMINAR REGISTRO POR ERROR ---
+            with st.expander("🗑️ Anular / Eliminar Registro de Atraso por Error", expanded=False):
+                st.caption("Si se cometió una equivocación al marcar un atraso, puedes anularlo aquí. Esta acción lo eliminará de la base de datos.")
                 
-                # Crear diccionario de opciones con informaciÃ³n legible
+                # Crear diccionario de opciones con información legible
                 opciones_del = {}
                 for idx_row, r_del in df_filtrado.iterrows():
                     reg_id = r_del.get('_id', idx_row)
-                    etiqueta = f"ðŸ—“ï¸ {r_del['Fecha_Chilena']} {r_del['Hora_Clean']} â€” {r_del['Nombre_Final']} ({r_del['Curso_Final']}) | Motivo: {r_del['Motivo_Clean']}"
+                    etiqueta = f"🗓️ {r_del['Fecha_Chilena']} {r_del['Hora_Clean']} — {r_del['Nombre_Final']} ({r_del['Curso_Final']}) | Motivo: {r_del['Motivo_Clean']}"
                     opciones_del[etiqueta] = r_del
 
                 if opciones_del:
@@ -1499,12 +1499,12 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                     c_del1, c_del2 = st.columns([3, 1.2])
                     with c_del1:
                         confirmar_check = st.checkbox(
-                            f"Confirmar anulaciÃ³n del atraso de **{r_a_borrar['Nombre_Final']}**",
+                            f"Confirmar anulación del atraso de **{r_a_borrar['Nombre_Final']}**",
                             key="chk_confirm_del_atraso"
                         )
                     with c_del2:
                         btn_del_atraso = st.button(
-                            "ðŸ—‘ï¸ Eliminar Definitivamente",
+                            "🗑️ Eliminar Definitivamente",
                             type="primary",
                             disabled=not confirmar_check,
                             key="btn_ejecutar_del_atraso",
@@ -1523,18 +1523,18 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                                     'hora': r_a_borrar[col_h],
                                     'tipo': 'Atraso'
                                 })
-                            st.toast(f"âœ… Atraso de {r_a_borrar['Nombre_Final']} eliminado exitosamente.", icon="ðŸ—‘ï¸")
-                            st.success(f"âœ… Se ha eliminado correctamente el atraso de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
+                            st.toast(f"✅ Atraso de {r_a_borrar['Nombre_Final']} eliminado exitosamente.", icon="🗑️")
+                            st.success(f"✅ Se ha eliminado correctamente el atraso de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
                             time.sleep(1.2)
                             st.rerun()
                         except Exception as e_del:
-                            st.error(f"âŒ Error al anular el registro: {e_del}")
+                            st.error(f"❌ Error al anular el registro: {e_del}")
                 else:
                     st.info("No hay registros en la vista actual para anular.")
 
         with tab_imprimible:
             st.markdown("##### Vista Previa de Documento Oficial")
-            st.caption("Usa el botÃ³n para abrir el diÃ¡logo de impresiÃ³n del navegador y guardar directamente en **PDF**.")
+            st.caption("Usa el botón para abrir el diálogo de impresión del navegador y guardar directamente en **PDF**.")
 
             insignia_b64 = ""
             if os.path.exists("insignia.png"):
@@ -1703,7 +1703,7 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
             <div class="doc-container">
                 <div class="no-print" style="text-align: right;">
                     <button class="btn-imprimir" onclick="window.print()">
-                        ðŸ–¨ï¸ Imprimir / Guardar en PDF
+                        🖨️ Imprimir / Guardar en PDF
                     </button>
                 </div>
 
@@ -1713,17 +1713,17 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                         <div>
                             <div class="school-name">{conf['nombre_colegio']}</div>
                             <div class="doc-title">INFORME DE ATRASOS ESCOLARES</div>
-                            <div class="school-sub">RBD: {conf['rbd']} &nbsp;|&nbsp; Comuna: {conf['ciudad']} &nbsp;|&nbsp; RegiÃ³n del {conf['region']}</div>
+                            <div class="school-sub">RBD: {conf['rbd']} &nbsp;|&nbsp; Comuna: {conf['ciudad']} &nbsp;|&nbsp; Región del {conf['region']}</div>
                         </div>
                     </div>
                     <div class="header-right">
-                        <div><b>Fecha EmisiÃ³n:</b> {hoy_str}</div>
-                        <div><b>AÃ±o Lectivo:</b> {hoy_dt.year}</div>
+                        <div><b>Fecha Emisión:</b> {hoy_str}</div>
+                        <div><b>Año Lectivo:</b> {hoy_dt.year}</div>
                     </div>
                 </div>
 
                 <div class="metadata-box">
-                    <div><b>PerÃ­odo Analizado:</b> {rango_str}</div>
+                    <div><b>Período Analizado:</b> {rango_str}</div>
                     <div><b>Curso:</b> {curso_filtro_str}</div>
                     <div style="text-align:right;"><b>Total Atrasos:</b> {total_atrasos_filt}</div>
                 </div>
@@ -1766,8 +1766,8 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
 
 def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
-    st.markdown("### ðŸ“Š Reporte y EstadÃ­sticas de Salidas Anticipadas / Retiros")
-    st.caption("Consolidado para DirecciÃ³n. Monitorea retiros anticipados, apoderados autorizados y emite el informe formal en PDF.")
+    st.markdown("### 📊 Reporte y Estadísticas de Salidas Anticipadas / Retiros")
+    st.caption("Consolidado para Dirección. Monitorea retiros anticipados, apoderados autorizados y emite el informe formal en PDF.")
 
     if not sheet_registros:
         st.error("No se pudo conectar con la base de datos de registros.")
@@ -1795,11 +1795,11 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                     alu_curso_map[r_k] = c_k
                     alu_nom_map[r_k] = n_k
 
-        # Cursos oficiales del sistema (fuente Ãºnica de verdad)
+        # Cursos oficiales del sistema (fuente única de verdad)
         cursos_oficiales = obtener_cursos_oficiales_sistema()
 
         if df_reg_all.empty:
-            st.info("â„¹ï¸ AÃºn no existen registros de salidas anticipadas en el sistema.")
+            st.info("ℹ️ Aún no existen registros de salidas anticipadas en el sistema.")
             return
 
         df_reg_all.columns = [str(c).strip() for c in df_reg_all.columns]
@@ -1810,7 +1810,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
             df_retiros = df_reg_all.copy()
 
         if df_retiros.empty:
-            st.info("â„¹ï¸ No hay retiros anticipados registrados hasta la fecha.")
+            st.info("ℹ️ No hay retiros anticipados registrados hasta la fecha.")
             return
 
         # Normalizar columnas
@@ -1828,8 +1828,8 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
         df_retiros['Fecha_Chilena'] = df_retiros[col_f].apply(normalizar_fecha_chilena)
         df_retiros['Hora_Clean'] = df_retiros[col_h].astype(str).str.strip()
         df_retiros['Motivo_Clean'] = df_retiros[col_m].apply(estandarizar_motivo_general) if col_m in df_retiros.columns else "Sin Motivo Especificado"
-        df_retiros['Apoderado_Clean'] = df_retiros[col_apod].astype(str).str.strip() if col_apod in df_retiros.columns else "â€”"
-        df_retiros['Vinculo_Clean'] = df_retiros[col_vinc].astype(str).str.strip() if col_vinc in df_retiros.columns else "â€”"
+        df_retiros['Apoderado_Clean'] = df_retiros[col_apod].astype(str).str.strip() if col_apod in df_retiros.columns else "—"
+        df_retiros['Vinculo_Clean'] = df_retiros[col_vinc].astype(str).str.strip() if col_vinc in df_retiros.columns else "—"
 
         def obtener_nombre(row):
             n_raw = str(row[col_nom]).strip()
@@ -1842,26 +1842,26 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
             lambda r: resolver_curso_estandar(r.get(col_cur, ''), r['RUT_Clean'], alu_curso_map), axis=1
         )
 
-        # --- SECCIÃ“N DE FILTROS ---
-        with st.expander("ðŸ” Filtros de BÃºsqueda y Rango Temporal", expanded=True):
+        # --- SECCIÓN DE FILTROS ---
+        with st.expander("🔍 Filtros de Búsqueda y Rango Temporal", expanded=True):
             f_col1, f_col2, f_col3, f_col4 = st.columns([1.6, 1.3, 1.4, 1.4])
 
             with f_col1:
                 opciones_periodo = [
                     "Mes Actual",
-                    "Hoy (DÃ­a Actual)",
+                    "Hoy (Día Actual)",
                     "Primer Semestre (Inicio de Clases)",
                     "Segundo Semestre",
-                    "AÃ±o Escolar Completo",
+                    "Año Escolar Completo",
                     "Rango Personalizado"
                 ]
-                filtro_periodo = st.selectbox("ðŸ“… PerÃ­odo:", opciones_periodo, key="rep_retiro_periodo_sel_v2")
+                filtro_periodo = st.selectbox("📅 Período:", opciones_periodo, key="rep_retiro_periodo_sel_v2")
                 hoy_dt = obtener_ahora_chile().date()
 
                 if filtro_periodo == "Mes Actual":
                     f_desde = datetime.date(hoy_dt.year, hoy_dt.month, 1)
                     f_hasta = hoy_dt
-                elif filtro_periodo == "Hoy (DÃ­a Actual)":
+                elif filtro_periodo == "Hoy (Día Actual)":
                     f_desde = hoy_dt
                     f_hasta = hoy_dt
                 elif filtro_periodo == "Primer Semestre (Inicio de Clases)":
@@ -1870,7 +1870,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                 elif filtro_periodo == "Segundo Semestre":
                     f_desde = conf["s2_ini"]
                     f_hasta = conf["s2_fin"]
-                elif filtro_periodo == "AÃ±o Escolar Completo":
+                elif filtro_periodo == "Año Escolar Completo":
                     f_desde = conf["s1_ini"]
                     f_hasta = conf["s2_fin"]
                 else:
@@ -1882,11 +1882,11 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
             with f_col2:
                 cursos_filtro = ["Todos los Cursos"] + cursos_oficiales
-                sel_curso_rep = st.selectbox("ðŸ“š Curso:", cursos_filtro, key="rep_retiro_curso_sel")
+                sel_curso_rep = st.selectbox("📚 Curso:", cursos_filtro, key="rep_retiro_curso_sel")
 
             with f_col3:
                 txt_alumno_rep = st.text_input(
-                    "ðŸ‘¤ Alumno o Apoderado:",
+                    "👤 Alumno o Apoderado:",
                     placeholder="Nombre, RUT o apoderado...",
                     key="rep_retiro_alumno_txt"
                 ).strip().lower()
@@ -1894,8 +1894,8 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
             with f_col4:
                 motivos_disponibles = sorted(list(set(df_retiros['Motivo_Clean'].dropna().unique())))
                 sel_motivo_rep = st.selectbox(
-                    "ðŸ“Œ Motivo:",
-                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "â€”"],
+                    "📌 Motivo:",
+                    ["Todos los Motivos"] + [m for m in motivos_disponibles if m and m != "—"],
                     key="rep_retiro_motivo_sel"
                 )
 
@@ -1924,23 +1924,23 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
         df_filtrado = df_filtrado.sort_values(by=['Fecha_ISO', 'Hora_Clean'], ascending=[False, False])
 
-        # --- TARJETAS DE MÃ‰TRICAS (KPIs) ---
+        # --- TARJETAS DE MÉTRICAS (KPIs) ---
         total_retiros_filt = len(df_filtrado)
         alumnos_unicos = df_filtrado['RUT_Clean'].nunique() if not df_filtrado.empty else 0
 
-        # Casos con reiteraciÃ³n
+        # Casos con reiteración
         if not df_filtrado.empty:
             conteo_alumnos = df_filtrado.groupby(['RUT_Clean', 'Nombre_Final', 'Curso_Final']).size().reset_index(name='Total')
             alumnos_reiterados = conteo_alumnos[conteo_alumnos['Total'] >= 3]
             cant_reiterados = len(alumnos_reiterados)
 
-            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != 'â€”']
-            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "â€”"
+            cursos_validos = df_filtrado[df_filtrado['Curso_Final'] != '—']
+            curso_top = cursos_validos['Curso_Final'].mode().iloc[0] if not cursos_validos.empty else "—"
         else:
             conteo_alumnos = pd.DataFrame()
             alumnos_reiterados = pd.DataFrame()
             cant_reiterados = 0
-            curso_top = "â€”"
+            curso_top = "—"
 
         st.write("")
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -1949,27 +1949,27 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
         with kpi2:
             st.metric("Alumnos Retirados", f"{alumnos_unicos}")
         with kpi3:
-            st.metric("ReiteraciÃ³n (â‰¥3)", f"{cant_reiterados}", delta="AtenciÃ³n" if cant_reiterados > 0 else None, delta_color="inverse")
+            st.metric("Reiteración (≥3)", f"{cant_reiterados}", delta="Atención" if cant_reiterados > 0 else None, delta_color="inverse")
         with kpi4:
-            st.metric("Curso con MÃ¡s Salidas", f"{curso_top}")
+            st.metric("Curso con Más Salidas", f"{curso_top}")
 
-        # Alerta Directiva de ReiteraciÃ³n
+        # Alerta Directiva de Reiteración
         if cant_reiterados > 0:
             with st.container(border=True):
-                st.warning(f"âš ï¸ **Alerta DirecciÃ³n:** Existen **{cant_reiterados} alumno(s)** con 3 o mÃ¡s salidas anticipadas acumuladas en este perÃ­odo.")
+                st.warning(f"⚠️ **Alerta Dirección:** Existen **{cant_reiterados} alumno(s)** con 3 o más salidas anticipadas acumuladas en este período.")
                 cols_reit = st.columns(min(cant_reiterados, 3))
                 for idx_c, (_, r_reit) in enumerate(alumnos_reiterados.iterrows()):
                     with cols_reit[idx_c % len(cols_reit)]:
-                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>ðŸ“š {r_reit['Curso_Final']}<br>ðŸ”´ **{r_reit['Total']} retiros registrados**", unsafe_allow_html=True)
+                        st.markdown(f"**{r_reit['Nombre_Final']}**<br>📚 {r_reit['Curso_Final']}<br>🔴 **{r_reit['Total']} retiros registrados**", unsafe_allow_html=True)
 
         st.write("---")
 
         if df_filtrado.empty:
-            st.info("ðŸ’¡ No se encontraron retiros con los filtros seleccionados.")
+            st.info("💡 No se encontraron retiros con los filtros seleccionados.")
             return
 
         # --- VISTAS: TABLA Y REPORTE IMPRIMIBLE ---
-        tab_tabla, tab_imprimible = st.tabs(["ðŸ“‹ Listado Detallado", "ðŸ–¨ï¸ Informe Oficial Imprimible / PDF"])
+        tab_tabla, tab_imprimible = st.tabs(["📋 Listado Detallado", "🖨️ Informe Oficial Imprimible / PDF"])
 
         with tab_tabla:
             st.markdown(f"**Registros encontrados:** `{len(df_filtrado)}` salidas anticipadas")
@@ -1988,21 +1988,21 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
             csv_data = df_mostrar.to_csv(index=False, sep=";").encode('utf-8-sig')
             st.download_button(
-                label="ðŸ“¥ Descargar Base en CSV (Excel)",
+                label="📥 Descargar Base en CSV (Excel)",
                 data=csv_data,
                 file_name=f"Reporte_Retiros_{f_desde.strftime('%d-%m-%Y')}_al_{f_hasta.strftime('%d-%m-%Y')}.csv",
                 mime="text/csv",
                 key="btn_csv_retiros"
             )
 
-            # --- SECCIÃ“N: ANULAR / ELIMINAR REGISTRO POR ERROR ---
-            with st.expander("ðŸ—‘ï¸ Anular / Eliminar Registro de Retiro por Error", expanded=False):
-                st.caption("Si se cometiÃ³ una equivocaciÃ³n al registrar una salida anticipada, puedes anularla aquÃ­. Esta acciÃ³n eliminarÃ¡ el registro de la base de datos.")
+            # --- SECCIÓN: ANULAR / ELIMINAR REGISTRO POR ERROR ---
+            with st.expander("🗑️ Anular / Eliminar Registro de Retiro por Error", expanded=False):
+                st.caption("Si se cometió una equivocación al registrar una salida anticipada, puedes anularla aquí. Esta acción eliminará el registro de la base de datos.")
                 
                 opciones_del = {}
                 for idx_row, r_del in df_filtrado.iterrows():
                     reg_id = r_del.get('_id', idx_row)
-                    etiqueta = f"ðŸ—“ï¸ {r_del['Fecha_Chilena']} {r_del['Hora_Clean']} â€” {r_del['Nombre_Final']} ({r_del['Curso_Final']}) | Retira: {r_del['Apoderado_Clean']} ({r_del['Vinculo_Clean']})"
+                    etiqueta = f"🗓️ {r_del['Fecha_Chilena']} {r_del['Hora_Clean']} — {r_del['Nombre_Final']} ({r_del['Curso_Final']}) | Retira: {r_del['Apoderado_Clean']} ({r_del['Vinculo_Clean']})"
                     opciones_del[etiqueta] = r_del
 
                 if opciones_del:
@@ -2016,12 +2016,12 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                     c_del1, c_del2 = st.columns([3, 1.2])
                     with c_del1:
                         confirmar_check = st.checkbox(
-                            f"Confirmar anulaciÃ³n del retiro de **{r_a_borrar['Nombre_Final']}**",
+                            f"Confirmar anulación del retiro de **{r_a_borrar['Nombre_Final']}**",
                             key="chk_confirm_del_retiro"
                         )
                     with c_del2:
                         btn_del_retiro = st.button(
-                            "ðŸ—‘ï¸ Eliminar Definitivamente",
+                            "🗑️ Eliminar Definitivamente",
                             type="primary",
                             disabled=not confirmar_check,
                             key="btn_ejecutar_del_retiro",
@@ -2040,18 +2040,18 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                                     'hora': r_a_borrar[col_h],
                                     'tipo': 'Retiro'
                                 })
-                            st.toast(f"âœ… Salida anticipada de {r_a_borrar['Nombre_Final']} eliminada exitosamente.", icon="ðŸ—‘ï¸")
-                            st.success(f"âœ… Se ha eliminado correctamente el retiro de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
+                            st.toast(f"✅ Salida anticipada de {r_a_borrar['Nombre_Final']} eliminada exitosamente.", icon="🗑️")
+                            st.success(f"✅ Se ha eliminado correctamente el retiro de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
                             time.sleep(1.2)
                             st.rerun()
                         except Exception as e_del:
-                            st.error(f"âŒ Error al anular el registro: {e_del}")
+                            st.error(f"❌ Error al anular el registro: {e_del}")
                 else:
                     st.info("No hay registros en la vista actual para anular.")
 
         with tab_imprimible:
             st.markdown("##### Vista Previa de Documento Oficial")
-            st.caption("Usa el botÃ³n para abrir el diÃ¡logo de impresiÃ³n del navegador y guardar directamente en **PDF**.")
+            st.caption("Usa el botón para abrir el diálogo de impresión del navegador y guardar directamente en **PDF**.")
 
             insignia_b64 = ""
             if os.path.exists("insignia.png"):
@@ -2222,7 +2222,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
             <div class="doc-container">
                 <div class="no-print" style="text-align: right;">
                     <button class="btn-imprimir" onclick="window.print()">
-                        ðŸ–¨ï¸ Imprimir / Guardar en PDF
+                        🖨️ Imprimir / Guardar en PDF
                     </button>
                 </div>
 
@@ -2232,17 +2232,17 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                         <div>
                             <div class="school-name">{conf['nombre_colegio']}</div>
                             <div class="doc-title">INFORME DE SALIDAS ANTICIPADAS Y RETIROS</div>
-                            <div class="school-sub">RBD: {conf['rbd']} &nbsp;|&nbsp; Comuna: {conf['ciudad']} &nbsp;|&nbsp; RegiÃ³n del {conf['region']}</div>
+                            <div class="school-sub">RBD: {conf['rbd']} &nbsp;|&nbsp; Comuna: {conf['ciudad']} &nbsp;|&nbsp; Región del {conf['region']}</div>
                         </div>
                     </div>
                     <div class="header-right">
-                        <div><b>Fecha EmisiÃ³n:</b> {hoy_str}</div>
-                        <div><b>AÃ±o Lectivo:</b> {hoy_dt.year}</div>
+                        <div><b>Fecha Emisión:</b> {hoy_str}</div>
+                        <div><b>Año Lectivo:</b> {hoy_dt.year}</div>
                     </div>
                 </div>
 
                 <div class="metadata-box">
-                    <div><b>PerÃ­odo Analizado:</b> {rango_str}</div>
+                    <div><b>Período Analizado:</b> {rango_str}</div>
                     <div><b>Curso:</b> {curso_filtro_str}</div>
                     <div style="text-align:right;"><b>Total Retiros:</b> {total_retiros_filt}</div>
                 </div>
@@ -2258,7 +2258,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                             <th style="width:85px;text-align:center;">RUT</th>
                             <th>Motivo</th>
                             <th>Apoderado que Retira</th>
-                            <th style="width:80px;text-align:center;">VÃ­nculo</th>
+                            <th style="width:80px;text-align:center;">Vínculo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2286,7 +2286,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
         st.error(f"Error al generar reporte de retiros: {e_rep}")
 
 # ---------------------------------------------------------
-# # LÃ“GICA DE RENDERIZADO (USUARIO AUTENTICADO)
+# # LÓGICA DE RENDERIZADO (USUARIO AUTENTICADO)
 # ---------------------------------------------------------
 
 sheet_config_global = get_config_sheet()
@@ -2294,13 +2294,13 @@ matriz_permisos_global = obtener_matriz_permisos(sheet_config_global)
 rol_user_actual = str(st.session_state.user.get('rol', '') if st.session_state.get('user') else '').strip()
 es_admin_total  = normalizar_nombre_rol(rol_user_actual) == "Administrador Total"
 
-# Seguridad de navegaciÃ³n directa por rol
+# Seguridad de navegación directa por rol
 if st.session_state.current_module != 'home':
     if not rol_tiene_permiso(rol_user_actual, st.session_state.current_module, matriz_permisos_global):
         renderizar_insignia_universal()
-        st.error(f"ðŸ”’ Acceso restringido: El rol '{rol_user_actual}' no tiene permisos para acceder al mÃ³dulo '{st.session_state.current_module}'.")
-        st.info("ComunÃ­cate con el Administrador del establecimiento para solicitar acceso a este mÃ³dulo.")
-        if st.button("ðŸ  Volver al MenÃº Principal", use_container_width=True):
+        st.error(f"🔒 Acceso restringido: El rol '{rol_user_actual}' no tiene permisos para acceder al módulo '{st.session_state.current_module}'.")
+        st.info("Comunícate con el Administrador del establecimiento para solicitar acceso a este módulo.")
+        if st.button("🏠 Volver al Menú Principal", use_container_width=True):
             navigate('home')
             st.rerun()
         st.stop()
@@ -2309,15 +2309,15 @@ if st.session_state.current_module == 'home':
     # Insignia Institucional Centrada
     renderizar_insignia_universal()
 
-    # TÃ­tulo Principal del Dashboard
-    st.markdown("<h2 style='text-align:center;color:#1a5c32;margin-top:0px;margin-bottom:4px;font-size:1.6rem;'>ðŸ« Escuela Villa Las PeÃ±as</h2>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align:center;color:#555;font-size:0.9rem;margin-bottom:12px;'>Bienvenido/a <b>{st.session_state.user['nombre']}</b> &nbsp;Â·&nbsp; Rol: <span style='background:#eaf5ee;color:#008F39;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.8rem;'>{st.session_state.user['rol']}</span></p>", unsafe_allow_html=True)
+    # Título Principal del Dashboard
+    st.markdown("<h2 style='text-align:center;color:#1a5c32;margin-top:0px;margin-bottom:4px;font-size:1.6rem;'>🏫 Escuela Villa Las Peñas</h2>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align:center;color:#555;font-size:0.9rem;margin-bottom:12px;'>Bienvenido/a <b>{st.session_state.user['nombre']}</b> &nbsp;·&nbsp; Rol: <span style='background:#eaf5ee;color:#008F39;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.8rem;'>{st.session_state.user['rol']}</span></p>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:4px 0 16px 0;border-color:#e0e0e0;'>", unsafe_allow_html=True)
 
-    # Estilos de precisiÃ³n para garantizar tamaÃ±o idÃ©ntico en todas las tarjetas
+    # Estilos de precisión para garantizar tamaño idéntico en todas las tarjetas
     st.markdown("""
     <style>
-    /* Tarjetas del dashboard: altura y porte estrictamente idÃ©nticos */
+    /* Tarjetas del dashboard: altura y porte estrictamente idénticos */
     [data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"] [data-testid="stVerticalBlockBorderWrapper"] {
         height: 146px !important;
         min-height: 146px !important;
@@ -2342,146 +2342,146 @@ if st.session_state.current_module == 'home':
     </style>
     """, unsafe_allow_html=True)
     
-    # CuadrÃ­cula compacta, simÃ©trica y equilibrada: 6 columnas en Fila 1 y 6 columnas en Fila 2
-    st.markdown("<div style='font-size:0.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>âš¡ GestiÃ³n Diaria y PedagÃ³gica</div>", unsafe_allow_html=True)
+    # Cuadrícula compacta, simétrica y equilibrada: 6 columnas en Fila 1 y 6 columnas en Fila 2
+    st.markdown("<div style='font-size:0.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>⚡ Gestión Diaria y Pedagógica</div>", unsafe_allow_html=True)
     r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6 = st.columns(6)
 
     with r1_c1:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>â±ï¸ Registro Atraso</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>⏱️ Registro Atraso</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Ingreso y comprobantes</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'atraso', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_atraso", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_atraso", use_container_width=True):
                     navigate('atraso'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c2:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸšª Registro Retiro</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>🚪 Registro Retiro</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Salidas anticipadas</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'retiro', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_retiro", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_retiro", use_container_width=True):
                     navigate('retiro'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c3:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ“… Asistencia</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>📅 Asistencia</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Control diario escolar</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'asistencia', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_asistencia", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_asistencia", use_container_width=True):
                     navigate('asistencia'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c4:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ“ Carga de Notas</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>📝 Carga de Notas</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Registro y promedios</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'notas', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_notas", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_notas", use_container_width=True):
                     navigate('notas'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c5:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸŒ± Desarrollo Personal</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>🌱 Desarrollo Personal</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Informe y observaciones</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'desarrollo_personal', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_desarrollo_personal", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_desarrollo_personal", use_container_width=True):
                     navigate('desarrollo_personal'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r1_c6:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ“š AsignaciÃ³n Docente</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>📚 Asignación Docente</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Asignaturas y docentes</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'asignaciones', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_asignaciones", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_asignaciones", use_container_width=True):
                     navigate('asignaciones'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     st.write("")
-    st.markdown("<div style='font-size:0.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>âš™ï¸ Cierre, Certificados y AdministraciÃ³n</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:0.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>⚙️ Cierre, Certificados y Administración</div>", unsafe_allow_html=True)
     r2_c1, r2_c2, r2_c3, r2_c4, r2_c5, r2_c6 = st.columns(6)
 
     with r2_c1:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ“Š Preacta Anual</div>", unsafe_allow_html=True)
-            st.markdown("<div class='modulo-card-sub'>PromociÃ³n Decreto 67</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>📊 Preacta Anual</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-sub'>Promoción Decreto 67</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'preacta', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_preacta", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_preacta", use_container_width=True):
                     navigate('preacta'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c2:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ“‘ Informes y Certificados</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>📑 Informes y Certificados</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Notas y certificados</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'informes', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_informes_notas", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_informes_notas", use_container_width=True):
                     navigate('informes'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c3:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ‘¥ Alumnos</div>", unsafe_allow_html=True)
-            st.markdown("<div class='modulo-card-sub'>Fichas y nÃ³mina escolar</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>👥 Alumnos</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-sub'>Fichas y nómina escolar</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'alumnos', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_alumnos", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_alumnos", use_container_width=True):
                     navigate('alumnos'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c4:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ« Cursos</div>", unsafe_allow_html=True)
-            st.markdown("<div class='modulo-card-sub'>CatÃ¡logo y jefaturas</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>🏫 Cursos</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-sub'>Catálogo y jefaturas</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'cursos', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_cursos", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_cursos", use_container_width=True):
                     navigate('cursos'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c5:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>ðŸ‘” Funcionarios</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>👔 Funcionarios</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Personal y accesos</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'funcionarios', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_funcionarios", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_funcionarios", use_container_width=True):
                     navigate('funcionarios'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
     with r2_c6:
         with st.container(border=True):
-            st.markdown("<div class='modulo-card-title'>âš™ï¸ ConfiguraciÃ³n</div>", unsafe_allow_html=True)
+            st.markdown("<div class='modulo-card-title'>⚙️ Configuración</div>", unsafe_allow_html=True)
             st.markdown("<div class='modulo-card-sub'>Colegio, firmas y fechas</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'configuracion', matriz_permisos_global):
-                if st.button("Abrir MÃ³dulo", key="btn_configuracion", use_container_width=True):
+                if st.button("Abrir Módulo", key="btn_configuracion", use_container_width=True):
                     navigate('configuracion'); st.rerun()
             else:
-                st.markdown("<div class='modulo-card-locked'>ðŸ”’ Sin acceso</div>", unsafe_allow_html=True)
+                st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
 
 elif st.session_state.current_module == 'atraso':
     # 1. Insignia Institucional Centrada
     renderizar_insignia_universal()
 
-    # 2. Cabecera del MÃ³dulo con botÃ³n de escape rÃ¡pido
+    # 2. Cabecera del Módulo con botón de escape rápido
     col_titulo, col_escape = st.columns([3.5, 1])
     with col_titulo:
-        st.title("â° Registro de Atrasos")
+        st.title("⏰ Registro de Atrasos")
     with col_escape:
-        st.write("") # Espaciador para bajar levemente el botÃ³n
-        if st.button("ðŸ  Volver", key="btn_escape_sup_atraso", use_container_width=True):
+        st.write("") # Espaciador para bajar levemente el botón
+        if st.button("🏠 Volver", key="btn_escape_sup_atraso", use_container_width=True):
             st.session_state.alumno_seleccionado_atraso = None
             navigate('home')
             st.rerun()
@@ -2489,7 +2489,7 @@ elif st.session_state.current_module == 'atraso':
     
     sheet_alumnos, sheet_registros, sheet_notas, sheet_funcionarios, sheet_asignaciones = get_sheets()
 
-    tab_reg_atraso, tab_rep_atraso = st.tabs(["ðŸ“ Registrar Atraso", "ðŸ“Š Reportes y EstadÃ­sticas"])
+    tab_reg_atraso, tab_rep_atraso = st.tabs(["📝 Registrar Atraso", "📊 Reportes y Estadísticas"])
 
     with tab_reg_atraso:
 
@@ -2506,22 +2506,22 @@ elif st.session_state.current_module == 'atraso':
                         t = "".join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
                         return " ".join(t.lower().split())
 
-                    # Estandarizar columnas de manera ultra-robusta (para soportar singular/plural, mayÃºsculas/minÃºsculas)
+                    # Estandarizar columnas de manera ultra-robusta (para soportar singular/plural, mayúsculas/minúsculas)
                     df_alumnos.columns = [str(c).strip() for c in df_alumnos.columns]
                     col_nombre = next((c for c in df_alumnos.columns if 'nomb' in c.lower()), 'NOMBRES')
                     col_curso = next((c for c in df_alumnos.columns if 'curs' in c.lower()), 'CURSO')
                     col_rut = next((c for c in df_alumnos.columns if 'rut' in c.lower()), 'RUT')
 
-                    # Variable de control para saber si ya se guardÃ³
+                    # Variable de control para saber si ya se guardó
                     if "ultimo_rut_scroll_atraso" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_atraso = None
 
-                    # ConfirmaciÃ³n de registro de atraso
+                    # Confirmación de registro de atraso
                     if st.session_state.get('ultimo_voucher_atraso'):
                         voucher = st.session_state.pop('ultimo_voucher_atraso')
                         v_nom = voucher.get('nombre', 'ALUMNO')
-                        v_cur = voucher.get('curso', 'â€”')
-                        st.success(f"âœ… Â¡Atraso registrado para **{v_nom}** ({v_cur})! Justificativo emitido a la ticketera.")
+                        v_cur = voucher.get('curso', '—')
+                        st.success(f"✅ ¡Atraso registrado para **{v_nom}** ({v_cur})! Justificativo emitido a la ticketera.")
 
                     # Buscador normal
                     if "ver_busqueda_atraso" not in st.session_state:
@@ -2542,7 +2542,7 @@ elif st.session_state.current_module == 'atraso':
                     if busqueda_input and col_nombre in df_alumnos.columns:
                         termino = normalizar_texto(busqueda_input)
 
-                        # FunciÃ³n interna ultra-blindada para celda Ãºnica de nombre completo
+                        # Función interna ultra-blindada para celda única de nombre completo
                         def calza_filtro_estricto(nombre_completo, rut_alumno):
                             nombre_norm = normalizar_texto(nombre_completo)
                             rut_norm = normalizar_texto(str(rut_alumno))
@@ -2550,7 +2550,7 @@ elif st.session_state.current_module == 'atraso':
                             if termino in rut_norm:
                                 return True
 
-                            # Si buscan mÃºltiples palabras juntas, permitimos coincidencia de subcadena directa
+                            # Si buscan múltiples palabras juntas, permitimos coincidencia de subcadena directa
                             if len(termino.split()) > 1:
                                 return termino in nombre_norm
 
@@ -2573,7 +2573,7 @@ elif st.session_state.current_module == 'atraso':
                         df_filtrado = df_alumnos[mask_filtrado].copy()
 
                         if not df_filtrado.empty:
-                            st.write("### ðŸ‘¥ Seleccione al alumno correcto:")
+                            st.write("### 👥 Seleccione al alumno correcto:")
                             df_filtrado['NOMBRES_NORM'] = df_filtrado[col_nombre].apply(normalizar_texto)
                             df_filtrado['EMPIEZA_CON'] = df_filtrado['NOMBRES_NORM'].str.startswith(termino)
                             df_filtrado = df_filtrado.sort_values(by=['EMPIEZA_CON', col_nombre], ascending=[False, True])
@@ -2583,7 +2583,7 @@ elif st.session_state.current_module == 'atraso':
                                 v_curso = fila.get(col_curso, 'N/A')
                                 v_rut = fila.get(col_rut, 'N/A')
 
-                                label_boton = f"ðŸ‘¤ {v_nombre}  |  ðŸ“Œ {v_curso}  |  ðŸ†” {v_rut}"
+                                label_boton = f"👤 {v_nombre}  |  📌 {v_curso}  |  🆔 {v_rut}"
                                 if st.button(label_boton, key=f"btn_alumno_{v_rut}_{idx}", use_container_width=True):
                                     st.session_state.alumno_seleccionado_atraso = {
                                         'nombre': v_nombre,
@@ -2591,9 +2591,9 @@ elif st.session_state.current_module == 'atraso':
                                         'rut': v_rut
                                     }
                         else:
-                            st.warning("âš ï¸ No se encontraron alumnos con ese tÃ©rmino.")
+                            st.warning("⚠️ No se encontraron alumnos con ese término.")
                     else:
-                        st.info("ðŸ’¡ Ingrese un tÃ©rmino arriba para desplegar los alumnos.")
+                        st.info("💡 Ingrese un término arriba para desplegar los alumnos.")
 
                     if st.session_state.alumno_seleccionado_atraso is not None:
                         alumno = st.session_state.alumno_seleccionado_atraso
@@ -2601,7 +2601,7 @@ elif st.session_state.current_module == 'atraso':
                         # Marcador de destino invisible para Atrasos
                         st.markdown("<div id='formulario_control_atraso'></div>", unsafe_allow_html=True)
 
-                        # InyecciÃ³n de Scroll limpia usando st.empty() para forzar refresco
+                        # Inyección de Scroll limpia usando st.empty() para forzar refresco
                         placeholder_scroll = st.empty()
                         with placeholder_scroll:
                             components.html(
@@ -2616,30 +2616,30 @@ elif st.session_state.current_module == 'atraso':
 
                         st.markdown("---")
                         with st.container(border=True):
-                            st.success("### Ficha de ConfirmaciÃ³n")
+                            st.success("### Ficha de Confirmación")
                             st.write(f"**Nombre:** {alumno['nombre']}")
                             st.write(f"**Curso:** {alumno['curso']}")
                             st.write(f"**RUT:** {alumno['rut']}")
                             st.write("---")
 
                             # Selector de Motivos Estandarizado
-                            opciones_motivos = ["Seleccione un motivo...", "Personal", "Se quedÃ³ dormido/a", "Hora mÃ©dica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
+                            opciones_motivos = ["Seleccione un motivo...", "Personal", "Se quedó dormido/a", "Hora médica/dental", "Problema de transporte", "Clima / Lluvia intensa", "Otro (Especificar)"]
                             motivo_seleccionado = st.selectbox("Motivo del atraso:", opciones_motivos, key="select_motivo_atraso")
 
                             motivo_final = ""
                             if motivo_seleccionado == "Otro (Especificar)":
-                                motivo_final = st.text_input("Escriba el motivo especÃ­fico:", key="txt_motivo_atraso_otro").strip()
+                                motivo_final = st.text_input("Escriba el motivo específico:", key="txt_motivo_atraso_otro").strip()
                             elif motivo_seleccionado != "Seleccione un motivo...":
                                 motivo_final = motivo_seleccionado
 
-                            # Habilitar/Deshabilitar botÃ³n de confirmaciÃ³n
+                            # Habilitar/Deshabilitar botón de confirmación
                             deshabilitar_boton = (motivo_seleccionado == "Seleccione un motivo...") or (motivo_seleccionado == "Otro (Especificar)" and not motivo_final)
 
                             if st.button("Confirmar Registro de Atraso", type="primary", key="btn_guardar_atraso_botones", disabled=deshabilitar_boton):
                                 if sheet_registros:
                                     ahora = obtener_ahora_chile()
 
-                                    # Asegurar encabezados si la hoja estÃ¡ vacÃ­a
+                                    # Asegurar encabezados si la hoja está vacía
                                     if not sheet_registros.row_values(1):
                                         sheet_registros.append_row(["Fecha", "Hora", "RUT", "Nombre", "Tipo", "Motivo", "Apoderado", "Vinculo", "Curso"])
 
@@ -2656,18 +2656,18 @@ elif st.session_state.current_module == 'atraso':
                                         curso_alumno_final
                                     ])
 
-                                    # Notificar al telÃ©fono del apoderado si estÃ¡ suscrito
+                                    # Notificar al teléfono del apoderado si está suscrito
                                     try:
                                         from utils.notifications import notificar_apoderados_rut
                                         notificar_apoderados_rut(
                                             rut=alumno['rut'],
-                                            titulo="ðŸ”” Escuela Villa Las PeÃ±as",
-                                            mensaje=f"Atraso registrado: {alumno['nombre']} ingresÃ³ a las {ahora.strftime('%H:%M')} hrs. Motivo: {motivo_final}."
+                                            titulo="🔔 Escuela Villa Las Peñas",
+                                            mensaje=f"Atraso registrado: {alumno['nombre']} ingresó a las {ahora.strftime('%H:%M')} hrs. Motivo: {motivo_final}."
                                         )
                                     except Exception:
                                         pass
 
-                                    # Guardar datos del justificativo tÃ©rmico de 8x8 cm
+                                    # Guardar datos del justificativo térmico de 8x8 cm
                                     st.session_state.ultimo_voucher_atraso = {
                                         'nombre': str(alumno['nombre']).strip().upper(),
                                         'curso': str(curso_alumno_final).strip(),
@@ -2682,7 +2682,7 @@ elif st.session_state.current_module == 'atraso':
                                 else:
                                     st.error("Error al guardar en la base de datos.")
                 else:
-                    st.warning("La base de datos de alumnos estÃ¡ vacÃ­a.")
+                    st.warning("La base de datos de alumnos está vacía.")
             except Exception as e:
                 if "Rerun" in type(e).__name__ or "ScriptControl" in type(e).__name__:
                     raise e
@@ -2692,7 +2692,7 @@ elif st.session_state.current_module == 'atraso':
 
         st.write("")
         if True:
-            if st.button("â¬…ï¸ Volver al Dashboard Principal", key="btn_volver_atraso_botones"):
+            if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_atraso_botones"):
                 st.session_state.alumno_seleccionado_atraso = None
                 st.session_state.ultimo_rut_scroll_atraso = None
                 navigate('home')
@@ -2708,13 +2708,13 @@ elif st.session_state.current_module == 'retiro':
     # 1. Insignia Institucional Centrada
     renderizar_insignia_universal()
 
-    # 2. Cabecera del MÃ³dulo con botÃ³n de escape rÃ¡pido
+    # 2. Cabecera del Módulo con botón de escape rápido
     col_titulo, col_escape = st.columns([3.5, 1])
     with col_titulo:
-        st.title("ðŸš¶â€â™‚ï¸ Salida Anticipada / Retiro de Alumnos")
+        st.title("🚶‍♂️ Salida Anticipada / Retiro de Alumnos")
     with col_escape:
-        st.write("") # Espaciador para bajar levemente el botÃ³n
-        if st.button("ðŸ  Volver", key="btn_escape_sup_retiro", use_container_width=True):
+        st.write("") # Espaciador para bajar levemente el botón
+        if st.button("🏠 Volver", key="btn_escape_sup_retiro", use_container_width=True):
             st.session_state.alumno_seleccionado_retiro = None
             st.session_state.pop("txt_nombre_apoderado", None)
             navigate('home')
@@ -2723,7 +2723,7 @@ elif st.session_state.current_module == 'retiro':
     
     sheet_alumnos, sheet_registros, sheet_notas, sheet_funcionarios, sheet_asignaciones = get_sheets()
 
-    tab_reg_retiro, tab_rep_retiro = st.tabs(["ðŸ“ Registrar Retiro", "ðŸ“Š Reportes y EstadÃ­sticas"])
+    tab_reg_retiro, tab_rep_retiro = st.tabs(["📝 Registrar Retiro", "📊 Reportes y Estadísticas"])
 
     with tab_reg_retiro:
 
@@ -2749,12 +2749,12 @@ elif st.session_state.current_module == 'retiro':
                     if "ultimo_rut_scroll_retiro" not in st.session_state:
                         st.session_state.ultimo_rut_scroll_retiro = None
 
-                    # NotificaciÃ³n de Ã©xito si se acaba de registrar un retiro
+                    # Notificación de éxito si se acaba de registrar un retiro
                     if st.session_state.get('mensaje_exito_retiro'):
                         st.success(st.session_state.pop('mensaje_exito_retiro'))
 
                     if True:
-                        # Flujo normal de bÃºsqueda
+                        # Flujo normal de búsqueda
                         if "ver_busqueda_retiro" not in st.session_state:
                             st.session_state.ver_busqueda_retiro = 0
                         key_input_retiro = f"txt_busqueda_retiro_{st.session_state.ver_busqueda_retiro}"
@@ -2770,11 +2770,11 @@ elif st.session_state.current_module == 'retiro':
                             st.session_state.ultimo_input_retiro = busqueda_input
                             st.session_state.pop("txt_nombre_apoderado", None)
 
-                        # BÃºsqueda global y ordenamiento por relevancia
+                        # Búsqueda global y ordenamiento por relevancia
                         if busqueda_input and col_nombre in df_alumnos.columns:
                             termino = normalizar_texto(busqueda_input)
 
-                            # FunciÃ³n interna ultra-blindada para celda Ãºnica de nombre completo
+                            # Función interna ultra-blindada para celda única de nombre completo
                             def calza_filtro_estricto(nombre_completo, rut_alumno):
                                 nombre_norm = normalizar_texto(nombre_completo)
                                 rut_norm = normalizar_texto(str(rut_alumno))
@@ -2782,7 +2782,7 @@ elif st.session_state.current_module == 'retiro':
                                 if termino in rut_norm:
                                     return True
 
-                                # Si buscan mÃºltiples palabras juntas, permitimos coincidencia de subcadena directa
+                                # Si buscan múltiples palabras juntas, permitimos coincidencia de subcadena directa
                                 if len(termino.split()) > 1:
                                     return termino in nombre_norm
 
@@ -2805,7 +2805,7 @@ elif st.session_state.current_module == 'retiro':
                             df_filtrado = df_alumnos[mask_filtrado].copy()
 
                             if not df_filtrado.empty:
-                                st.write("### ðŸ‘¥ Seleccione al alumno que se retira:")
+                                st.write("### 👥 Seleccione al alumno que se retira:")
                                 df_filtrado['NOMBRES_NORM'] = df_filtrado[col_nombre].apply(normalizar_texto)
                                 df_filtrado['EMPIEZA_CON'] = df_filtrado['NOMBRES_NORM'].str.startswith(termino)
                                 df_filtrado = df_filtrado.sort_values(by=['EMPIEZA_CON', col_nombre], ascending=[False, True])
@@ -2815,7 +2815,7 @@ elif st.session_state.current_module == 'retiro':
                                     v_curso = fila.get(col_curso, 'N/A')
                                     v_rut = fila.get(col_rut, 'N/A')
 
-                                    label_boton = f"ðŸ‘¤ {v_nombre}  |  ðŸ“Œ {v_curso}  |  ðŸ†” {v_rut}"
+                                    label_boton = f"👤 {v_nombre}  |  📌 {v_curso}  |  🆔 {v_rut}"
                                     if st.button(label_boton, key=f"btn_retiro_{v_rut}_{idx}", use_container_width=True):
                                         st.session_state.alumno_seleccionado_retiro = {
                                             'nombre': v_nombre,
@@ -2825,9 +2825,9 @@ elif st.session_state.current_module == 'retiro':
                                         st.session_state.pop("txt_nombre_apoderado", None)
                                         st.rerun()
                             else:
-                                st.warning("âš ï¸ No se encontraron alumnos con ese tÃ©rmino.")
+                                st.warning("⚠️ No se encontraron alumnos con ese término.")
                         else:
-                            st.info("ðŸ’¡ Ingrese un tÃ©rmino arriba para desplegar los alumnos de forma segura.")
+                            st.info("💡 Ingrese un término arriba para desplegar los alumnos de forma segura.")
 
                         # 2. FICHA DE RETIRO (Se activa al seleccionar un alumno)
                         if st.session_state.alumno_seleccionado_retiro is not None:
@@ -2836,7 +2836,7 @@ elif st.session_state.current_module == 'retiro':
                             # Marcador de destino para el autoscroll
                             st.markdown("<div id='formulario_control_retiro'></div>", unsafe_allow_html=True)
 
-                            # InyecciÃ³n de Scroll limpia usando st.empty() para forzar refresco
+                            # Inyección de Scroll limpia usando st.empty() para forzar refresco
                             placeholder_scroll_ret = st.empty()
                             with placeholder_scroll_ret:
                                 components.html(
@@ -2851,12 +2851,12 @@ elif st.session_state.current_module == 'retiro':
 
                             st.markdown("---")
                             with st.container(border=True):
-                                st.success("### ðŸ“‹ Ficha de Control de Retiro")
+                                st.success("### 📋 Ficha de Control de Retiro")
                                 st.write(f"**Nombre Alumno:** {alumno['nombre']}")
                                 st.write(f"**Curso:** {alumno['curso']}")
                                 st.write(f"**RUT:** {alumno['rut']}")
 
-                                # SucciÃ³n de Espacio Bajo el RUT
+                                # Succión de Espacio Bajo el RUT
                                 st.markdown(
                                     """
                                     <div style="margin-bottom: -50px; line-height: 0; font-size: 0;">&nbsp;</div>
@@ -2871,7 +2871,7 @@ elif st.session_state.current_module == 'retiro':
                                     "Seleccione un motivo...",
                                     "Personal",
                                     "Enfermedad / Malestar",
-                                    "Hora mÃ©dica/dental",
+                                    "Hora médica/dental",
                                     "Otro (Especificar)"
                                 ]
                                 motivo_raw = st.selectbox("Motivo del Retiro Anticipado:", opciones_retiro, key="select_motivo_retiro", index=0)
@@ -2883,26 +2883,26 @@ elif st.session_state.current_module == 'retiro':
 
                                 motivo_final = ""
                                 if motivo_seleccionado == "Otro (Especificar)":
-                                    motivo_final = st.text_input("Escriba el motivo especÃ­fico del retiro:", key="txt_motivo_retiro_otro").strip()
+                                    motivo_final = st.text_input("Escriba el motivo específico del retiro:", key="txt_motivo_retiro_otro").strip()
                                 elif motivo_seleccionado != "Seleccione un motivo...":
                                     motivo_final = motivo_seleccionado
 
-                                # Campo de nombre de apoderado con validaciÃ³n segura
+                                # Campo de nombre de apoderado con validación segura
                                 nombre_apoderado = st.text_input("Nombre Completo del Apoderado:", key="txt_nombre_apoderado").strip()
                                 nombre_tiene_digitos = any(char.isdigit() for char in nombre_apoderado)
                                 if nombre_tiene_digitos:
-                                    st.error("âš ï¸ Solo se permiten letras en el nombre del apoderado.")
+                                    st.error("⚠️ Solo se permiten letras en el nombre del apoderado.")
 
                                 opciones_parentesco = [
                                     "Seleccione parentesco...",
-                                    "MamÃ¡",
-                                    "PapÃ¡",
+                                    "Mamá",
+                                    "Papá",
                                     "Abuela/o",
                                     "Hermana/o",
-                                    "TÃ­a/o",
+                                    "Tía/o",
                                     "Otro (Especificar)"
                                 ]
-                                parentesco_raw = st.selectbox("Parentesco o RelaciÃ³n con el alumno:", opciones_parentesco, key="select_parentesco_retiro", index=0)
+                                parentesco_raw = st.selectbox("Parentesco o Relación con el alumno:", opciones_parentesco, key="select_parentesco_retiro", index=0)
 
                                 if not parentesco_raw:
                                     parentesco_seleccionado = opciones_parentesco[0]
@@ -2911,10 +2911,10 @@ elif st.session_state.current_module == 'retiro':
 
                                 parentesco_final = ""
                                 if parentesco_seleccionado == "Otro (Especificar)":
-                                    raw_parentesco_otro = st.text_input("Escriba la relaciÃ³n especÃ­fica (Ej: Furgon, Vecino):", key="txt_parentesco_otro").strip()
+                                    raw_parentesco_otro = st.text_input("Escriba la relación específica (Ej: Furgon, Vecino):", key="txt_parentesco_otro").strip()
                                     parentesco_final = re.sub(r'[0-9]', '', raw_parentesco_otro).strip()
                                     if re.search(r'\d', raw_parentesco_otro):
-                                        st.error("âš ï¸ Solo se permiten letras en la relaciÃ³n.")
+                                        st.error("⚠️ Solo se permiten letras en la relación.")
                                 elif parentesco_seleccionado != "Seleccione parentesco...":
                                     parentesco_final = parentesco_seleccionado
 
@@ -2946,18 +2946,18 @@ elif st.session_state.current_module == 'retiro':
                                             alumno.get('curso', '')
                                         ])
 
-                                        # Notificar al telÃ©fono del apoderado si estÃ¡ suscrito
+                                        # Notificar al teléfono del apoderado si está suscrito
                                         try:
                                             from utils.notifications import notificar_apoderados_rut
                                             notificar_apoderados_rut(
                                                 rut=alumno['rut'],
-                                                titulo="ðŸ”” Escuela Villa Las PeÃ±as",
+                                                titulo="🔔 Escuela Villa Las Peñas",
                                                 mensaje=f"Retiro registrado: {alumno['nombre']} fue retirado/a a las {hora_str} hrs por {nombre_apoderado} ({parentesco_final}). Motivo: {motivo_final}."
                                             )
                                         except Exception:
                                             pass
 
-                                        st.session_state.mensaje_exito_retiro = f"âœ… Retiro registrado exitosamente para **{alumno['nombre']}** ({alumno.get('curso', '')}) a las **{hora_str}** hrs."
+                                        st.session_state.mensaje_exito_retiro = f"✅ Retiro registrado exitosamente para **{alumno['nombre']}** ({alumno.get('curso', '')}) a las **{hora_str}** hrs."
                                         st.session_state.alumno_seleccionado_retiro = None
                                         st.session_state.ultimo_rut_scroll_retiro = None
                                         st.session_state.pop("txt_nombre_apoderado", None)
@@ -2968,12 +2968,12 @@ elif st.session_state.current_module == 'retiro':
 
                              # El scroll se maneja al inicio de la ficha de forma reactiva por key
             except Exception as e:
-                st.error(f"Error inesperado en el mÃ³dulo de retiros: {e}")
+                st.error(f"Error inesperado en el módulo de retiros: {e}")
         else:
-            st.error("Error de conexiÃ³n con la base de datos.")
+            st.error("Error de conexión con la base de datos.")
 
         st.write("")
-        if st.button("â¬…ï¸ Volver al Dashboard Principal", key="btn_volver_retiro_botones"):
+        if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_retiro_botones"):
             st.session_state.alumno_seleccionado_retiro = None
             st.session_state.ultimo_rut_scroll_retiro = None
             st.session_state.pop("txt_nombre_apoderado", None)
@@ -2991,10 +2991,10 @@ elif st.session_state.current_module == 'alumnos':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ‘¥ GestiÃ³n y EdiciÃ³n de Alumnos</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>👥 Gestión y Edición de Alumnos</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_alumnos", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_alumnos", use_container_width=True):
             st.session_state.pop('alumno_edit_tag', None)
             navigate('home')
             st.rerun()
@@ -3004,10 +3004,10 @@ elif st.session_state.current_module == 'alumnos':
     sheet_alumnos, sheet_registros, sheet_notas, sheet_funcionarios, sheet_asignaciones = get_sheets()
     
     if not sheet_alumnos:
-        st.error("âŒ Error de conexiÃ³n con la base de datos de Google Sheets.")
+        st.error("❌ Error de conexión con la base de datos de Google Sheets.")
     else:
         try:
-            # Manejo de cachÃ© en session_state para respetar las cuotas de Google Sheets y evitar error 429
+            # Manejo de caché en session_state para respetar las cuotas de Google Sheets y evitar error 429
             if 'df_alumnos_cache' not in st.session_state or st.session_state.df_alumnos_cache is None:
                 registros_raw = sheet_alumnos.get_all_records()
                 df_loaded = pd.DataFrame(registros_raw) if registros_raw else pd.DataFrame()
@@ -3023,26 +3023,26 @@ elif st.session_state.current_module == 'alumnos':
             col_c = next((c for c in df_alumnos_all.columns if 'curs' in c.lower()), 'Curso')
             col_n = next((c for c in df_alumnos_all.columns if 'nomb' in c.lower()), 'Nombre')
             col_r = next((c for c in df_alumnos_all.columns if 'rut' in c.lower()), 'RUT')
-            col_o = next((c for c in df_alumnos_all.columns if any(x in c.lower() for x in ['list', 'orden', 'nÂ°', 'nro']) and 'matr' not in c.lower()), 'NÂ° Lista')
-            col_mat = next((c for c in df_alumnos_all.columns if 'matr' in c.lower() and 'fec' not in c.lower()), 'NÂ° MatrÃ­cula')
-            col_f_mat = next((c for c in df_alumnos_all.columns if 'matr' in c.lower() and ('fec' in c.lower() or 'date' in c.lower())), 'Fecha MatrÃ­cula')
-            col_tel = next((c for c in df_alumnos_all.columns if 'tel' in c.lower() or 'fono' in c.lower() or 'apod' in c.lower()), 'TelÃ©fono Apoderado')
+            col_o = next((c for c in df_alumnos_all.columns if any(x in c.lower() for x in ['list', 'orden', 'n°', 'nro']) and 'matr' not in c.lower()), 'N° Lista')
+            col_mat = next((c for c in df_alumnos_all.columns if 'matr' in c.lower() and 'fec' not in c.lower()), 'N° Matrícula')
+            col_f_mat = next((c for c in df_alumnos_all.columns if 'matr' in c.lower() and ('fec' in c.lower() or 'date' in c.lower())), 'Fecha Matrícula')
+            col_tel = next((c for c in df_alumnos_all.columns if 'tel' in c.lower() or 'fono' in c.lower() or 'apod' in c.lower()), 'Teléfono Apoderado')
             col_baja = next((c for c in df_alumnos_all.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
             col_alta = next((c for c in df_alumnos_all.columns if 'alta' in c.lower() or 'ingr' in c.lower()), 'Fecha Alta')
             col_nac = next((c for c in df_alumnos_all.columns if 'nac' in c.lower()), 'Fecha Nacimiento')
 
             # =========================================================================
-            # LÃ“GICA DE UNIFICACIÃ“N Y CANONIZACIÃ“N DE CURSOS (CERO DUPLICADOS)
+            # LÓGICA DE UNIFICACIÓN Y CANONIZACIÓN DE CURSOS (CERO DUPLICADOS)
             # =========================================================================
             def normalizar_cadena_curso(texto):
                 if not texto: return ""
                 t = str(texto).strip().lower()
-                t = t.replace('Â°', '').replace('Âº', '').replace('.', '')
-                t = t.replace('Ã¡', 'a').replace('Ã©', 'e').replace('Ã­', 'i').replace('Ã³', 'o').replace('Ãº', 'u')
+                t = t.replace('°', '').replace('º', '').replace('.', '')
+                t = t.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
                 return " ".join(t.split())
 
             def extraer_clave_curso(texto):
-                """Devuelve tupla (nivel_norm, letra_norm) para deduplicaciÃ³n estricta."""
+                """Devuelve tupla (nivel_norm, letra_norm) para deduplicación estricta."""
                 norm = normalizar_cadena_curso(texto)
                 partes = norm.split()
                 if not partes:
@@ -3054,7 +3054,7 @@ elif st.session_state.current_module == 'alumnos':
                     nivel = norm
                     letra = "a"
 
-                # Erradicar Prekinder y Kinder convirtiÃ©ndolos obligatoriamente a NT1 y NT2
+                # Erradicar Prekinder y Kinder convirtiéndolos obligatoriamente a NT1 y NT2
                 if any(x in nivel for x in ['prekinder', 'pre-kinder', 'pre kinder', 'prek', 'pre-k']):
                     nivel = "nt1"
                 elif any(x in nivel for x in ['kinder', 'kndr']) and 'pre' not in nivel:
@@ -3068,17 +3068,17 @@ elif st.session_state.current_module == 'alumnos':
 
             def calza_nombre_curso(c_al, c_sel):
                 if not c_al or not c_sel: return False
-                if str(c_sel).strip() == "ðŸ” Todos los Cursos": return True
+                if str(c_sel).strip() == "🔍 Todos los Cursos": return True
                 return extraer_clave_curso(c_al) == extraer_clave_curso(c_sel)
 
             # Cursos base institucionales con su letra A
             CURSOS_BASE_OFICIALES = [
                 "NT1 A", "NT2 A",
-                "1Â° BÃ¡sico A", "2Â° BÃ¡sico A", "3Â° BÃ¡sico A", "4Â° BÃ¡sico A",
-                "5Â° BÃ¡sico A", "6Â° BÃ¡sico A", "7Â° BÃ¡sico A", "8Â° BÃ¡sico A"
+                "1° Básico A", "2° Básico A", "3° Básico A", "4° Básico A",
+                "5° Básico A", "6° Básico A", "7° Básico A", "8° Básico A"
             ]
 
-            target_headers = ["NÂ° Lista", "NÂ° MatrÃ­cula", "RUT", "Nombre", "Curso", "Fecha Nacimiento", "Fecha MatrÃ­cula", "Fecha Alta", "Fecha Baja", "Estado", "TelÃ©fono Apoderado"]
+            target_headers = ["N° Lista", "N° Matrícula", "RUT", "Nombre", "Curso", "Fecha Nacimiento", "Fecha Matrícula", "Fecha Alta", "Fecha Baja", "Estado", "Teléfono Apoderado"]
 
             def parse_date_to_obj(val, default_date=None):
                 """Convierte de forma segura un string de fecha a objeto datetime.date para selectores st.date_input."""
@@ -3104,7 +3104,7 @@ elif st.session_state.current_module == 'alumnos':
                 return default_date
 
             def obtener_siguiente_matricula(df):
-                """Calcula el siguiente nÃºmero de matrÃ­cula correlativo."""
+                """Calcula el siguiente número de matrícula correlativo."""
                 if df.empty:
                     return 1
                 for col in df.columns:
@@ -3117,7 +3117,7 @@ elif st.session_state.current_module == 'alumnos':
                 return len(df) + 1
 
             def obtener_matricula_alumno(r):
-                """Obtiene el nÃºmero de matrÃ­cula asignado a un estudiante."""
+                """Obtiene el número de matrícula asignado a un estudiante."""
                 for col in (r.index if hasattr(r, 'index') else r.keys()):
                     if 'matr' in str(col).lower() and 'fec' not in str(col).lower():
                         val = pd.to_numeric(r[col], errors='coerce')
@@ -3126,7 +3126,7 @@ elif st.session_state.current_module == 'alumnos':
                 return 1
 
             def obtener_fecha_matricula_alumno(r):
-                """Obtiene la fecha de matrÃ­cula de un estudiante."""
+                """Obtiene la fecha de matrícula de un estudiante."""
                 for col in (r.index if hasattr(r, 'index') else r.keys()):
                     cl = str(col).lower()
                     if 'matr' in cl and ('fec' in cl or 'date' in cl):
@@ -3140,7 +3140,7 @@ elif st.session_state.current_module == 'alumnos':
                 return ""
 
             def es_alumno_retirado(r):
-                """Detecta de forma infalible si un alumno estÃ¡ retirado revisando todas las columnas posibles."""
+                """Detecta de forma infalible si un alumno está retirado revisando todas las columnas posibles."""
                 for k in (r.index if hasattr(r, 'index') else r.keys()):
                     kl = str(k).lower().strip()
                     val = str(r[k]).strip().lower()
@@ -3167,31 +3167,31 @@ elif st.session_state.current_module == 'alumnos':
             cursos_disponibles = obtener_cursos_oficiales_sistema()
 
             tab_nomina_al, tab_nuevo_al, tab_carga_al = st.tabs([
-                "ðŸ“‹ NÃ³mina y EdiciÃ³n de Alumnos",
-                "âž• Inscribir Nuevo Alumno",
-                "ðŸ“¤ Carga Masiva (Excel / CSV)"
+                "📋 Nómina y Edición de Alumnos",
+                "➕ Inscribir Nuevo Alumno",
+                "📤 Carga Masiva (Excel / CSV)"
             ])
 
             with tab_nomina_al:
                 # Barra de filtros superior limpia y espaciosa
                 col_sel_c, col_busq_al = st.columns([2.5, 4.5])
                 with col_sel_c:
-                    opciones_cursos = ["ðŸ” Todos los Cursos"] + cursos_disponibles
+                    opciones_cursos = ["🔍 Todos los Cursos"] + cursos_disponibles
                     idx_c_sel = 0  # Por defecto 'Todos los Cursos' o el curso recordado
                     if st.session_state.get('alumno_gest_curso') in opciones_cursos:
                         idx_c_sel = opciones_cursos.index(st.session_state.alumno_gest_curso)
                     elif len(opciones_cursos) > 1:
                         idx_c_sel = 1
-                    curso_gest = st.selectbox("ðŸ“š Curso:", opciones_cursos, index=idx_c_sel, key="sel_curso_gest_alumno")
+                    curso_gest = st.selectbox("📚 Curso:", opciones_cursos, index=idx_c_sel, key="sel_curso_gest_alumno")
                     st.session_state.alumno_gest_curso = curso_gest
 
                 with col_busq_al:
-                    txt_buscar_al = st.text_input("ðŸ” Buscar por Nombre o RUT:", placeholder="Ej: Perez o 12345678", key="txt_buscar_alumno_in").strip()
+                    txt_buscar_al = st.text_input("🔍 Buscar por Nombre o RUT:", placeholder="Ej: Perez o 12345678", key="txt_buscar_alumno_in").strip()
 
                 # Preparar datos filtrados con coincidencia flexible
                 df_filtrado_al = df_alumnos_all.copy()
                 if not df_filtrado_al.empty:
-                    if col_c in df_filtrado_al.columns and curso_gest != "ðŸ” Todos los Cursos":
+                    if col_c in df_filtrado_al.columns and curso_gest != "🔍 Todos los Cursos":
                         df_filtrado_al = df_filtrado_al[df_filtrado_al[col_c].apply(lambda x: calza_nombre_curso(x, curso_gest))]
 
                     if col_o in df_filtrado_al.columns:
@@ -3207,13 +3207,13 @@ elif st.session_state.current_module == 'alumnos':
                         )
                         df_filtrado_al = df_filtrado_al[mask]
 
-                    df_filtrado_al = df_filtrado_al.sort_values(by=[col_c, '_ord']) if curso_gest == "ðŸ” Todos los Cursos" else df_filtrado_al.sort_values(by=['_ord'])
+                    df_filtrado_al = df_filtrado_al.sort_values(by=[col_c, '_ord']) if curso_gest == "🔍 Todos los Cursos" else df_filtrado_al.sort_values(by=['_ord'])
 
-                # Resumen mÃ©trico
+                # Resumen métrico
                 cant_tot = len(df_filtrado_al)
                 st.markdown(
                     f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;margin:4px 0 12px 0;font-size:0.82rem;color:#334155;'>"
-                    f"ðŸ“Š <b>{curso_gest}:</b> Mostrando <b>{cant_tot}</b> estudiantes &nbsp;|&nbsp; "
+                    f"📊 <b>{curso_gest}:</b> Mostrando <b>{cant_tot}</b> estudiantes &nbsp;|&nbsp; "
                     f"<i>Haz clic en una fila de la tabla para abrir y editar la ficha del alumno</i></div>",
                     unsafe_allow_html=True
                 )
@@ -3223,8 +3223,8 @@ elif st.session_state.current_module == 'alumnos':
                 with col_tabla_al:
                     st.markdown(
                         "<div style='font-weight:700;font-size:0.88rem;color:#1e293b;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;'>"
-                        "<span>ðŸ“‹ NÃ³mina de Estudiantes</span>"
-                        "<span style='font-size:0.75rem;font-weight:400;color:#64748b;'>Selecciona una fila para cargar su ficha ðŸ‘‰</span>"
+                        "<span>📋 Nómina de Estudiantes</span>"
+                        "<span style='font-size:0.75rem;font-weight:400;color:#64748b;'>Selecciona una fila para cargar su ficha 👉</span>"
                         "</div>",
                         unsafe_allow_html=True
                     )
@@ -3246,14 +3246,14 @@ elif st.session_state.current_module == 'alumnos':
 
                             if ret:
                                 filas_vista.append({
-                                    "NÂ°": texto_tachado_fn(ord_str),
+                                    "N°": texto_tachado_fn(ord_str),
                                     "RUT": texto_tachado_fn(rut_str),
                                     "Nombre": texto_tachado_fn(nom_str),
                                     "Estado": "Retirado"
                                 })
                             else:
                                 filas_vista.append({
-                                    "NÂ°": ord_str,
+                                    "N°": ord_str,
                                     "RUT": rut_str,
                                     "Nombre": nom_str,
                                     "Estado": "Activo"
@@ -3280,9 +3280,9 @@ elif st.session_state.current_module == 'alumnos':
                             on_select="rerun",
                             key="tabla_interactiva_alumnos",
                             column_config={
-                                "NÂ°": st.column_config.TextColumn(
-                                    "NÂ°",
-                                    help="NÃºmero de lista del estudiante"
+                                "N°": st.column_config.TextColumn(
+                                    "N°",
+                                    help="Número de lista del estudiante"
                                 ),
                                 "RUT": st.column_config.TextColumn(
                                     "RUT",
@@ -3316,7 +3316,7 @@ elif st.session_state.current_module == 'alumnos':
                                     st.session_state.alumno_sel_rut = rut_clickeado
                                     st.rerun()
                     else:
-                        st.info("ðŸ’¡ No se encontraron estudiantes con los filtros actuales.")
+                        st.info("💡 No se encontraron estudiantes con los filtros actuales.")
 
                 with col_ficha_al:
                     rut_actual_sel = st.session_state.get('alumno_sel_rut')
@@ -3330,9 +3330,9 @@ elif st.session_state.current_module == 'alumnos':
                     if not rut_actual_sel:
                         st.markdown(
                             "<div style='border:2px dashed #cbd5e1;border-radius:8px;padding:36px 20px;text-align:center;background:#f8fafc;color:#64748b;margin-top:10px;'>"
-                            "<div style='font-size:2rem;margin-bottom:8px;'>ðŸ‘ˆ</div>"
-                            "<div style='font-weight:600;font-size:0.95rem;color:#334155;'>NingÃºn Alumno Seleccionado</div>"
-                            "<div style='font-size:0.8rem;margin-top:4px;'>Haz clic en cualquier fila del listado a la izquierda para cargar y editar aquÃ­ los datos del estudiante.</div>"
+                            "<div style='font-size:2rem;margin-bottom:8px;'>👈</div>"
+                            "<div style='font-weight:600;font-size:0.95rem;color:#334155;'>Ningún Alumno Seleccionado</div>"
+                            "<div style='font-size:0.8rem;margin-top:4px;'>Haz clic en cualquier fila del listado a la izquierda para cargar y editar aquí los datos del estudiante.</div>"
                             "</div>",
                             unsafe_allow_html=True
                         )
@@ -3358,7 +3358,7 @@ elif st.session_state.current_module == 'alumnos':
                             es_ret = es_alumno_retirado(r_dat)
                             val_est = "Retirado" if es_ret else "Activo"
 
-                            # Clave dinÃ¡mica unÃ­voca por alumno para garantizar reactividad instantÃ¡nea en pantalla
+                            # Clave dinámica unívoca por alumno para garantizar reactividad instantánea en pantalla
                             rut_slug = re.sub(r'[^a-zA-Z0-9]', '', str(rut_actual_sel))
 
                             # Parseo de fechas a objetos datetime.date para selectores tipo calendario
@@ -3370,7 +3370,7 @@ elif st.session_state.current_module == 'alumnos':
                                 st.markdown(
                                     f"<div style='background:#fef2f2;border-left:4px solid #b91c1c;border-radius:4px;padding:8px 12px;margin-bottom:10px;'>"
                                     f"<div style='font-weight:700;font-size:0.95rem;color:#991b1b;'>{val_nom} (RETIRADO)</div>"
-                                    f"<div style='font-size:0.78rem;color:#7f1d1d;'>RUT: <b>{val_rut}</b> &nbsp;|&nbsp; MatrÃ­cula: <b>NÂ° {val_mat}</b> &nbsp;|&nbsp; Curso: <b>{val_curso_f}</b> &nbsp;|&nbsp; Fecha Retiro: <b>{val_baja_fecha}</b></div>"
+                                    f"<div style='font-size:0.78rem;color:#7f1d1d;'>RUT: <b>{val_rut}</b> &nbsp;|&nbsp; Matrícula: <b>N° {val_mat}</b> &nbsp;|&nbsp; Curso: <b>{val_curso_f}</b> &nbsp;|&nbsp; Fecha Retiro: <b>{val_baja_fecha}</b></div>"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
@@ -3378,7 +3378,7 @@ elif st.session_state.current_module == 'alumnos':
                                 st.markdown(
                                     f"<div style='background:#f8fafc;border-left:4px solid #166534;border-radius:4px;padding:8px 12px;margin-bottom:10px;'>"
                                     f"<div style='font-weight:700;font-size:0.95rem;color:#0f172a;'>{val_nom}</div>"
-                                    f"<div style='font-size:0.78rem;color:#475569;'>RUT: <b>{val_rut}</b> &nbsp;|&nbsp; MatrÃ­cula: <b>NÂ° {val_mat}</b> &nbsp;|&nbsp; Curso: <b>{val_curso_f}</b> &nbsp;|&nbsp; Estado: <b>Activo</b></div>"
+                                    f"<div style='font-size:0.78rem;color:#475569;'>RUT: <b>{val_rut}</b> &nbsp;|&nbsp; Matrícula: <b>N° {val_mat}</b> &nbsp;|&nbsp; Curso: <b>{val_curso_f}</b> &nbsp;|&nbsp; Estado: <b>Activo</b></div>"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
@@ -3386,12 +3386,12 @@ elif st.session_state.current_module == 'alumnos':
                             with st.container(border=True):
                                 f1, f_mat_col, f2 = st.columns([1, 1.2, 1.8])
                                 with f1:
-                                    in_orden = st.number_input("NÂ° Lista:", min_value=1, max_value=200, value=val_ord, step=1, key=f"ed_ord_{rut_slug}")
+                                    in_orden = st.number_input("N° Lista:", min_value=1, max_value=200, value=val_ord, step=1, key=f"ed_ord_{rut_slug}")
                                 with f_mat_col:
                                     val_mat_num = int(pd.to_numeric(val_mat, errors='coerce') or 0)
-                                    in_matricula = st.number_input("NÂ° MatrÃ­cula:", min_value=0, max_value=99999, value=val_mat_num, step=1, key=f"ed_mat_{rut_slug}", help="NÃºmero oficial de matrÃ­cula del estudiante.")
+                                    in_matricula = st.number_input("N° Matrícula:", min_value=0, max_value=99999, value=val_mat_num, step=1, key=f"ed_mat_{rut_slug}", help="Número oficial de matrícula del estudiante.")
                                 with f2:
-                                    # RUT 100% BLOQUEADO EN EDICIÃ“N
+                                    # RUT 100% BLOQUEADO EN EDICIÓN
                                     st.text_input("RUT (Protegido / No editable):", value=val_rut, disabled=True, key=f"ed_rut_bloqueado_{rut_slug}")
 
                                 in_nom = st.text_input("Nombre Completo:", value=val_nom, key=f"ed_nom_{rut_slug}").strip()
@@ -3409,7 +3409,7 @@ elif st.session_state.current_module == 'alumnos':
 
                                 f_d1, f_d2 = st.columns(2)
                                 with f_d1:
-                                    in_fecha_mat = st.date_input("Fecha de MatrÃ­cula:", value=date_mat_obj, format="DD/MM/YYYY", key=f"ed_f_mat_{rut_slug}", help="Fecha en que se formaliza la matrÃ­cula del estudiante.")
+                                    in_fecha_mat = st.date_input("Fecha de Matrícula:", value=date_mat_obj, format="DD/MM/YYYY", key=f"ed_f_mat_{rut_slug}", help="Fecha en que se formaliza la matrícula del estudiante.")
                                 with f_d2:
                                     in_fecha_nac = st.date_input("Fecha de Nacimiento:", value=date_nac_obj, min_value=datetime.date(1990, 1, 1), max_value=datetime.date.today(), format="DD/MM/YYYY", key=f"ed_f_nac_{rut_slug}")
 
@@ -3417,13 +3417,13 @@ elif st.session_state.current_module == 'alumnos':
                                 if in_estado == "Retirado":
                                     in_fecha_retiro = st.date_input("Fecha de Retiro:", value=date_baja_obj, format="DD/MM/YYYY", key=f"ed_f_baja_{rut_slug}", help="Fecha legal en que se hace efectiva la baja/retiro del estudiante.")
 
-                                in_tel = st.text_input("TelÃ©fono Apoderado:", value=val_tel, key=f"ed_tel_{rut_slug}").strip()
+                                in_tel = st.text_input("Teléfono Apoderado:", value=val_tel, key=f"ed_tel_{rut_slug}").strip()
 
                                 st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
-                                if st.button("ðŸ’¾ Guardar Cambios del Estudiante", type="primary", use_container_width=True, key=f"btn_save_ed_{rut_slug}"):
+                                if st.button("💾 Guardar Cambios del Estudiante", type="primary", use_container_width=True, key=f"btn_save_ed_{rut_slug}"):
                                     if not in_nom:
-                                         st.error("âš ï¸ El nombre del estudiante no puede quedar vacÃ­o.")
+                                         st.error("⚠️ El nombre del estudiante no puede quedar vacío.")
                                     else:
                                         with st.spinner("Guardando cambios..."):
                                             try:
@@ -3447,15 +3447,15 @@ elif st.session_state.current_module == 'alumnos':
                                                         if col_th not in df_fresh.columns:
                                                             df_fresh[col_th] = ""
 
-                                                    df_fresh.at[idx_target, 'NÂ° Lista'] = int(in_orden)
-                                                    df_fresh.at[idx_target, 'NÂ° MatrÃ­cula'] = mat_val
+                                                    df_fresh.at[idx_target, 'N° Lista'] = int(in_orden)
+                                                    df_fresh.at[idx_target, 'N° Matrícula'] = mat_val
                                                     df_fresh.at[idx_target, 'Nombre'] = in_nom.upper()
                                                     df_fresh.at[idx_target, 'Curso'] = str(in_curso_dest)
                                                     df_fresh.at[idx_target, 'Fecha Nacimiento'] = f_nac_val
-                                                    df_fresh.at[idx_target, 'Fecha MatrÃ­cula'] = f_mat_val
+                                                    df_fresh.at[idx_target, 'Fecha Matrícula'] = f_mat_val
                                                     df_fresh.at[idx_target, 'Fecha Baja'] = baja_val
                                                     df_fresh.at[idx_target, 'Estado'] = in_estado
-                                                    df_fresh.at[idx_target, 'TelÃ©fono Apoderado'] = in_tel
+                                                    df_fresh.at[idx_target, 'Teléfono Apoderado'] = in_tel
 
                                                     for col_k in df_fresh.columns:
                                                         col_kl = str(col_k).lower().strip()
@@ -3463,13 +3463,13 @@ elif st.session_state.current_module == 'alumnos':
                                                             df_fresh.at[idx_target, col_k] = in_estado
                                                         elif ('baja' in col_kl or 'retir' in col_kl) and col_k not in ['Fecha Baja', 'Estado']:
                                                             df_fresh.at[idx_target, col_k] = baja_val
-                                                        elif 'matr' in col_kl and ('fec' in col_kl or 'date' in col_kl) and col_k != 'Fecha MatrÃ­cula':
+                                                        elif 'matr' in col_kl and ('fec' in col_kl or 'date' in col_kl) and col_k != 'Fecha Matrícula':
                                                             df_fresh.at[idx_target, col_k] = f_mat_val
-                                                        elif 'matr' in col_kl and 'fec' not in col_kl and col_k != 'NÂ° MatrÃ­cula':
+                                                        elif 'matr' in col_kl and 'fec' not in col_kl and col_k != 'N° Matrícula':
                                                             df_fresh.at[idx_target, col_k] = mat_val
 
-                                                    df_fresh['NÂ° Lista'] = pd.to_numeric(df_fresh['NÂ° Lista'], errors='coerce').fillna(999).astype(int)
-                                                    df_fresh = df_fresh.sort_values(by=['Curso', 'NÂ° Lista'])
+                                                    df_fresh['N° Lista'] = pd.to_numeric(df_fresh['N° Lista'], errors='coerce').fillna(999).astype(int)
+                                                    df_fresh = df_fresh.sort_values(by=['Curso', 'N° Lista'])
 
                                                     cols_to_save = [c for c in target_headers if c in df_fresh.columns] + [c for c in df_fresh.columns if c not in target_headers and c != 'RUT_NORM']
                                                     df_fresh = df_fresh[cols_to_save].fillna("")
@@ -3477,16 +3477,16 @@ elif st.session_state.current_module == 'alumnos':
                                                     sheet_alumnos.clear()
                                                     sheet_alumnos.update(values=[df_fresh.columns.tolist()] + df_fresh.values.tolist())
                                                     st.session_state.df_alumnos_cache = None
-                                                    st.success(f"âœ… Â¡Estudiante **{in_nom}** actualizado exitosamente!")
+                                                    st.success(f"✅ ¡Estudiante **{in_nom}** actualizado exitosamente!")
                                                     st.rerun()
                                             except Exception as e:
                                                 st.error(f"Error al actualizar: {e}")
 
             with tab_nuevo_al:
-                st.markdown("### âž• Inscribir y Matricular Nuevo Alumno")
-                st.write("Registra un nuevo estudiante en el sistema oficial. Los datos ingresados se integrarÃ¡n automÃ¡ticamente a la nÃ³mina, libro de clases, asistencia y futuros certificados de alumno regular.")
+                st.markdown("### ➕ Inscribir y Matricular Nuevo Alumno")
+                st.write("Registra un nuevo estudiante en el sistema oficial. Los datos ingresados se integrarán automáticamente a la nómina, libro de clases, asistencia y futuros certificados de alumno regular.")
 
-                # Siguiente nÃºmero de matrÃ­cula sugerido
+                # Siguiente número de matrícula sugerido
                 next_mat_sug = obtener_siguiente_matricula(df_alumnos_all)
 
                 # Curso predeterminado: el seleccionado actualmente en curso_gest si coincide
@@ -3496,7 +3496,7 @@ elif st.session_state.current_module == 'alumnos':
                         idx_c_nuevo = i_cd
                         break
 
-                # Siguiente NÂ° de lista sugerido para el curso seleccionado
+                # Siguiente N° de lista sugerido para el curso seleccionado
                 df_curso_exist = df_alumnos_all[df_alumnos_all[col_c].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, cursos_disponibles[idx_c_nuevo]))] if (not df_alumnos_all.empty and col_c in df_alumnos_all.columns) else pd.DataFrame()
                 max_ord_cur = 0
                 if not df_curso_exist.empty and col_o in df_curso_exist.columns:
@@ -3506,39 +3506,39 @@ elif st.session_state.current_module == 'alumnos':
                 with st.container(border=True):
                     col_n1, col_n2, col_n3 = st.columns([1, 1.2, 1.8])
                     with col_n1:
-                        new_orden = st.number_input("NÂ° Lista:", min_value=1, max_value=200, value=sug_ord_cur, step=1, key="new_al_orden")
+                        new_orden = st.number_input("N° Lista:", min_value=1, max_value=200, value=sug_ord_cur, step=1, key="new_al_orden")
                     with col_n2:
-                        new_matricula = st.number_input("NÂ° MatrÃ­cula:", min_value=1, max_value=99999, value=next_mat_sug, step=1, key="new_al_matricula", help="Correlativo oficial de matrÃ­cula (sugerido automÃ¡ticamente).")
+                        new_matricula = st.number_input("N° Matrícula:", min_value=1, max_value=99999, value=next_mat_sug, step=1, key="new_al_matricula", help="Correlativo oficial de matrícula (sugerido automáticamente).")
                     with col_n3:
-                        new_rut = st.text_input("RUT del Alumno (con guion y dÃ­gito verificador):", placeholder="ej: 21.345.678-9", key="new_al_rut").strip()
+                        new_rut = st.text_input("RUT del Alumno (con guion y dígito verificador):", placeholder="ej: 21.345.678-9", key="new_al_rut").strip()
 
-                    new_nombre = st.text_input("Nombre Completo del Estudiante (Apellidos y Nombres):", placeholder="ej: PÃ‰REZ GONZÃLEZ JUAN IGNACIO", key="new_al_nombre").strip()
+                    new_nombre = st.text_input("Nombre Completo del Estudiante (Apellidos y Nombres):", placeholder="ej: PÉREZ GONZÁLEZ JUAN IGNACIO", key="new_al_nombre").strip()
 
                     col_n4, col_n5 = st.columns(2)
                     with col_n4:
-                        new_curso = st.selectbox("Curso de MatrÃ­cula:", cursos_disponibles, index=idx_c_nuevo, key="new_al_curso")
+                        new_curso = st.selectbox("Curso de Matrícula:", cursos_disponibles, index=idx_c_nuevo, key="new_al_curso")
                     with col_n5:
                         new_estado = st.selectbox("Estado Inicial:", ["Activo", "Retirado"], index=0, key="new_al_estado")
 
                     col_n6, col_n7 = st.columns(2)
                     with col_n6:
-                        new_fecha_mat = st.date_input("Fecha de MatrÃ­cula:", value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_mat", help="Fecha oficial en que se formaliza la matrÃ­cula del alumno.")
+                        new_fecha_mat = st.date_input("Fecha de Matrícula:", value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_mat", help="Fecha oficial en que se formaliza la matrícula del alumno.")
                     with col_n7:
                         new_fecha_nac = st.date_input("Fecha de Nacimiento:", value=datetime.date(2015, 1, 1), min_value=datetime.date(1990, 1, 1), max_value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_nac")
 
                     col_n8, col_n9 = st.columns(2)
                     with col_n8:
-                        new_telefono = st.text_input("TelÃ©fono del Apoderado:", placeholder="ej: +56912345678", key="new_al_tel").strip()
+                        new_telefono = st.text_input("Teléfono del Apoderado:", placeholder="ej: +56912345678", key="new_al_tel").strip()
                     with col_n9:
-                        new_fecha_alta = st.date_input("Fecha de IncorporaciÃ³n / Alta:", value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_alta", help="Fecha en que ingresa a clases.")
+                        new_fecha_alta = st.date_input("Fecha de Incorporación / Alta:", value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_alta", help="Fecha en que ingresa a clases.")
 
                     st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
 
-                    if st.button("âž• Inscribir Alumno Oficialmente", type="primary", use_container_width=True, key="btn_save_new_alumno"):
+                    if st.button("➕ Inscribir Alumno Oficialmente", type="primary", use_container_width=True, key="btn_save_new_alumno"):
                         if not new_rut:
-                            st.error("âš ï¸ Debe ingresar el RUT del alumno.")
+                            st.error("⚠️ Debe ingresar el RUT del alumno.")
                         elif not new_nombre:
-                            st.error("âš ï¸ Debe ingresar el nombre completo del alumno.")
+                            st.error("⚠️ Debe ingresar el nombre completo del alumno.")
                         else:
                             with st.spinner("Registrando nuevo alumno en la base de datos..."):
                                 try:
@@ -3555,24 +3555,24 @@ elif st.session_state.current_module == 'alumnos':
                                     rut_clean = new_rut.replace('.', '').replace('-', '').strip().lower()
                                     existing_ruts = df_fresh['RUT'].astype(str).str.replace('.', '', regex=False).str.replace('-', '', regex=False).str.strip().str.lower().tolist()
                                     if rut_clean in existing_ruts:
-                                        st.error(f"âš ï¸ Ya existe un estudiante registrado con el RUT {new_rut}.")
+                                        st.error(f"⚠️ Ya existe un estudiante registrado con el RUT {new_rut}.")
                                     else:
                                         nuevo_registro = {
-                                            "NÂ° Lista": int(new_orden),
-                                            "NÂ° MatrÃ­cula": str(int(new_matricula)),
+                                            "N° Lista": int(new_orden),
+                                            "N° Matrícula": str(int(new_matricula)),
                                             "RUT": new_rut.upper(),
                                             "Nombre": new_nombre.upper(),
                                             "Curso": new_curso,
                                             "Fecha Nacimiento": new_fecha_nac.strftime("%d-%m-%Y") if new_fecha_nac else "",
-                                            "Fecha MatrÃ­cula": new_fecha_mat.strftime("%d-%m-%Y") if new_fecha_mat else "",
+                                            "Fecha Matrícula": new_fecha_mat.strftime("%d-%m-%Y") if new_fecha_mat else "",
                                             "Fecha Alta": new_fecha_alta.strftime("%d-%m-%Y") if new_fecha_alta else "",
                                             "Fecha Baja": "",
                                             "Estado": new_estado,
-                                            "TelÃ©fono Apoderado": new_telefono
+                                            "Teléfono Apoderado": new_telefono
                                         }
                                         df_fresh = pd.concat([df_fresh, pd.DataFrame([nuevo_registro])], ignore_index=True)
-                                        df_fresh['NÂ° Lista'] = pd.to_numeric(df_fresh['NÂ° Lista'], errors='coerce').fillna(999).astype(int)
-                                        df_fresh = df_fresh.sort_values(by=['Curso', 'NÂ° Lista'])
+                                        df_fresh['N° Lista'] = pd.to_numeric(df_fresh['N° Lista'], errors='coerce').fillna(999).astype(int)
+                                        df_fresh = df_fresh.sort_values(by=['Curso', 'N° Lista'])
 
                                         cols_to_save = [c for c in target_headers if c in df_fresh.columns] + [c for c in df_fresh.columns if c not in target_headers and c != 'RUT_NORM']
                                         df_fresh = df_fresh[cols_to_save].fillna("")
@@ -3580,35 +3580,35 @@ elif st.session_state.current_module == 'alumnos':
                                         sheet_alumnos.clear()
                                         sheet_alumnos.update(values=[df_fresh.columns.tolist()] + df_fresh.values.tolist())
                                         st.session_state.df_alumnos_cache = None
-                                        st.success(f"ðŸŽ‰ Â¡Estudiante **{new_nombre.upper()}** (MatrÃ­cula NÂ° {new_matricula}) inscrito exitosamente!")
+                                        st.success(f"🎉 ¡Estudiante **{new_nombre.upper()}** (Matrícula N° {new_matricula}) inscrito exitosamente!")
                                         st.rerun()
                                 except Exception as e:
                                     st.error(f"Error al inscribir alumno: {e}")
 
             with tab_carga_al:
-                st.markdown("### ðŸ“¤ Carga Masiva y SincronizaciÃ³n desde Excel o CSV")
-                st.write("Sube una nÃ³mina de alumnos completa o por curso en formato **Excel (.xlsx / .xls)** o **CSV**.")
+                st.markdown("### 📤 Carga Masiva y Sincronización desde Excel o CSV")
+                st.write("Sube una nómina de alumnos completa o por curso en formato **Excel (.xlsx / .xls)** o **CSV**.")
 
                 col_ej1, col_ej2 = st.columns([2, 1])
                 with col_ej1:
                     df_ejemplo = pd.DataFrame({
-                        "NÂ° Lista": [1, 2],
-                        "NÂ° MatrÃ­cula": [101, 102],
+                        "N° Lista": [1, 2],
+                        "N° Matrícula": [101, 102],
                         "RUT": ["12345678-9", "98765432-1"],
-                        "Nombre": ["Juan PÃ©rez GonzÃ¡lez", "MarÃ­a Silva Castro"],
-                        "Curso": ["1Â° BÃ¡sico", "1Â° BÃ¡sico"],
+                        "Nombre": ["Juan Pérez González", "María Silva Castro"],
+                        "Curso": ["1° Básico", "1° Básico"],
                         "Fecha Nacimiento": ["15-03-2014", "22-07-2013"],
-                        "Fecha MatrÃ­cula": ["01-03-2026", "01-03-2026"],
+                        "Fecha Matrícula": ["01-03-2026", "01-03-2026"],
                         "Fecha Alta": ["01-03-2026", "01-03-2026"],
                         "Fecha Baja": ["", ""],
                         "Estado": ["Activo", "Activo"],
-                        "TelÃ©fono Apoderado": ["+56912345678", "+56987654321"]
+                        "Teléfono Apoderado": ["+56912345678", "+56987654321"]
                     })
                     st.dataframe(df_ejemplo, hide_index=True, use_container_width=True)
                 with col_ej2:
                     csv_plantilla = df_ejemplo.to_csv(index=False, sep=';').encode('utf-8-sig')
                     st.download_button(
-                        label="ðŸ“¥ Descargar Plantilla (.csv)",
+                        label="📥 Descargar Plantilla (.csv)",
                         data=csv_plantilla,
                         file_name="plantilla_alumnos.csv",
                         mime="text/csv",
@@ -3645,7 +3645,7 @@ elif st.session_state.current_module == 'alumnos':
                         st.dataframe(df_up.head(5), hide_index=True, use_container_width=True)
                         st.info(f"Se detectaron **{len(df_up)}** filas en el archivo.")
 
-                        cols_norm = [str(c).strip().upper().replace(' ','').replace('Â°','') for c in df_up.columns]
+                        cols_norm = [str(c).strip().upper().replace(' ','').replace('°','') for c in df_up.columns]
                         req_map = {"RUT": "RUT", "NOMBRE": "Nombre", "CURSO": "Curso"}
                         faltantes = [label for key, label in req_map.items() if not any(key in cn for cn in cols_norm)]
 
@@ -3668,39 +3668,39 @@ elif st.session_state.current_module == 'alumnos':
                                     cursos_archivo_no_oficiales.append(ca)
 
                         if faltantes:
-                            st.error(f"âš ï¸ Faltan las siguientes columnas obligatorias: **{', '.join(faltantes)}**")
+                            st.error(f"⚠️ Faltan las siguientes columnas obligatorias: **{', '.join(faltantes)}**")
                         elif cursos_archivo_no_oficiales:
                             st.error(
-                                f"âŒ **Cursos no reconocidos en el archivo:** {', '.join(cursos_archivo_no_oficiales)}.\n\n"
-                                f"Los cursos deben existir previamente en el catÃ¡logo oficial antes de matricular estudiantes. "
-                                f"Por favor, crÃ©alos primero en el mÃ³dulo **ðŸ« Cursos** o ajusta los nombres en tu archivo Excel para que coincidan con la lista oficial: "
+                                f"❌ **Cursos no reconocidos en el archivo:** {', '.join(cursos_archivo_no_oficiales)}.\n\n"
+                                f"Los cursos deben existir previamente en el catálogo oficial antes de matricular estudiantes. "
+                                f"Por favor, créalos primero en el módulo **🏫 Cursos** o ajusta los nombres en tu archivo Excel para que coincidan con la lista oficial: "
                                 f"**{', '.join(cursos_disponibles)}**."
                             )
                         else:
                             modo_carga = st.radio(
                                 "Modo de procesamiento:",
                                 [
-                                    "ðŸ”„ Combinar y actualizar (Actualiza existentes por RUT y agrega nuevos)",
-                                    "âš ï¸ Reemplazar la lista completa (Reemplaza toda la base de datos de alumnos)"
+                                    "🔄 Combinar y actualizar (Actualiza existentes por RUT y agrega nuevos)",
+                                    "⚠️ Reemplazar la lista completa (Reemplaza toda la base de datos de alumnos)"
                                 ],
                                 key="radio_modo_carga_tab_sep"
                             )
-                            if st.button("ðŸš€ Procesar Carga Masiva Ahora", type="primary", key="btn_sincronizar_alumnos_tab_sep"):
+                            if st.button("🚀 Procesar Carga Masiva Ahora", type="primary", key="btn_sincronizar_alumnos_tab_sep"):
                                 with st.spinner("Guardando en Google Sheets..."):
                                     col_map = {}
                                     for c in df_up.columns:
-                                        clow = str(c).strip().lower().replace(' ','').replace('Â°','')
+                                        clow = str(c).strip().lower().replace(' ','').replace('°','')
                                         if clow == 'rut': col_map[c] = 'RUT'
                                         elif 'nomb' in clow: col_map[c] = 'Nombre'
                                         elif 'curs' in clow: col_map[c] = 'Curso'
-                                        elif any(x in clow for x in ['nlista', 'nrolista', 'orden']): col_map[c] = 'NÂ° Lista'
+                                        elif any(x in clow for x in ['nlista', 'nrolista', 'orden']): col_map[c] = 'N° Lista'
                                         elif 'nacim' in clow or ('nac' in clow and 'fecha' in clow): col_map[c] = 'Fecha Nacimiento'
                                         elif 'alta' in clow or 'ingres' in clow: col_map[c] = 'Fecha Alta'
                                         elif 'baja' in clow or 'retir' in clow: col_map[c] = 'Fecha Baja'
-                                        elif 'matr' in clow and ('fec' in clow or 'date' in clow): col_map[c] = 'Fecha MatrÃ­cula'
-                                        elif 'matr' in clow and 'fec' not in clow: col_map[c] = 'NÂ° MatrÃ­cula'
+                                        elif 'matr' in clow and ('fec' in clow or 'date' in clow): col_map[c] = 'Fecha Matrícula'
+                                        elif 'matr' in clow and 'fec' not in clow: col_map[c] = 'N° Matrícula'
                                         elif 'est' in clow: col_map[c] = 'Estado'
-                                        elif 'tel' in clow or 'apod' in clow: col_map[c] = 'TelÃ©fono Apoderado'
+                                        elif 'tel' in clow or 'apod' in clow: col_map[c] = 'Teléfono Apoderado'
 
                                     df_nuevo = df_up.rename(columns=col_map).fillna("")
                                     if 'Curso' in df_nuevo.columns and cursos_map_lower:
@@ -3716,9 +3716,9 @@ elif st.session_state.current_module == 'alumnos':
                                             df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
                                             if 'RUT' in df_final.columns:
                                                 df_final = df_final.drop_duplicates(subset=['RUT'], keep='last')
-                                            if 'NÂ° Lista' in df_final.columns:
-                                                df_final['NÂ° Lista'] = pd.to_numeric(df_final['NÂ° Lista'], errors='coerce').fillna(0).astype(int)
-                                                df_final = df_final.sort_values(by=['Curso', 'NÂ° Lista'])
+                                            if 'N° Lista' in df_final.columns:
+                                                df_final['N° Lista'] = pd.to_numeric(df_final['N° Lista'], errors='coerce').fillna(0).astype(int)
+                                                df_final = df_final.sort_values(by=['Curso', 'N° Lista'])
                                         else:
                                             df_final = df_nuevo
 
@@ -3726,13 +3726,13 @@ elif st.session_state.current_module == 'alumnos':
                                     sheet_alumnos.clear()
                                     sheet_alumnos.update(values=[df_final.columns.values.tolist()] + df_final.values.tolist())
                                     st.session_state.df_alumnos_cache = None
-                                    st.success(f"âœ… Se cargaron **{len(df_final)}** alumnos correctamente.")
+                                    st.success(f"✅ Se cargaron **{len(df_final)}** alumnos correctamente.")
                                     st.rerun()
                     except Exception as e:
                         st.error(f"Error al procesar: {e}")
 
         except Exception as e:
-            st.error(f"Error al cargar la administraciÃ³n de alumnos: {e}")
+            st.error(f"Error al cargar la administración de alumnos: {e}")
 
 
 elif st.session_state.current_module == 'cursos':
@@ -3740,10 +3740,10 @@ elif st.session_state.current_module == 'cursos':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ« GestiÃ³n y MantenciÃ³n de Cursos</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>🏫 Gestión y Mantención de Cursos</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_cursos", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_cursos", use_container_width=True):
             st.session_state.pop('curso_sel_tag', None)
             navigate('home')
             st.rerun()
@@ -3754,7 +3754,7 @@ elif st.session_state.current_module == 'cursos':
     _, _, _, sheet_funcionarios, sheet_asignaciones = get_sheets()
 
     if not sheet_cursos:
-        st.error("âŒ No se pudo conectar con la base de datos de Cursos en Google Sheets.")
+        st.error("❌ No se pudo conectar con la base de datos de Cursos en Google Sheets.")
     else:
         try:
             recs_cursos = sheet_cursos.get_all_records()
@@ -3774,7 +3774,7 @@ elif st.session_state.current_module == 'cursos':
                 df_cursos_all = pd.DataFrame(columns=[col_c_nom, col_c_let, col_c_pj, col_c_rut])
 
             # Obtener profesores activos para el selector de Profesor Jefe
-            profesores_jefes_dict = {"â€” Sin Asignar â€”": {"nombre": "â€” Sin Asignar â€”", "rut": ""}}
+            profesores_jefes_dict = {"— Sin Asignar —": {"nombre": "— Sin Asignar —", "rut": ""}}
             if sheet_funcionarios:
                 try:
                     recs_f = sheet_funcionarios.get_all_records()
@@ -3795,15 +3795,15 @@ elif st.session_state.current_module == 'cursos':
             opciones_profs = list(profesores_jefes_dict.keys())
 
             tab_actuales, tab_nuevo = st.tabs([
-                "ðŸ“‹ Cursos Actuales",
-                "âž• Crear Nuevo Curso"
+                "📋 Cursos Actuales",
+                "➕ Crear Nuevo Curso"
             ])
 
             with tab_actuales:
                 # Buscador en vivo
                 col_busq_c, _ = st.columns([3, 4])
                 with col_busq_c:
-                    txt_buscar_cur = st.text_input("ðŸ” Buscar Curso:", placeholder="Ej: 1Â° BÃ¡sico o PÃ©rez", key="txt_buscar_cur_in").strip()
+                    txt_buscar_cur = st.text_input("🔍 Buscar Curso:", placeholder="Ej: 1° Básico o Pérez", key="txt_buscar_cur_in").strip()
 
                 df_filtrado_c = df_cursos_all.copy()
                 if not df_filtrado_c.empty and txt_buscar_cur:
@@ -3816,16 +3816,16 @@ elif st.session_state.current_module == 'cursos':
                 cant_cursos = len(df_filtrado_c)
                 st.markdown(
                     f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;margin:4px 0 12px 0;font-size:0.82rem;color:#334155;'>"
-                    f"ðŸ“‹ <b>{cant_cursos}</b> cursos registrados &nbsp;|&nbsp; <i>Haz clic en una fila de la tabla para reasignar su Profesor(a) Jefe</i></div>",
+                    f"📋 <b>{cant_cursos}</b> cursos registrados &nbsp;|&nbsp; <i>Haz clic en una fila de la tabla para reasignar su Profesor(a) Jefe</i></div>",
                     unsafe_allow_html=True
                 )
 
-                # ProporciÃ³n con mÃ¡s espacio para la tabla para que los nombres de los profesores se lean completos
+                # Proporción con más espacio para la tabla para que los nombres de los profesores se lean completos
                 col_tabla_c, col_ficha_c = st.columns([1.6, 1.0])
 
                 with col_tabla_c:
                     if df_filtrado_c.empty:
-                        st.info("â„¹ï¸ No hay cursos registrados que coincidan con la bÃºsqueda.")
+                        st.info("ℹ️ No hay cursos registrados que coincidan con la búsqueda.")
                     else:
                         df_vista_c = df_filtrado_c.copy()
                         df_vista_c['Curso_Completo'] = df_vista_c.apply(
@@ -3866,7 +3866,7 @@ elif st.session_state.current_module == 'cursos':
                     if df_curso_ficha.empty:
                         st.markdown(
                             "<div style='text-align:center;padding:30px 15px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;color:#64748b;font-size:0.85rem;'>"
-                            "ðŸ‘ˆ <b>Selecciona un curso de la tabla</b> para ver y editar su Profesor(a) Jefe."
+                            "👈 <b>Selecciona un curso de la tabla</b> para ver y editar su Profesor(a) Jefe."
                             "</div>",
                             unsafe_allow_html=True
                         )
@@ -3878,7 +3878,7 @@ elif st.session_state.current_module == 'cursos':
 
                         st.markdown(
                             f"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:12px;'>"
-                            f"<h4 style='margin:0;color:#166534;font-size:1.0rem;'>âœï¸ Ficha del Curso: {val_nom_orig}</h4>"
+                            f"<h4 style='margin:0;color:#166534;font-size:1.0rem;'>✏️ Ficha del Curso: {val_nom_orig}</h4>"
                             f"</div>",
                             unsafe_allow_html=True
                         )
@@ -3897,7 +3897,7 @@ elif st.session_state.current_module == 'cursos':
                             col_bsave, col_bdel = st.columns([1.8, 1.2])
 
                             with col_bsave:
-                                if st.button("ðŸ’¾ Guardar Jefatura", type="primary", use_container_width=True, key=f"btn_save_cur_{val_nom_orig}"):
+                                if st.button("💾 Guardar Jefatura", type="primary", use_container_width=True, key=f"btn_save_cur_{val_nom_orig}"):
                                     with st.spinner("Guardando cambios en Google Sheets..."):
                                         try:
                                             rut_jefe = profesores_jefes_dict.get(ed_prof_jefe, {}).get("rut", "")
@@ -3921,17 +3921,17 @@ elif st.session_state.current_module == 'cursos':
                                                 st.session_state.cursos_oficiales_cache = None
                                                 st.session_state.dict_cursos_cache = None
                                                 st.session_state.curso_sel_tag = val_nom_orig
-                                                st.success("âœ… Â¡Profesor(a) Jefe actualizado exitosamente!")
+                                                st.success("✅ ¡Profesor(a) Jefe actualizado exitosamente!")
                                                 time.sleep(1)
                                                 st.rerun()
                                         except Exception as e_up:
                                             st.error(f"Error al actualizar: {e_up}")
 
                             with col_bdel:
-                                with st.popover("ðŸ—‘ï¸ Eliminar"):
-                                    st.write(f"Â¿Eliminar **{val_nom_orig}**?")
-                                    st.caption("Esta acciÃ³n quitarÃ¡ el curso del catÃ¡logo.")
-                                    if st.button("Confirmar EliminaciÃ³n", type="primary", key=f"btn_del_{val_nom_orig}"):
+                                with st.popover("🗑️ Eliminar"):
+                                    st.write(f"¿Eliminar **{val_nom_orig}**?")
+                                    st.caption("Esta acción quitará el curso del catálogo.")
+                                    if st.button("Confirmar Eliminación", type="primary", key=f"btn_del_{val_nom_orig}"):
                                         try:
                                             vals_c = sheet_cursos.get_all_values()
                                             idx_nom = next((i for i, h in enumerate(vals_c[0]) if 'nomb' in h.lower() or 'curs' in h.lower()), 0)
@@ -3957,7 +3957,7 @@ elif st.session_state.current_module == 'cursos':
                                             st.session_state.cursos_oficiales_cache = None
                                             st.session_state.dict_cursos_cache = None
                                             st.session_state.pop('curso_sel_tag', None)
-                                            st.success("âœ… Curso eliminado.")
+                                            st.success("✅ Curso eliminado.")
                                             time.sleep(1)
                                             st.rerun()
                                         except Exception as e_del:
@@ -3966,13 +3966,13 @@ elif st.session_state.current_module == 'cursos':
             with tab_nuevo:
                 st.markdown(
                     "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;margin-bottom:16px;'>"
-                    "<h3 style='margin:0 0 4px 0;color:#166534;font-size:1.1rem;'>âž• Crear Nuevo Curso</h3>"
+                    "<h3 style='margin:0 0 4px 0;color:#166534;font-size:1.1rem;'>➕ Crear Nuevo Curso</h3>"
                     "<span style='color:#15803d;font-size:0.85rem;'>Selecciona el nivel oficial, la letra y el profesor jefe correspondiente.</span>"
                     "</div>",
                     unsafe_allow_html=True
                 )
 
-                NIVELES_BASE = ["NT1", "NT2", "1Â° BÃ¡sico", "2Â° BÃ¡sico", "3Â° BÃ¡sico", "4Â° BÃ¡sico", "5Â° BÃ¡sico", "6Â° BÃ¡sico", "7Â° BÃ¡sico", "8Â° BÃ¡sico"]
+                NIVELES_BASE = ["NT1", "NT2", "1° Básico", "2° Básico", "3° Básico", "4° Básico", "5° Básico", "6° Básico", "7° Básico", "8° Básico"]
                 LETRAS_BASE = ["A", "B", "C", "D"]
 
                 with st.container(border=True):
@@ -3988,16 +3988,16 @@ elif st.session_state.current_module == 'cursos':
 
                     st.markdown(
                         f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin:10px 0;font-size:0.80rem;color:#475569;'>"
-                        f"ðŸ’¡ El curso se registrarÃ¡ como <b>{nombre_curso_oficial}</b> con letra oficial <b>{in_letra_sel}</b> para todos los mÃ³dulos, actas y certificados."
+                        f"💡 El curso se registrará como <b>{nombre_curso_oficial}</b> con letra oficial <b>{in_letra_sel}</b> para todos los módulos, actas y certificados."
                         f"</div>",
                         unsafe_allow_html=True
                     )
 
                     st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
-                    if st.button("ðŸš€ Crear Curso", type="primary", use_container_width=True, key="btn_crear_curso_sub"):
+                    if st.button("🚀 Crear Curso", type="primary", use_container_width=True, key="btn_crear_curso_sub"):
                         existentes = [str(x).strip().lower() for x in df_cursos_all[col_c_nom].tolist()] if not df_cursos_all.empty else []
                         if nombre_curso_oficial.lower() in existentes:
-                            st.warning(f"âš ï¸ El curso '{nombre_curso_oficial}' ya existe en el catÃ¡logo.")
+                            st.warning(f"⚠️ El curso '{nombre_curso_oficial}' ya existe en el catálogo.")
                         else:
                             with st.spinner("Creando nuevo curso en Google Sheets..."):
                                 try:
@@ -4009,23 +4009,23 @@ elif st.session_state.current_module == 'cursos':
                                     st.session_state.cursos_oficiales_cache = None
                                     st.session_state.dict_cursos_cache = None
                                     st.session_state.curso_sel_tag = nombre_curso_oficial
-                                    st.success(f"âœ… Â¡Curso '{nombre_curso_oficial}' creado exitosamente!")
+                                    st.success(f"✅ ¡Curso '{nombre_curso_oficial}' creado exitosamente!")
                                     time.sleep(1)
                                     st.rerun()
                                 except Exception as e_c_new:
                                     st.error(f"Error al crear curso: {e_c_new}")
 
         except Exception as e_main_cur:
-            st.error(f"Error al cargar la administraciÃ³n de cursos: {e_main_cur}")
+            st.error(f"Error al cargar la administración de cursos: {e_main_cur}")
 
 
 elif st.session_state.current_module == 'notas':
     renderizar_insignia_universal()
 
-    # Si venimos de otro mÃ³dulo, limpiar toda la grilla y forzar rerun limpio.
+    # Si venimos de otro módulo, limpiar toda la grilla y forzar rerun limpio.
     # IMPORTANTE: borrar keys en el mismo run donde se renderizan los widgets NO funciona
     # en Streamlit (los widgets ya leyeron su estado al inicio del run). Por eso hacemos
-    # st.rerun() para que el PRÃ“XIMO run renderice los widgets con estado limpio.
+    # st.rerun() para que el PRÓXIMO run renderice los widgets con estado limpio.
     _prev = st.session_state.get('_previous_module')
     if _prev != 'notas':
         for _k in [
@@ -4036,14 +4036,14 @@ elif st.session_state.current_module == 'notas':
         for _k in [k for k in list(st.session_state.keys()) if k.startswith('nota_')]:
             st.session_state.pop(_k, None)
         st.session_state['_previous_module'] = 'notas'
-        st.rerun()  # Rerun limpio: en el siguiente run _prev=='notas', widgets arrancan vacÃ­os
+        st.rerun()  # Rerun limpio: en el siguiente run _prev=='notas', widgets arrancan vacíos
 
     col_titulo, col_escape = st.columns([3.5, 1])
     with col_titulo:
-        st.title("ðŸ“ Carga de Notas")
+        st.title("📝 Carga de Notas")
     with col_escape:
         st.write("")
-        if st.button("ðŸ  Volver", key="btn_escape_sup_notas", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_notas", use_container_width=True):
             navigate('home')
             st.rerun()
     st.write("---")
@@ -4054,24 +4054,24 @@ elif st.session_state.current_module == 'notas':
         """
         Valida y normaliza notas escolares chilenas:
         - Si es_conceptual=True o se ingresa concepto (I, S, B, MB):
-          Retorna (None, concepto_mayuscula, True) -> No tiene valor numÃ©rico, no promedia.
-        - Para asignaturas cuantitativas: valida rango (1,0 a 7,0), divisiÃ³n por 10 si se ingresa dos dÃ­gitos (ej. 52 -> 5,2).
+          Retorna (None, concepto_mayuscula, True) -> No tiene valor numérico, no promedia.
+        - Para asignaturas cuantitativas: valida rango (1,0 a 7,0), división por 10 si se ingresa dos dígitos (ej. 52 -> 5,2).
         - Retorna (num_float, formatted_str, es_valido)
         """
         if raw_val is None:
             return None, "", True
         txt = str(raw_val).strip()
-        if not txt or txt in ["â€”", "-", "None", "nan", "null"]:
+        if not txt or txt in ["—", "-", "None", "nan", "null"]:
             return None, "", True
 
         if es_conceptual:
-            # En asignaturas conceptuales (ReligiÃ³n y OrientaciÃ³n) se admiten y traducen I, S, B, MB
+            # En asignaturas conceptuales (Religión y Orientación) se admiten y traducen I, S, B, MB
             conc = nota_a_concepto(txt)
             if conc in ["I", "S", "B", "MB"]:
                 return None, conc, True
             return None, txt, False
 
-        # Verificar si en una asignatura cuantitativa se ingresÃ³ un concepto
+        # Verificar si en una asignatura cuantitativa se ingresó un concepto
         txt_upper = txt.upper()
         if txt_upper in ["I", "S", "B", "MB"]:
             return None, txt_upper, True
@@ -4082,7 +4082,7 @@ elif st.session_state.current_module == 'notas':
         except ValueError:
             return None, txt, False
 
-        # Si se ingresÃ³ sin coma entre 10.0 y 70.0 (ej: 52 -> 5.2, 65 -> 6.5, 70 -> 7.0)
+        # Si se ingresó sin coma entre 10.0 y 70.0 (ej: 52 -> 5.2, 65 -> 6.5, 70 -> 7.0)
         if 10.0 <= num <= 70.0:
             num = num / 10.0
 
@@ -4095,7 +4095,7 @@ elif st.session_state.current_module == 'notas':
         else:
             return None, txt, False
 
-    # â”€â”€ CSS para la grilla de notas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── CSS para la grilla de notas ──────────────────────────────────────────
     st.markdown("""
     <style>
     .notas-header {
@@ -4120,7 +4120,7 @@ elif st.session_state.current_module == 'notas':
         font-size: 0.68rem; background: #ffdddd; color: #cc0000;
         border-radius: 4px; padding: 1px 5px; margin-left: 6px;
     }
-    /* Estilos compactos para inputs de notas: texto centrado, sin flechas y tamaÃ±o completo */
+    /* Estilos compactos para inputs de notas: texto centrado, sin flechas y tamaño completo */
     div[data-testid="stTextInput"] {
         margin-bottom: 0px !important;
     }
@@ -4151,13 +4151,13 @@ elif st.session_state.current_module == 'notas':
     </style>
     """, unsafe_allow_html=True)
 
-    # â”€â”€ Confirmar guardado previo si existe (persiste a travÃ©s del rerun) â”€â”€â”€â”€â”€
+    # ── Confirmar guardado previo si existe (persiste a través del rerun) ─────
     if '_notas_guardadas_msg' in st.session_state:
         nuevas, actualizadas = st.session_state.pop('_notas_guardadas_msg')
-        st.toast(f"âœ… Â¡Notas guardadas! {nuevas} nuevas Â· {actualizadas} actualizadas", icon="âœ…")
+        st.toast(f"✅ ¡Notas guardadas! {nuevas} nuevas · {actualizadas} actualizadas", icon="✅")
         st.balloons()
 
-    # â”€â”€ Determinar asignaciones permitidas segÃºn rol â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Determinar asignaciones permitidas según rol ────────────────────────
     rol_usuario = st.session_state.user.get('rol', '') if st.session_state.user else ''
     rut_usuario = st.session_state.user.get('rut', '') if st.session_state.user else ''
     es_admin = rol_usuario in ['Administrador Total', 'Director', 'Jefe UTP']
@@ -4167,12 +4167,12 @@ elif st.session_state.current_module == 'notas':
 
     CURSOS_DEFAULT = [
         "NT1", "NT2",
-        "1Â° bÃ¡sico", "2Â° bÃ¡sico", "3Â° bÃ¡sico", "4Â° bÃ¡sico",
-        "5Â° bÃ¡sico", "6Â° bÃ¡sico", "7Â° bÃ¡sico", "8Â° bÃ¡sico"
+        "1° básico", "2° básico", "3° básico", "4° básico",
+        "5° básico", "6° básico", "7° básico", "8° básico"
     ]
 
     if es_admin:
-        # Admin: usa cachÃ© de sesiÃ³n para no saturar la cuota de la API
+        # Admin: usa caché de sesión para no saturar la cuota de la API
         if st.session_state.get('_admin_cursos_cache'):
             cursos_permitidos = st.session_state['_admin_cursos_cache']
         else:
@@ -4210,7 +4210,7 @@ elif st.session_state.current_module == 'notas':
                 except Exception:
                     pass
         
-        # Si la API tuvo un hipo momentÃ¡neo de cuota o conexiÃ³n, usar los cursos institucionales para nunca bloquear
+        # Si la API tuvo un hipo momentáneo de cuota o conexión, usar los cursos institucionales para nunca bloquear
         if not cursos_permitidos:
             cursos_permitidos = CURSOS_DEFAULT
             st.session_state['_admin_cursos_cache'] = CURSOS_DEFAULT
@@ -4235,10 +4235,10 @@ elif st.session_state.current_module == 'notas':
                 st.warning(f"No se pudieron cargar las asignaciones: {e}")
 
     ASIGNATURAS_DEFAULT = [
-        "MatemÃ¡ticas", "Lenguaje y ComunicaciÃ³n", "Ciencias Naturales",
-        "Historia, GeografÃ­a y Ciencias Sociales", "InglÃ©s",
-        "EducaciÃ³n FÃ­sica y Salud", "Artes Visuales", "MÃºsica",
-        "TecnologÃ­a", "OrientaciÃ³n", "ReligiÃ³n CatÃ³lica", "ReligiÃ³n EvangÃ©lica"
+        "Matemáticas", "Lenguaje y Comunicación", "Ciencias Naturales",
+        "Historia, Geografía y Ciencias Sociales", "Inglés",
+        "Educación Física y Salud", "Artes Visuales", "Música",
+        "Tecnología", "Orientación", "Religión Católica", "Religión Evangélica"
     ]
     if not asigs_permitidas:
         asigs_permitidas = ASIGNATURAS_DEFAULT
@@ -4247,16 +4247,16 @@ elif st.session_state.current_module == 'notas':
     asigs_permitidas = [a for a in asigs_permitidas if str(a).strip().upper() != 'JEFATURA']
 
     if not cursos_permitidos:
-        st.warning("âš ï¸ No tienes cursos asignados. Contacta al Administrador para configurar tus asignaciones docentes.")
-        if st.button("â¬…ï¸ Volver al Dashboard", key="btn_volver_notas_sinasig"):
+        st.warning("⚠️ No tienes cursos asignados. Contacta al Administrador para configurar tus asignaciones docentes.")
+        if st.button("⬅️ Volver al Dashboard", key="btn_volver_notas_sinasig"):
             navigate('home')
             st.rerun()
         st.stop()
 
-    # â”€â”€ Selectores de filtro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Selectores de filtro ─────────────────────────────────────────────────
     col_s1, col_s2, col_s3, col_s4 = st.columns([1.8, 2.2, 1.6, 1.2])
     with col_s1:
-        curso_sel = st.selectbox("ðŸ“š Curso:", cursos_permitidos, key="notas_curso_sel")
+        curso_sel = st.selectbox("📚 Curso:", cursos_permitidos, key="notas_curso_sel")
     with col_s2:
         # Si el usuario es profesor, filtrar asignaturas por curso seleccionado (excluyendo JEFATURA)
         if not es_admin and sheet_asignaciones:
@@ -4278,22 +4278,22 @@ elif st.session_state.current_module == 'notas':
             except Exception:
                 pass
         asigs_permitidas = [a for a in asigs_permitidas if str(a).strip().upper() != 'JEFATURA']
-        asignatura_sel = st.selectbox("ðŸ“– Asignatura:", asigs_permitidas, key="notas_asig_sel")
+        asignatura_sel = st.selectbox("📖 Asignatura:", asigs_permitidas, key="notas_asig_sel")
     with col_s3:
-        st.markdown("<p style='font-size:14px;margin-bottom:6px;font-weight:400'>ðŸ—“ï¸ Semestre:</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:14px;margin-bottom:6px;font-weight:400'>🗓️ Semestre:</p>", unsafe_allow_html=True)
         semestre_sel = st.segmented_control(
             "Semestre",
-            options=["1Â° Semestre", "2Â° Semestre"],
-            default="1Â° Semestre",
+            options=["1° Semestre", "2° Semestre"],
+            default="1° Semestre",
             key="notas_sem_seg",
             label_visibility="collapsed"
         )
         if not semestre_sel:
-            semestre_sel = "1Â° Semestre"
+            semestre_sel = "1° Semestre"
     with col_s4:
         st.write("")
         st.write("")
-        cargar = st.button("ðŸ” Cargar Grilla", type="primary", key="btn_cargar_notas", use_container_width=True)
+        cargar = st.button("🔍 Cargar Grilla", type="primary", key="btn_cargar_notas", use_container_width=True)
 
     sem_num = "1" if "1" in semestre_sel else "2"
 
@@ -4306,17 +4306,17 @@ elif st.session_state.current_module == 'notas':
         for k in [k for k in st.session_state if k.startswith("nota_n")]:
             del st.session_state[k]
 
-    # â”€â”€ Grilla de notas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Grilla de notas ──────────────────────────────────────────────────────
     if st.session_state.get('notas_grilla_cargada') and sheet_alumnos and sheet_notas:
         curso_activo = st.session_state.get('notas_curso_activo', curso_sel)
         asig_activa  = st.session_state.get('notas_asig_activa',  asignatura_sel)
         sem_activo   = st.session_state.get('notas_sem_activo',   sem_num)
 
-        st.markdown(f"### ðŸ“‹ {curso_activo} Â· {asig_activa} Â· {semestre_sel}")
+        st.markdown(f"### 📋 {curso_activo} · {asig_activa} · {semestre_sel}")
         st.write("---")
 
         try:
-            # â”€â”€ Cargar alumnos del curso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Cargar alumnos del curso ──────────────────────────────────
             recs_al = sheet_alumnos.get_all_records()
             df_al   = pd.DataFrame(recs_al) if recs_al else pd.DataFrame()
 
@@ -4328,7 +4328,7 @@ elif st.session_state.current_module == 'notas':
             col_nombre_al = next((c for c in df_al.columns if 'nomb' in c.lower()), None)
             col_curso_al  = next((c for c in df_al.columns if 'curs' in c.lower()), None)
             col_rut_al    = next((c for c in df_al.columns if 'rut'  in c.lower()), None)
-            col_orden_al  = next((c for c in df_al.columns if 'orden' in c.lower() or 'lista' in c.lower() or 'nÂ°' in c.lower() or 'nro' in c.lower()), None)
+            col_orden_al  = next((c for c in df_al.columns if 'orden' in c.lower() or 'lista' in c.lower() or 'n°' in c.lower() or 'nro' in c.lower()), None)
             col_baja_al   = next((c for c in df_al.columns if 'baja' in c.lower() or 'retir' in c.lower()), None)
 
             if not col_curso_al or not col_nombre_al or not col_rut_al:
@@ -4341,7 +4341,7 @@ elif st.session_state.current_module == 'notas':
                 st.info(f"No hay alumnos registrados para el curso **{curso_activo}**.")
                 st.stop()
 
-            # Determinar NÂ° de orden
+            # Determinar N° de orden
             if col_orden_al:
                 df_curso['_orden'] = pd.to_numeric(df_curso[col_orden_al], errors='coerce').fillna(0).astype(int)
             else:
@@ -4361,7 +4361,7 @@ elif st.session_state.current_module == 'notas':
             # Retirados van al final
             df_ordenado = pd.concat([df_activos, df_retirados], ignore_index=True)
 
-            # â”€â”€ Cargar notas existentes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Cargar notas existentes ───────────────────────────────────
             recs_notas = sheet_notas.get_all_records()
             df_notas   = pd.DataFrame(recs_notas) if recs_notas else pd.DataFrame()
 
@@ -4413,7 +4413,7 @@ elif st.session_state.current_module == 'notas':
                         _, str_val, _ = procesar_nota_chilena(val_exist, es_conceptual=es_asig_conceptual)
                         st.session_state[sk] = str_val
                     else:
-                        # Si ya existÃ­a un valor en session_state (por ejemplo un float viejo como 52.0 o texto sin coma como '52')
+                        # Si ya existía un valor en session_state (por ejemplo un float viejo como 52.0 o texto sin coma como '52')
                         curr_v = st.session_state[sk]
                         if curr_v is not None and str(curr_v).strip() != "":
                             _, str_val, ok = procesar_nota_chilena(curr_v, es_conceptual=es_asig_conceptual)
@@ -4421,14 +4421,14 @@ elif st.session_state.current_module == 'notas':
                                 st.session_state[sk] = str_val
 
             if es_asig_conceptual:
-                st.info("â„¹ï¸ **Asignatura Conceptual:** Ingresa los conceptos **I** (Insuficiente), **S** (Suficiente), **B** (Bueno) o **MB** (Muy Bueno). Estas calificaciones **no se promedian numÃ©ricamente ni afectan el promedio general**.")
+                st.info("ℹ️ **Asignatura Conceptual:** Ingresa los conceptos **I** (Insuficiente), **S** (Suficiente), **B** (Bueno) o **MB** (Muy Bueno). Estas calificaciones **no se promedian numéricamente ni afectan el promedio general**.")
             else:
-                st.caption("ðŸ’¡ **Criterio de ingreso:** Notas de **1,0 a 7,0** con separaciÃ³n por coma (ej. `5,2`). Si escribes dos dÃ­gitos sin coma (ej. `52`), se convertirÃ¡ automÃ¡ticamente a `5,2`.")
+                st.caption("💡 **Criterio de ingreso:** Notas de **1,0 a 7,0** con separación por coma (ej. `5,2`). Si escribes dos dígitos sin coma (ej. `52`), se convertirá automáticamente a `5,2`.")
 
-            # â”€â”€ Renderizar encabezado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Renderizar encabezado ─────────────────────────────────────
             COLS_N = [f"N{i}" for i in range(1, 11)]
             header_cols = st.columns([0.5, 2.8] + [0.6]*10 + [0.75])
-            header_cols[0].markdown("**NÂ°**")
+            header_cols[0].markdown("**N°**")
             header_cols[1].markdown("**Alumno**")
             for idx, cn in enumerate(COLS_N):
                 header_cols[idx + 2].markdown(f"<div style='text-align:center;font-weight:700'>{cn}</div>", unsafe_allow_html=True)
@@ -4437,7 +4437,7 @@ elif st.session_state.current_module == 'notas':
 
             st.markdown("<hr style='margin:4px 0 8px 0;border-color:#008F39'>", unsafe_allow_html=True)
 
-            # â”€â”€ Renderizar filas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Renderizar filas ──────────────────────────────────────────
             hay_algun_error_global = False
             for _, row_al in df_ordenado.iterrows():
                 rut_k    = str(row_al[col_rut_al]).strip()
@@ -4447,7 +4447,7 @@ elif st.session_state.current_module == 'notas':
 
                 fila_cols = st.columns([0.5, 2.8] + [0.6]*10 + [0.75])
 
-                # NÂ° de orden
+                # N° de orden
                 if retirado:
                     fila_cols[0].markdown(f"<span style='color:#cc0000'>~~{orden_k}~~</span>", unsafe_allow_html=True)
                     fila_cols[1].markdown(
@@ -4456,8 +4456,8 @@ elif st.session_state.current_module == 'notas':
                         unsafe_allow_html=True
                     )
                     for i in range(10):
-                        fila_cols[i + 2].markdown("<span style='color:#ccc'>â€”</span>", unsafe_allow_html=True)
-                    fila_cols[-1].markdown("<span style='color:#ccc'>â€”</span>", unsafe_allow_html=True)
+                        fila_cols[i + 2].markdown("<span style='color:#ccc'>—</span>", unsafe_allow_html=True)
+                    fila_cols[-1].markdown("<span style='color:#ccc'>—</span>", unsafe_allow_html=True)
                 else:
                     fila_cols[0].markdown(f"**{orden_k}**")
                     fila_cols[1].markdown(nombre_k)
@@ -4471,7 +4471,7 @@ elif st.session_state.current_module == 'notas':
                             label=col_nota,
                             value=st.session_state.get(sk, ""),
                             key=sk,
-                            placeholder="â€”",
+                            placeholder="—",
                             max_chars=4,
                             label_visibility="collapsed"
                         )
@@ -4486,15 +4486,15 @@ elif st.session_state.current_module == 'notas':
                                 tiene_error_fila = True
                                 hay_algun_error_global = True
 
-                    # Promedio automÃ¡tico o concepto final
+                    # Promedio automático o concepto final
                     if tiene_error_fila:
                         err_hint = "Solo conceptos I, S, B, MB permitidos" if es_asig_conceptual else "Nota fuera de rango (1,0 a 7,0)"
                         fila_cols[-1].markdown(
-                            f"<div style='text-align:center;font-weight:700;color:#cc0000;font-size:0.8rem' title='{err_hint}'>âš ï¸ Error</div>",
+                            f"<div style='text-align:center;font-weight:700;color:#cc0000;font-size:0.8rem' title='{err_hint}'>⚠️ Error</div>",
                             unsafe_allow_html=True
                         )
                     elif es_asig_conceptual:
-                        ultimo_conc = conceptos_fila[-1] if conceptos_fila else "â€”"
+                        ultimo_conc = conceptos_fila[-1] if conceptos_fila else "—"
                         fila_cols[-1].markdown(
                             f"<div style='text-align:center;font-weight:700;color:#166534;font-size:0.9rem'>{ultimo_conc}</div>",
                             unsafe_allow_html=True
@@ -4510,15 +4510,15 @@ elif st.session_state.current_module == 'notas':
                             unsafe_allow_html=True
                         )
                     else:
-                        fila_cols[-1].markdown("<div style='text-align:center;color:#aaa'>â€”</div>", unsafe_allow_html=True)
+                        fila_cols[-1].markdown("<div style='text-align:center;color:#aaa'>—</div>", unsafe_allow_html=True)
 
             if hay_algun_error_global:
                 if es_asig_conceptual:
-                    st.warning("âš ï¸ Se detectaron valores no vÃ¡lidos. En esta asignatura solo se admiten conceptos: **I**, **S**, **B** o **MB**.")
+                    st.warning("⚠️ Se detectaron valores no válidos. En esta asignatura solo se admiten conceptos: **I**, **S**, **B** o **MB**.")
                 else:
-                    st.warning("âš ï¸ Se detectaron notas fuera del rango permitido (1,0 a 7,0) o con formato no reconocido. CorrÃ­gelas para poder guardar.")
+                    st.warning("⚠️ Se detectaron notas fuera del rango permitido (1,0 a 7,0) o con formato no reconocido. Corrígelas para poder guardar.")
 
-            # InyecciÃ³n de script JS en tiempo real para pintar de rojo las notas < 4,0 e 'I'
+            # Inyección de script JS en tiempo real para pintar de rojo las notas < 4,0 e 'I'
             import streamlit.components.v1 as _components
             _components.html("""
             <script>
@@ -4558,11 +4558,11 @@ elif st.session_state.current_module == 'notas':
             st.write("")
             st.markdown("<hr style='margin:4px 0 12px 0'>", unsafe_allow_html=True)
 
-            # â”€â”€ BotÃ³n Guardar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Botón Guardar ─────────────────────────────────────────────
             col_g1, col_g2, col_g3 = st.columns([2, 1.5, 2])
             with col_g2:
                 guardar_notas = st.button(
-                    f"ðŸ’¾ Guardar {semestre_sel}",
+                    f"💾 Guardar {semestre_sel}",
                     type="primary",
                     key="btn_guardar_notas",
                     use_container_width=True
@@ -4583,8 +4583,8 @@ elif st.session_state.current_module == 'notas':
                                 notas_invalidas.append(f"{nom_k} (N{i}: '{v}')")
 
                 if notas_invalidas:
-                    msg_err = "conceptos no vÃ¡lidos (solo I, S, B, MB)" if es_asig_conceptual else "notas fuera de rango (1,0 a 7,0)"
-                    st.error(f"âŒ No se puede guardar: Hay {msg_err}: {', '.join(notas_invalidas[:4])}")
+                    msg_err = "conceptos no válidos (solo I, S, B, MB)" if es_asig_conceptual else "notas fuera de rango (1,0 a 7,0)"
+                    st.error(f"❌ No se puede guardar: Hay {msg_err}: {', '.join(notas_invalidas[:4])}")
                 else:
                     _save_ok    = False
                     _save_error = None
@@ -4689,14 +4689,14 @@ elif st.session_state.current_module == 'notas':
                             del st.session_state[k]
                         st.rerun()
                     else:
-                        st.error(f"âŒ Error al guardar las notas: {_save_error}")
+                        st.error(f"❌ Error al guardar las notas: {_save_error}")
         except Exception as e:
             st.error(f"Error al cargar la grilla de notas: {e}")
     else:
-        st.info("ðŸ‘† Selecciona curso, asignatura y semestre, luego presiona **Cargar Grilla** para comenzar.")
+        st.info("👆 Selecciona curso, asignatura y semestre, luego presiona **Cargar Grilla** para comenzar.")
 
     st.write("")
-    if st.button("â¬…ï¸ Volver al Dashboard Principal", key="btn_volver_notas"):
+    if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_notas"):
         for k in [k for k in st.session_state if k.startswith("nota_")]:
             del st.session_state[k]
         navigate('home')
@@ -4707,10 +4707,10 @@ elif st.session_state.current_module == 'funcionarios':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ‘” GestiÃ³n y EdiciÃ³n de Funcionarios</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>👔 Gestión y Edición de Funcionarios</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_func", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_func", use_container_width=True):
             st.session_state.pop('func_edit_tag', None)
             navigate('home')
             st.rerun()
@@ -4720,7 +4720,7 @@ elif st.session_state.current_module == 'funcionarios':
     _, _, _, sheet_funcionarios, _ = get_sheets()
 
     if not sheet_funcionarios:
-        st.error("âŒ Error de conexiÃ³n con la base de datos de Google Sheets.")
+        st.error("❌ Error de conexión con la base de datos de Google Sheets.")
     else:
         try:
             recs_func = sheet_funcionarios.get_all_records()
@@ -4737,29 +4737,29 @@ elif st.session_state.current_module == 'funcionarios':
             else:
                 col_r, col_n, col_rol, col_pin, col_est = 'RUT', 'Nombre', 'Rol', 'PIN', 'Estado'
 
-            # Resumen mÃ©trico superior
+            # Resumen métrico superior
             cant_total_f = len(df_func_all)
             cant_activos_f = len(df_func_all[df_func_all[col_est].astype(str).str.lower() != 'inactivo']) if not df_func_all.empty and col_est in df_func_all.columns else cant_total_f
             cant_prof_f = len(df_func_all[df_func_all[col_rol].astype(str).str.lower().str.contains('prof')]) if not df_func_all.empty and col_rol in df_func_all.columns else 0
 
             st.markdown(
                 f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 14px;margin-bottom:14px;font-size:0.83rem;color:#334155;'>"
-                f"ðŸ‘¥ <b>Total Registrados:</b> {cant_total_f} &nbsp;|&nbsp; "
+                f"👥 <b>Total Registrados:</b> {cant_total_f} &nbsp;|&nbsp; "
                 f"<span style='color:#166534;font-weight:600;'>{cant_activos_f} Activos</span> &nbsp;|&nbsp; "
                 f"<span style='color:#1e40af;font-weight:600;'>{cant_prof_f} Docentes</span></div>",
                 unsafe_allow_html=True
             )
 
             tab_gestion_f, tab_carga_f = st.tabs([
-                "ðŸ“‹ NÃ³mina de Funcionarios y Claves",
-                "ðŸ“¤ Carga Masiva (Excel / CSV)"
+                "📋 Nómina de Funcionarios y Claves",
+                "📤 Carga Masiva (Excel / CSV)"
             ])
 
             with tab_gestion_f:
-                # Barra de filtros superior (bÃºsqueda y rol para escalar a 50+ funcionarios)
+                # Barra de filtros superior (búsqueda y rol para escalar a 50+ funcionarios)
                 col_busq_f, col_rol_filtro = st.columns([3, 2])
                 with col_busq_f:
-                    txt_buscar_f = st.text_input("ðŸ” Buscar por Nombre o RUT:", placeholder="Ej: Mendoza o 12345678", key="txt_buscar_func_in").strip()
+                    txt_buscar_f = st.text_input("🔍 Buscar por Nombre o RUT:", placeholder="Ej: Mendoza o 12345678", key="txt_buscar_func_in").strip()
                 with col_rol_filtro:
                     filtro_rol_sel = st.selectbox(
                         "Filtrar por Rol:",
@@ -4787,26 +4787,26 @@ elif st.session_state.current_module == 'funcionarios':
                         )
                         df_filtrado_f = df_filtrado_f[mask_f]
 
-                # Resumen mÃ©trico
+                # Resumen métrico
                 st.markdown(
                     f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;margin:4px 0 12px 0;font-size:0.82rem;color:#334155;'>"
-                    f"ðŸ‘¥ Mostrando <b>{len(df_filtrado_f)}</b> de <b>{cant_total_f}</b> funcionarios &nbsp;|&nbsp; "
+                    f"👥 Mostrando <b>{len(df_filtrado_f)}</b> de <b>{cant_total_f}</b> funcionarios &nbsp;|&nbsp; "
                     f"<i>Haz clic en una fila de la tabla para ver y editar su ficha / clave</i></div>",
                     unsafe_allow_html=True
                 )
 
                 modo_func = st.session_state.get('modo_func_actual', 'VER_EDITAR')
 
-                # Barra de acciÃ³n superior clara
+                # Barra de acción superior clara
                 col_b_f1, col_b_f2, col_sp_f = st.columns([2.2, 2.2, 2.6])
                 with col_b_f1:
                     t_btn_lf = "primary" if modo_func == 'VER_EDITAR' else "secondary"
-                    if st.button("ðŸ“‹ NÃ³mina y EdiciÃ³n de Personal", type=t_btn_lf, use_container_width=True, key="btn_modo_ver_f"):
+                    if st.button("📋 Nómina y Edición de Personal", type=t_btn_lf, use_container_width=True, key="btn_modo_ver_f"):
                         st.session_state.modo_func_actual = 'VER_EDITAR'
                         st.rerun()
                 with col_b_f2:
                     t_btn_nf = "primary" if modo_func == 'CREAR_NUEVO' else "secondary"
-                    if st.button("âž• Inscribir Nuevo Funcionario", type=t_btn_nf, use_container_width=True, key="btn_modo_crear_f"):
+                    if st.button("➕ Inscribir Nuevo Funcionario", type=t_btn_nf, use_container_width=True, key="btn_modo_crear_f"):
                         st.session_state.modo_func_actual = 'CREAR_NUEVO'
                         st.session_state.func_sel_rut = None
                         st.rerun()
@@ -4817,7 +4817,7 @@ elif st.session_state.current_module == 'funcionarios':
                     # ==================== VISTA: INSCRIBIR NUEVO FUNCIONARIO ====================
                     st.markdown(
                         "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;margin-bottom:16px;'>"
-                        "<h3 style='margin:0 0 4px 0;color:#166534;font-size:1.1rem;'>âž• Formulario de Nuevo Funcionario</h3>"
+                        "<h3 style='margin:0 0 4px 0;color:#166534;font-size:1.1rem;'>➕ Formulario de Nuevo Funcionario</h3>"
                         "<span style='color:#15803d;font-size:0.85rem;'>Ingresa los datos para otorgar acceso al sistema institucional.</span>"
                         "</div>",
                         unsafe_allow_html=True
@@ -4826,7 +4826,7 @@ elif st.session_state.current_module == 'funcionarios':
                     with st.container(border=True):
                         c_fn1, c_fn2 = st.columns([1.5, 2.5])
                         with c_fn1:
-                            in_n_rut_f = st.text_input("RUT (Sin puntos, con guiÃ³n):", placeholder="Ej: 12345678-9", key="in_new_rut_func").strip()
+                            in_n_rut_f = st.text_input("RUT (Sin puntos, con guión):", placeholder="Ej: 12345678-9", key="in_new_rut_func").strip()
                         with c_fn2:
                             in_n_nom_f = st.text_input("Nombre Completo:", placeholder="Ej: Carlos Silva Castro", key="in_new_nom_func").strip()
 
@@ -4834,18 +4834,18 @@ elif st.session_state.current_module == 'funcionarios':
                         with c_fn3:
                             in_n_rol_f = st.selectbox("Rol Institucional:", ROLES_TODOS, key="in_new_rol_func")
                         with c_fn4:
-                            in_n_pin_f = st.text_input("Clave PIN (4 dÃ­gitos):", value="1234", max_chars=4, key="in_new_pin_func").strip()
+                            in_n_pin_f = st.text_input("Clave PIN (4 dígitos):", value="1234", max_chars=4, key="in_new_pin_func").strip()
                         with c_fn5:
                             in_n_est_f = st.selectbox("Estado de Acceso:", ["Activo", "Inactivo"], index=0, key="in_new_est_func")
 
                         st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
                         col_save_fn, col_cancel_fn = st.columns([2, 1])
                         with col_save_fn:
-                            if st.button("ðŸš€ Guardar e Inscribir Funcionario", type="primary", use_container_width=True, key="btn_save_new_func"):
+                            if st.button("🚀 Guardar e Inscribir Funcionario", type="primary", use_container_width=True, key="btn_save_new_func"):
                                 if not in_n_rut_f or not in_n_nom_f:
-                                    st.error("âš ï¸ El RUT y el Nombre Completo son obligatorios.")
+                                    st.error("⚠️ El RUT y el Nombre Completo son obligatorios.")
                                 elif len(in_n_pin_f) != 4 or not in_n_pin_f.isdigit():
-                                    st.error("âš ï¸ La clave PIN debe tener 4 dÃ­gitos numÃ©ricos.")
+                                    st.error("⚠️ La clave PIN debe tener 4 dígitos numéricos.")
                                 else:
                                     with st.spinner("Guardando en Google Sheets..."):
                                         try:
@@ -4856,7 +4856,7 @@ elif st.session_state.current_module == 'funcionarios':
 
                                             df_ff['RUT_NORM'] = df_ff['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
                                             if not df_ff[df_ff['RUT_NORM'] == rut_clean_fn.lower()].empty:
-                                                st.error(f"âš ï¸ Ya existe un funcionario registrado con el RUT {rut_clean_fn}.")
+                                                st.error(f"⚠️ Ya existe un funcionario registrado con el RUT {rut_clean_fn}.")
                                             else:
                                                 nueva_fila_fn = {
                                                     "RUT": rut_clean_fn,
@@ -4874,7 +4874,7 @@ elif st.session_state.current_module == 'funcionarios':
                                                 df_ff = df_ff[cols_s_fn].fillna("")
                                                 sheet_funcionarios.clear()
                                                 sheet_funcionarios.update(values=[df_ff.columns.tolist()] + df_ff.values.tolist())
-                                                st.success(f"âœ… Â¡Funcionario **{in_n_nom_f}** registrado exitosamente!")
+                                                st.success(f"✅ ¡Funcionario **{in_n_nom_f}** registrado exitosamente!")
                                                 st.session_state.func_sel_rut = rut_clean_fn
                                                 st.session_state.modo_func_actual = 'VER_EDITAR'
                                                 st.rerun()
@@ -4886,14 +4886,14 @@ elif st.session_state.current_module == 'funcionarios':
                                 st.rerun()
 
                 else:
-                    # ==================== VISTA: LISTADO Y EDICIÃ“N DIRECTA ====================
+                    # ==================== VISTA: LISTADO Y EDICIÓN DIRECTA ====================
                     col_tabla_f, col_ficha_f = st.columns([3.2, 2.8], gap="large")
 
                     with col_tabla_f:
                         st.markdown(
                             "<div style='font-weight:700;font-size:0.88rem;color:#1e293b;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;'>"
-                            "<span>ðŸ“‹ NÃ³mina de Personal</span>"
-                            "<span style='font-size:0.75rem;font-weight:400;color:#64748b;'>Selecciona una fila para cargar su ficha ðŸ‘‰</span>"
+                            "<span>📋 Nómina de Personal</span>"
+                            "<span style='font-size:0.75rem;font-weight:400;color:#64748b;'>Selecciona una fila para cargar su ficha 👉</span>"
                             "</div>",
                             unsafe_allow_html=True
                         )
@@ -4925,7 +4925,7 @@ elif st.session_state.current_module == 'funcionarios':
                                         st.session_state.pop(wk, None)
                                     st.rerun()
                         else:
-                            st.info("ðŸ’¡ No se encontraron funcionarios con los filtros actuales.")
+                            st.info("💡 No se encontraron funcionarios con los filtros actuales.")
 
                     with col_ficha_f:
                         rut_actual_f = st.session_state.get('func_sel_rut')
@@ -4933,9 +4933,9 @@ elif st.session_state.current_module == 'funcionarios':
                         if not rut_actual_f:
                             st.markdown(
                                 "<div style='border:2px dashed #cbd5e1;border-radius:8px;padding:36px 20px;text-align:center;background:#f8fafc;color:#64748b;margin-top:10px;'>"
-                                "<div style='font-size:2rem;margin-bottom:8px;'>ðŸ‘ˆ</div>"
-                                "<div style='font-weight:600;font-size:0.95rem;color:#334155;'>NingÃºn Funcionario Seleccionado</div>"
-                                "<div style='font-size:0.8rem;margin-top:4px;'>Haz clic en cualquier fila de la lista a la izquierda para cargar y editar aquÃ­ los datos y clave del funcionario.</div>"
+                                "<div style='font-size:2rem;margin-bottom:8px;'>👈</div>"
+                                "<div style='font-weight:600;font-size:0.95rem;color:#334155;'>Ningún Funcionario Seleccionado</div>"
+                                "<div style='font-size:0.8rem;margin-top:4px;'>Haz clic en cualquier fila de la lista a la izquierda para cargar y editar aquí los datos y clave del funcionario.</div>"
                                 "</div>",
                                 unsafe_allow_html=True
                             )
@@ -4953,7 +4953,7 @@ elif st.session_state.current_module == 'funcionarios':
 
                                 st.markdown(
                                     f"<div style='background:#f1f5f9;border-left:4px solid #166534;border-radius:4px;padding:8px 12px;margin-bottom:10px;'>"
-                                    f"<div style='font-weight:700;font-size:0.95rem;color:#0f172a;'>âœï¸ {val_nom_f}</div>"
+                                    f"<div style='font-weight:700;font-size:0.95rem;color:#0f172a;'>✏️ {val_nom_f}</div>"
                                     f"<div style='font-size:0.78rem;color:#475569;'>RUT: <b>{val_rut_f}</b> &nbsp;|&nbsp; Rol: <b>{val_rol_f}</b></div>"
                                     f"</div>",
                                     unsafe_allow_html=True
@@ -4962,7 +4962,7 @@ elif st.session_state.current_module == 'funcionarios':
                                 with st.container(border=True):
                                     c1_f, c2_f = st.columns([1.5, 2.5])
                                     with c1_f:
-                                        # RUT BLOQUEADO EN EDICIÃ“N
+                                        # RUT BLOQUEADO EN EDICIÓN
                                         st.text_input("RUT (Protegido / No editable):", value=val_rut_f, disabled=True, key="ed_rut_bloqueado_func")
                                     with c2_f:
                                         in_nom_f = st.text_input("Nombre Completo:", value=val_nom_f, key="ed_nom_func").strip()
@@ -4980,11 +4980,11 @@ elif st.session_state.current_module == 'funcionarios':
 
                                     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
-                                    if st.button("ðŸ’¾ Guardar Cambios del Funcionario", type="primary", use_container_width=True, key="btn_save_ed_func"):
+                                    if st.button("💾 Guardar Cambios del Funcionario", type="primary", use_container_width=True, key="btn_save_ed_func"):
                                         if not in_nom_f:
-                                            st.error("âš ï¸ El Nombre Completo es obligatorio.")
+                                            st.error("⚠️ El Nombre Completo es obligatorio.")
                                         elif len(in_pin_f) != 4 or not in_pin_f.isdigit():
-                                            st.error("âš ï¸ La clave PIN debe tener exactamente 4 dÃ­gitos numÃ©ricos.")
+                                            st.error("⚠️ La clave PIN debe tener exactamente 4 dígitos numéricos.")
                                         else:
                                             with st.spinner("Guardando en Google Sheets..."):
                                                 try:
@@ -5011,18 +5011,18 @@ elif st.session_state.current_module == 'funcionarios':
                                                         df_fresh_f = df_fresh_f[cols_save_f].fillna("")
                                                         sheet_funcionarios.clear()
                                                         sheet_funcionarios.update(values=[df_fresh_f.columns.tolist()] + df_fresh_f.values.tolist())
-                                                        st.success(f"âœ… Â¡Funcionario **{in_nom_f}** actualizado con Ã©xito!")
+                                                        st.success(f"✅ ¡Funcionario **{in_nom_f}** actualizado con éxito!")
                                                         st.rerun()
                                                 except Exception as e:
                                                     st.error(f"Error al actualizar: {e}")
 
                                     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-                                    with st.expander("ðŸ—‘ï¸ Zona de Peligro: Eliminar este Funcionario"):
+                                    with st.expander("🗑️ Zona de Peligro: Eliminar este Funcionario"):
                                         if val_rut_f.lower() == 'admin':
-                                            st.info("ðŸ”’ La cuenta 'admin' principal del sistema no puede ser eliminada.")
+                                            st.info("🔒 La cuenta 'admin' principal del sistema no puede ser eliminada.")
                                         else:
-                                            st.warning(f"Â¿EstÃ¡s seguro de eliminar a **{val_nom_f}** ({val_rut_f})?")
-                                            if st.button("Confirmar EliminaciÃ³n Permanente", type="primary", key="btn_del_func_ficha_act"):
+                                            st.warning(f"¿Estás seguro de eliminar a **{val_nom_f}** ({val_rut_f})?")
+                                            if st.button("Confirmar Eliminación Permanente", type="primary", key="btn_del_func_ficha_act"):
                                                 with st.spinner("Eliminando..."):
                                                     try:
                                                         recs_fresh_f = sheet_funcionarios.get_all_records()
@@ -5041,8 +5041,8 @@ elif st.session_state.current_module == 'funcionarios':
                                                         st.error(f"Error al eliminar: {e}")
 
             with tab_carga_f:
-                st.markdown("### ðŸ“¤ Carga Masiva y SincronizaciÃ³n de Funcionarios")
-                st.write("Sube una nÃ³mina de personal en formato **Excel (.xlsx / .xls)** o **CSV**.")
+                st.markdown("### 📤 Carga Masiva y Sincronización de Funcionarios")
+                st.write("Sube una nómina de personal en formato **Excel (.xlsx / .xls)** o **CSV**.")
 
                 col_ej_f1, col_ej_f2 = st.columns([2, 1])
                 with col_ej_f1:
@@ -5057,7 +5057,7 @@ elif st.session_state.current_module == 'funcionarios':
                 with col_ej_f2:
                     csv_plantilla_f = df_ej_func.to_csv(index=False, sep=';').encode('utf-8-sig')
                     st.download_button(
-                        label="ðŸ“¥ Descargar Plantilla (.csv)",
+                        label="📥 Descargar Plantilla (.csv)",
                         data=csv_plantilla_f,
                         file_name="plantilla_funcionarios.csv",
                         mime="text/csv",
@@ -5114,18 +5114,18 @@ elif st.session_state.current_module == 'funcionarios':
 
                         cols_check = [str(c).strip().upper() for c in df_up_f.columns]
                         if "RUT" not in cols_check or "NOMBRE" not in cols_check:
-                            st.error("âš ï¸ El archivo debe contener al menos las columnas 'RUT' y 'Nombre'.")
+                            st.error("⚠️ El archivo debe contener al menos las columnas 'RUT' y 'Nombre'.")
                         else:
                             modo_carga_f = st.radio(
                                 "Modo de procesamiento:",
                                 [
-                                    "ðŸ”„ Combinar y actualizar (Conserva funcionarios existentes y agrega/actualiza por RUT)",
-                                    "âš ï¸ Reemplazar lista completa (Borra los funcionarios actuales excepto el admin por defecto)"
+                                    "🔄 Combinar y actualizar (Conserva funcionarios existentes y agrega/actualiza por RUT)",
+                                    "⚠️ Reemplazar lista completa (Borra los funcionarios actuales excepto el admin por defecto)"
                                 ],
                                 key="radio_modo_carga_func_sep"
                             )
 
-                            if st.button("ðŸš€ Procesar Carga de Funcionarios Ahora", type="primary", key="btn_sincronizar_func_sep"):
+                            if st.button("🚀 Procesar Carga de Funcionarios Ahora", type="primary", key="btn_sincronizar_func_sep"):
                                 with st.spinner("Sincronizando funcionarios con Google Sheets..."):
                                     df_nuevo_f = df_up_f[['RUT', 'Nombre', 'Rol', 'PIN', 'Estado']].copy()
                                     if "REEMPLAZAR" in modo_carga_f.upper():
@@ -5155,37 +5155,37 @@ elif st.session_state.current_module == 'funcionarios':
                                     df_final_f = df_final_f.fillna("")
                                     sheet_funcionarios.clear()
                                     sheet_funcionarios.update(values=[df_final_f.columns.values.tolist()] + df_final_f.values.tolist())
-                                    st.success("âœ… Â¡NÃ³mina de funcionarios actualizada exitosamente!")
+                                    st.success("✅ ¡Nómina de funcionarios actualizada exitosamente!")
                                     st.rerun()
                     except Exception as e:
                         st.error(f"Error al procesar archivo de funcionarios: {e}")
 
         except Exception as e:
-            st.error(f"Error al cargar mÃ³dulo de funcionarios: {e}")
+            st.error(f"Error al cargar módulo de funcionarios: {e}")
 
 elif st.session_state.current_module == 'asignaciones':
     renderizar_insignia_universal()
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ“š AsignaciÃ³n Docente por Curso</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>📚 Asignación Docente por Curso</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_asig", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_asig", use_container_width=True):
             navigate('home')
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
     if st.session_state.get('asig_guardada_ok', False):
-        msg_ok = st.session_state.get('asig_guardada_msg', "âœ… Â¡Asignaciones actualizadas exitosamente!")
+        msg_ok = st.session_state.get('asig_guardada_msg', "✅ ¡Asignaciones actualizadas exitosamente!")
         st.success(msg_ok)
         st.session_state['asig_guardada_ok'] = False
 
     sheet_alumnos, _, _, sheet_funcionarios, sheet_asignaciones = get_sheets()
 
     # 1. Obtener lista de Cursos disponibles
-    cursos_list = ["1Â° BÃ¡sico", "2Â° BÃ¡sico", "3Â° BÃ¡sico", "4Â° BÃ¡sico", "5Â° BÃ¡sico", "6Â° BÃ¡sico", "7Â° BÃ¡sico", "8Â° BÃ¡sico", "1Â° Medio", "2Â° Medio", "3Â° Medio", "4Â° Medio"]
+    cursos_list = ["1° Básico", "2° Básico", "3° Básico", "4° Básico", "5° Básico", "6° Básico", "7° Básico", "8° Básico", "1° Medio", "2° Medio", "3° Medio", "4° Medio"]
     try:
         sheet_c_asig = get_cursos_sheet()
         if sheet_c_asig:
@@ -5204,7 +5204,7 @@ elif st.session_state.current_module == 'asignaciones':
     except Exception:
         pass
 
-    if sheet_alumnos and (not cursos_list or len(cursos_list) <= 12 and cursos_list[0] == "1Â° BÃ¡sico"):
+    if sheet_alumnos and (not cursos_list or len(cursos_list) <= 12 and cursos_list[0] == "1° Básico"):
         try:
             ra = sheet_alumnos.get_all_records()
             df_a = pd.DataFrame(ra)
@@ -5218,7 +5218,7 @@ elif st.session_state.current_module == 'asignaciones':
 
     # 2. Obtener lista de Profesores (exclusivamente con Rol = 'Profesor')
     profesores_dict = {}  # "Nombre": {"rut": ..., "nombre": ...}
-    profesores_opciones = ["â€” Sin Asignar â€”"]
+    profesores_opciones = ["— Sin Asignar —"]
 
     if sheet_funcionarios:
         try:
@@ -5241,18 +5241,18 @@ elif st.session_state.current_module == 'asignaciones':
 
     # 3. Asignaturas oficiales
     asignaturas_list = [
-        "MatemÃ¡ticas",
-        "Lenguaje y ComunicaciÃ³n",
+        "Matemáticas",
+        "Lenguaje y Comunicación",
         "Ciencias Naturales",
-        "Historia, GeografÃ­a y Ciencias Sociales",
-        "InglÃ©s",
-        "EducaciÃ³n FÃ­sica y Salud",
+        "Historia, Geografía y Ciencias Sociales",
+        "Inglés",
+        "Educación Física y Salud",
         "Artes Visuales",
-        "MÃºsica",
-        "TecnologÃ­a",
-        "OrientaciÃ³n",
-        "ReligiÃ³n CatÃ³lica",
-        "ReligiÃ³n EvangÃ©lica"
+        "Música",
+        "Tecnología",
+        "Orientación",
+        "Religión Católica",
+        "Religión Evangélica"
     ]
 
     # 4. Selector de Curso Compacto
@@ -5262,8 +5262,8 @@ elif st.session_state.current_module == 'asignaciones':
     with col_info_curso:
         st.markdown(
             f"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:6px 12px;margin-top:16px;color:#166534;font-size:0.80rem;'>"
-            f"ðŸ’¡ Asigna el <b>Profesor 1</b> y/o <b>Profesor 2</b> para cada asignatura de <b>{curso_seleccionado}</b>. "
-            f"<i>(El Profesor(a) Jefe de este curso se gestiona desde el mÃ³dulo <b>ðŸ« Cursos</b>)</i>.</div>",
+            f"💡 Asigna el <b>Profesor 1</b> y/o <b>Profesor 2</b> para cada asignatura de <b>{curso_seleccionado}</b>. "
+            f"<i>(El Profesor(a) Jefe de este curso se gestiona desde el módulo <b>🏫 Cursos</b>)</i>.</div>",
             unsafe_allow_html=True
         )
 
@@ -5301,11 +5301,11 @@ elif st.session_state.current_module == 'asignaciones':
         # Encabezado de la tabla de asignaturas
         ch_asig, ch_p1, ch_p2 = st.columns([2.2, 2.5, 2.5])
         with ch_asig:
-            st.markdown("<div style='font-weight:700;font-size:0.84rem;color:#1a5c32;padding:4px 0;'>ðŸ“– Asignatura</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-weight:700;font-size:0.84rem;color:#1a5c32;padding:4px 0;'>📖 Asignatura</div>", unsafe_allow_html=True)
         with ch_p1:
-            st.markdown("<div style='font-weight:700;font-size:0.84rem;color:#1a5c32;padding:4px 0;'>ðŸ‘¨â€ðŸ« Profesor 1</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-weight:700;font-size:0.84rem;color:#1a5c32;padding:4px 0;'>👨‍🏫 Profesor 1</div>", unsafe_allow_html=True)
         with ch_p2:
-            st.markdown("<div style='font-weight:700;font-size:0.84rem;color:#1a5c32;padding:4px 0;'>ðŸ‘¨â€ðŸ« Profesor 2</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-weight:700;font-size:0.84rem;color:#1a5c32;padding:4px 0;'>👨‍🏫 Profesor 2</div>", unsafe_allow_html=True)
 
         st.markdown("<hr style='margin:2px 0 8px 0;border-color:#e2e8f0;'>", unsafe_allow_html=True)
 
@@ -5315,7 +5315,7 @@ elif st.session_state.current_module == 'asignaciones':
             asignados_previos = asignaciones_existentes.get(asig, [])
             
             # Determinar valor previo para Profesor 1
-            default_p1 = "â€” Sin Asignar â€”"
+            default_p1 = "— Sin Asignar —"
             if len(asignados_previos) >= 1:
                 p1_prev = asignados_previos[0]
                 for op in profesores_opciones:
@@ -5324,7 +5324,7 @@ elif st.session_state.current_module == 'asignaciones':
                         break
 
             # Determinar valor previo para Profesor 2
-            default_p2 = "â€” Sin Asignar â€”"
+            default_p2 = "— Sin Asignar —"
             if len(asignados_previos) >= 2:
                 p2_prev = asignados_previos[1]
                 for op in profesores_opciones:
@@ -5360,14 +5360,14 @@ elif st.session_state.current_module == 'asignaciones':
         col_btn_save, col_esp = st.columns([2.2, 4.8])
         with col_btn_save:
             btn_guardar_matriz = st.form_submit_button(
-                f"ðŸ’¾ Guardar Asignaciones de {curso_seleccionado}",
+                f"💾 Guardar Asignaciones de {curso_seleccionado}",
                 type="primary",
                 use_container_width=True
             )
 
         if btn_guardar_matriz:
             if not sheet_asignaciones:
-                st.error("âŒ No hay conexiÃ³n con la hoja Asignaciones.")
+                st.error("❌ No hay conexión con la hoja Asignaciones.")
             else:
                 with st.spinner(f"Guardando asignaciones de {curso_seleccionado} en Google Sheets..."):
                     try:
@@ -5393,8 +5393,8 @@ elif st.session_state.current_module == 'asignaciones':
                             p1_val = profs_data["profesor_1"]
                             p2_val = profs_data["profesor_2"]
 
-                            # Agregar Profesor 1 si estÃ¡ asignado
-                            if p1_val != "â€” Sin Asignar â€”" and p1_val in profesores_dict:
+                            # Agregar Profesor 1 si está asignado
+                            if p1_val != "— Sin Asignar —" and p1_val in profesores_dict:
                                 datos_p1 = profesores_dict[p1_val]
                                 filas_curso_nuevas.append({
                                     "RUT_Profesor": datos_p1["rut"],
@@ -5403,8 +5403,8 @@ elif st.session_state.current_module == 'asignaciones':
                                     "Asignatura": asig_nom
                                 })
 
-                            # Agregar Profesor 2 si estÃ¡ asignado y no es el mismo que P1
-                            if p2_val != "â€” Sin Asignar â€”" and p2_val in profesores_dict:
+                            # Agregar Profesor 2 si está asignado y no es el mismo que P1
+                            if p2_val != "— Sin Asignar —" and p2_val in profesores_dict:
                                 if p2_val != p1_val:
                                     datos_p2 = profesores_dict[p2_val]
                                     filas_curso_nuevas.append({
@@ -5418,7 +5418,7 @@ elif st.session_state.current_module == 'asignaciones':
                         df_guardar_final = pd.concat([df_otros_cursos, df_nuevas_curso], ignore_index=True)
                         df_guardar_final = df_guardar_final.fillna("")
 
-                        # 3. Guardar en Google Sheets de forma atÃ³mica
+                        # 3. Guardar en Google Sheets de forma atómica
                         sheet_asignaciones.clear()
                         headers_asig = ["RUT_Profesor", "Nombre_Profesor", "Curso", "Asignatura"]
                         if not df_guardar_final.empty:
@@ -5427,12 +5427,12 @@ elif st.session_state.current_module == 'asignaciones':
                             sheet_asignaciones.append_row(headers_asig)
 
                         st.session_state['asig_guardada_ok'] = True
-                        st.session_state['asig_guardada_msg'] = f"âœ… Â¡Asignaciones de **{curso_seleccionado}** actualizadas exitosamente! ({len(filas_curso_nuevas)} registros activos)"
-                        st.toast(f"âœ… Â¡Asignaciones de {curso_seleccionado} guardadas!", icon="ðŸ“š")
+                        st.session_state['asig_guardada_msg'] = f"✅ ¡Asignaciones de **{curso_seleccionado}** actualizadas exitosamente! ({len(filas_curso_nuevas)} registros activos)"
+                        st.toast(f"✅ ¡Asignaciones de {curso_seleccionado} guardadas!", icon="📚")
                         st.rerun()
 
                     except Exception as e:
-                        st.error(f"âŒ Error al guardar en Google Sheets: {e}")
+                        st.error(f"❌ Error al guardar en Google Sheets: {e}")
 
 elif st.session_state.current_module == 'asistencia':
     import calendar as cal_mod
@@ -5441,10 +5441,10 @@ elif st.session_state.current_module == 'asistencia':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ“… Control de Asistencia</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>📅 Control de Asistencia</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_asistencia", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_asistencia", use_container_width=True):
             navigate('home')
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -5453,7 +5453,7 @@ elif st.session_state.current_module == 'asistencia':
     sheet_alumnos, _, _, _, _ = get_sheets()
     sheet_asistencia = get_asistencia_sheet()
 
-    # â”€â”€ CSS EspecÃ­fico de Asistencia Compacta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── CSS Específico de Asistencia Compacta ───────────────────────────────────
     st.markdown("""
     <style>
     div[data-testid="stTextInput"] input {
@@ -5503,7 +5503,7 @@ elif st.session_state.current_module == 'asistencia':
     </style>
     """, unsafe_allow_html=True)
 
-    # â”€â”€ Cursos disponibles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Cursos disponibles ───────────────────────────────────────────────────
     cursos_disp = []
     df_alumnos_raw = pd.DataFrame()
     if sheet_alumnos:
@@ -5518,12 +5518,12 @@ elif st.session_state.current_module == 'asistencia':
             pass
 
     if not cursos_disp:
-        st.warning("âš ï¸ No hay cursos disponibles. Carga primero la base de datos de alumnos.")
-        if st.button("â¬…ï¸ Volver", key="btn_asist_nocursos"):
+        st.warning("⚠️ No hay cursos disponibles. Carga primero la base de datos de alumnos.")
+        if st.button("⬅️ Volver", key="btn_asist_nocursos"):
             navigate('home'); st.rerun()
         st.stop()
 
-    # â”€â”€ Inicializar state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Inicializar state ────────────────────────────────────────────────────
     today = datetime.date.today()
     if 'asist_year'  not in st.session_state: st.session_state.asist_year  = today.year
     if 'asist_month' not in st.session_state: st.session_state.asist_month = today.month
@@ -5535,15 +5535,15 @@ elif st.session_state.current_module == 'asistencia':
     MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
              "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
-    # â”€â”€ Fila de controles compacta con navegaciÃ³n y calendario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Fila de controles compacta con navegación y calendario ───────────────
     col_c, col_p, col_m, col_cal, col_n, col_s = st.columns([2.4, 0.42, 1.7, 1.1, 0.42, 1.9])
 
     with col_c:
         idx_c = cursos_disp.index(st.session_state.asist_curso) if st.session_state.asist_curso in cursos_disp else 0
-        curso_asist = st.selectbox("ðŸ“š Curso:", cursos_disp, index=idx_c, key="sel_asist_curso", label_visibility="collapsed")
+        curso_asist = st.selectbox("📚 Curso:", cursos_disp, index=idx_c, key="sel_asist_curso", label_visibility="collapsed")
 
     with col_p:
-        if st.button("â—€", key="btn_asist_prev"):
+        if st.button("◀", key="btn_asist_prev"):
             m, y = st.session_state.asist_month, st.session_state.asist_year
             if m == 1: st.session_state.asist_month = 12; st.session_state.asist_year = y - 1
             else: st.session_state.asist_month = m - 1
@@ -5560,7 +5560,7 @@ elif st.session_state.current_module == 'asistencia':
     with col_cal:
         f_cal_val = datetime.date(st.session_state.asist_year, st.session_state.asist_month, 1)
         f_cal_sel = st.date_input(
-            "ðŸ“… Mes:",
+            "📅 Mes:",
             value=f_cal_val,
             key=f"asist_cal_{st.session_state.asist_year}_{st.session_state.asist_month}",
             format="DD/MM/YYYY",
@@ -5573,7 +5573,7 @@ elif st.session_state.current_module == 'asistencia':
             st.rerun()
 
     with col_n:
-        if st.button("â–¶", key="btn_asist_next"):
+        if st.button("▶", key="btn_asist_next"):
             m, y = st.session_state.asist_month, st.session_state.asist_year
             if m == 12: st.session_state.asist_month = 1; st.session_state.asist_year = y + 1
             else: st.session_state.asist_month = m + 1
@@ -5581,25 +5581,25 @@ elif st.session_state.current_module == 'asistencia':
             st.rerun()
 
     with col_s:
-        guardar_asist = st.button("ðŸ’¾ Guardar mes", type="primary",
+        guardar_asist = st.button("💾 Guardar mes", type="primary",
                                    key="btn_guardar_asist", use_container_width=True)
 
     st.markdown(
         "<div style='font-size:0.88rem;color:#555;margin:-4px 0 6px 0;'>"
-        "ðŸ’¡ <b>Comandos rÃ¡pidos:</b> <code>ok</code> (todos presentes) Â· "
-        "<code>todos</code> (todos ausentes) Â· "
-        "<code>sc</code> (sin clases) Â· "
-        "<code>borrar</code> (limpiar) Â· "
-        "<code>1-4-15</code> (NÂ° de lista inasistentes)</div>",
+        "💡 <b>Comandos rápidos:</b> <code>ok</code> (todos presentes) · "
+        "<code>todos</code> (todos ausentes) · "
+        "<code>sc</code> (sin clases) · "
+        "<code>borrar</code> (limpiar) · "
+        "<code>1-4-15</code> (N° de lista inasistentes)</div>",
         unsafe_allow_html=True
     )
     st.markdown("<hr style='margin-top:2px;margin-bottom:8px;'>", unsafe_allow_html=True)
 
     if st.session_state.get('asist_guardada_ok', False):
-        st.success(st.session_state.get('asist_guardada_msg', "âœ… Â¡Asistencia guardada exitosamente!"))
+        st.success(st.session_state.get('asist_guardada_msg', "✅ ¡Asistencia guardada exitosamente!"))
         st.session_state['asist_guardada_ok'] = False
 
-    # â”€â”€ Preparar nÃ³mina de alumnos con NÂ° de lista â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Preparar nómina de alumnos con N° de lista ───────────────────────────
     alumnos_nomina = []
     conf_inst_asis = cargar_datos_configuracion_reportes()
     f_inicio_semestre_1 = conf_inst_asis.get("s1_ini", datetime.date(year, 3, 4))
@@ -5609,7 +5609,7 @@ elif st.session_state.current_module == 'asistencia':
         df_al_work.columns = [str(c).strip() for c in df_al_work.columns]
         col_c_al = next((c for c in df_al_work.columns if 'curs' in c.lower()), None)
         col_n_al = next((c for c in df_al_work.columns if 'nomb' in c.lower()), None)
-        col_o_al = next((c for c in df_al_work.columns if any(x in c.lower() for x in ['list', 'orden', 'nÂ°', 'nro'])), None)
+        col_o_al = next((c for c in df_al_work.columns if any(x in c.lower() for x in ['list', 'orden', 'n°', 'nro'])), None)
 
         if col_c_al and col_n_al:
             df_curso_al = df_al_work[df_al_work[col_c_al].astype(str).str.strip() == str(curso_asist)].copy()
@@ -5631,7 +5631,7 @@ elif st.session_state.current_module == 'asistencia':
                         "f_inicio_efectiva": f_info["f_inicio_efectiva"]
                     })
 
-    # â”€â”€ Detectar cambio de curso/mes â†’ recargar datos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Detectar cambio de curso/mes → recargar datos ────────────────────────
     year  = st.session_state.asist_year
     month = st.session_state.asist_month
     lk    = f"{curso_asist}_{year}_{month}"
@@ -5688,17 +5688,17 @@ elif st.session_state.current_module == 'asistencia':
         st.session_state.asist_loaded_key = lk
         st.session_state.asist_curso      = curso_asist
 
-    # â”€â”€ Estructura de Dos Columnas: Calendario (72%) + NÃ³mina NÂ° Lista (28%) â”€â”€
+    # ── Estructura de Dos Columnas: Calendario (72%) + Nómina N° Lista (28%) ──
     col_calendario, col_nomina = st.columns([3.2, 1.3], gap="small")
 
     with col_nomina:
         st.markdown(
             f"<div style='font-size:0.85rem;font-weight:700;color:#1a5c32;margin-bottom:4px;'>"
-            f"ðŸ“‹ Lista del Curso ({len(alumnos_nomina)})</div>",
+            f"📋 Lista del Curso ({len(alumnos_nomina)})</div>",
             unsafe_allow_html=True
         )
         if not alumnos_nomina:
-            st.info("Sin nÃ³mina de alumnos cargada.")
+            st.info("Sin nómina de alumnos cargada.")
         else:
             items_html = ""
             for al in alumnos_nomina:
@@ -5731,14 +5731,14 @@ elif st.session_state.current_module == 'asistencia':
                      if (first_d + datetime.timedelta(days=i)).weekday() < 5]
 
         if not all_wdays:
-            st.info("No hay dÃ­as hÃ¡biles en este mes.")
+            st.info("No hay días hábiles en este mes.")
         else:
             first_dow = all_wdays[0].weekday()
             padded    = [None] * first_dow + all_wdays
             while len(padded) % 5 != 0:
                 padded.append(None)
 
-            DIA_NOM = ["Lun", "Mar", "MiÃ©", "Jue", "Vie"]
+            DIA_NOM = ["Lun", "Mar", "Mié", "Jue", "Vie"]
             h_cols  = st.columns(5)
             for i, dn in enumerate(DIA_NOM):
                 h_cols[i].markdown(
@@ -5761,15 +5761,15 @@ elif st.session_state.current_module == 'asistencia':
                             val = str(st.session_state.get(sk, "")).strip().lower()
 
                             if val == "ok":
-                                estado_html = "<span style='color:#008F39;font-size:0.68rem;font-weight:600;'>âœ… Completa</span>"
+                                estado_html = "<span style='color:#008F39;font-size:0.68rem;font-weight:600;'>✅ Completa</span>"
                             elif val == "todos":
-                                estado_html = "<span style='color:#cc0000;font-size:0.68rem;font-weight:600;'>âŒ Aus. Total</span>"
+                                estado_html = "<span style='color:#cc0000;font-size:0.68rem;font-weight:600;'>❌ Aus. Total</span>"
                             elif val == "sc":
-                                estado_html = "<span style='color:#6366f1;font-size:0.68rem;font-weight:600;'>ðŸš« Sin Clases</span>"
+                                estado_html = "<span style='color:#6366f1;font-size:0.68rem;font-weight:600;'>🚫 Sin Clases</span>"
                             elif val and val != "borrar":
-                                estado_html = f"<span style='color:#d97706;font-size:0.68rem;font-weight:600;'>âš ï¸ {val}</span>"
+                                estado_html = f"<span style='color:#d97706;font-size:0.68rem;font-weight:600;'>⚠️ {val}</span>"
                             else:
-                                estado_html = "<span style='color:#aaa;font-size:0.68rem;'>â€”</span>"
+                                estado_html = "<span style='color:#aaa;font-size:0.68rem;'>—</span>"
 
                             st.markdown(
                                 f"<div style='display:flex;justify-content:space-between;align-items:center;padding:0 2px;'>"
@@ -5786,10 +5786,10 @@ elif st.session_state.current_module == 'asistencia':
 
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
-    # â”€â”€ Guardar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Guardar ──────────────────────────────────────────────────────────────────
     if guardar_asist:
         if not sheet_asistencia:
-            st.error("âŒ No se puede conectar con la hoja Asistencia.")
+            st.error("❌ No se puede conectar con la hoja Asistencia.")
         else:
             errores_val = []
             nuevas_filas = []
@@ -5814,19 +5814,19 @@ elif st.session_state.current_module == 'asistencia':
                         datos_str = "-".join(nums)
                         nuevas_filas.append({"Fecha": fs, "Curso": str(curso_asist), "Datos": datos_str, "Tipo": "parcial"})
                     else:
-                        errores_val.append(f"DÃ­a {day.day}: valor '{raw}' no es vÃ¡lido.")
+                        errores_val.append(f"Día {day.day}: valor '{raw}' no es válido.")
 
             if errores_val:
                 for ev in errores_val:
-                    st.error(f"âŒ {ev} â€” Usa exclusivamente nÃºmeros separados por guiÃ³n (ej: 1-4-15), o los comandos: ok | todos | sc | borrar")
-                st.info("ðŸ’¡ **Por seguridad, no se modificÃ³ la base de datos.** Corrige los dÃ­as seÃ±alados arriba y vuelve a presionar 'ðŸ’¾ Guardar mes'.")
+                    st.error(f"❌ {ev} — Usa exclusivamente números separados por guión (ej: 1-4-15), o los comandos: ok | todos | sc | borrar")
+                st.info("💡 **Por seguridad, no se modificó la base de datos.** Corrige los días señalados arriba y vuelve a presionar '💾 Guardar mes'.")
             else:
                 try:
                     with st.spinner("Guardando en la base de datos..."):
                         mes_pre = f"{year:04d}-{month:02d}"
 
                         # 1. Eliminar exclusivamente los registros de este curso y este mes,
-                        # protegiendo al 100% todos los demÃ¡s cursos y meses del colegio.
+                        # protegiendo al 100% todos los demás cursos y meses del colegio.
                         if hasattr(sheet_asistencia, '_client'):
                             sheet_asistencia._client.table('asistencia').delete().eq('curso', str(curso_asist)).like('fecha', f'{mes_pre}%').execute()
 
@@ -5844,15 +5844,15 @@ elif st.session_state.current_module == 'asistencia':
                                 sheet_asistencia.append_rows([[r['Fecha'], r['Curso'], r['Datos'], r['Tipo']] for r in nuevas_filas])
 
                     st.session_state['asist_guardada_ok'] = True
-                    st.session_state['asist_guardada_msg'] = f"âœ… Â¡Asistencia de **{curso_asist}** para **{MESES[month-1]} {year}** guardada y actualizada exitosamente! ({len(nuevas_filas)} dÃ­as registrados)"
-                    st.toast(f"âœ… Â¡Asistencia de {curso_asist} ({MESES[month-1]} {year}) guardada!", icon="ðŸ“…")
+                    st.session_state['asist_guardada_msg'] = f"✅ ¡Asistencia de **{curso_asist}** para **{MESES[month-1]} {year}** guardada y actualizada exitosamente! ({len(nuevas_filas)} días registrados)"
+                    st.toast(f"✅ ¡Asistencia de {curso_asist} ({MESES[month-1]} {year}) guardada!", icon="📅")
                     st.session_state.asist_loaded_key = ""   # forzar recarga
                     st.rerun()
 
                 except Exception as e:
-                    st.error(f"âŒ Error al guardar: {e}")
+                    st.error(f"❌ Error al guardar: {e}")
 
-    # â”€â”€ Resumen anual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Resumen anual ─────────────────────────────────────────────────────────────────
     dias_anio_count = 0
     if sheet_asistencia:
         try:
@@ -5883,12 +5883,12 @@ elif st.session_state.current_module == 'asistencia':
         except Exception:
             pass
 
-    with st.expander(f"ðŸ“Š Resumen y % de asistencia  â€”  DÃ­as hÃ¡biles del curso ({year}): {dias_anio_count}"):
+    with st.expander(f"📊 Resumen y % de asistencia  —  Días hábiles del curso ({year}): {dias_anio_count}"):
         if not sheet_asistencia or not sheet_alumnos:
-            st.warning("No hay conexiÃ³n con la base de datos.")
+            st.warning("No hay conexión con la base de datos.")
         else:
             try:
-                # Datos del aÃ±o
+                # Datos del año
                 recs_yr  = sheet_asistencia.get_all_records()
                 df_yr    = pd.DataFrame(recs_yr) if recs_yr else pd.DataFrame()
                 recs_alu = sheet_alumnos.get_all_records()
@@ -5906,7 +5906,7 @@ elif st.session_state.current_module == 'asistencia':
                     col_n_al = next((c for c in df_alu.columns if 'nomb'  in c.lower()), None)
                     col_c_al = next((c for c in df_alu.columns if 'curs'  in c.lower()), None)
                     col_o_al = next((c for c in df_alu.columns if any(
-                                     x in c.lower() for x in ['list', 'orden', 'nÂ°', 'nro'])), None)
+                                     x in c.lower() for x in ['list', 'orden', 'n°', 'nro'])), None)
                     col_b_al = next((c for c in df_alu.columns if 'baja'  in c.lower() or 'retir' in c.lower()), None)
                     col_f_ing_al = next((c for c in df_alu.columns if any(
                                          x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
@@ -5926,7 +5926,7 @@ elif st.session_state.current_module == 'asistencia':
                             (df_yr[col_cur_y].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_asist)))
                         ].copy()
 
-                        # Excluir dÃ­as marcados como "sin_clases" o "sc"
+                        # Excluir días marcados como "sin_clases" o "sc"
                         col_t_y = next((c for c in df_curso_yr.columns if 'tipo' in c.lower()), None)
                         if col_t_y:
                             df_curso_yr = df_curso_yr[df_curso_yr[col_t_y].astype(str).str.strip().str.lower() != 'sin_clases']
@@ -5946,7 +5946,7 @@ elif st.session_state.current_module == 'asistencia':
                         if df_alu_c.empty:
                             st.info("No hay alumnos registrados para este curso.")
                         else:
-                            # Ordenar por NÂ° lista
+                            # Ordenar por N° lista
                             if col_o_al:
                                 df_alu_c['_ord'] = pd.to_numeric(df_alu_c[col_o_al], errors='coerce').fillna(999).astype(int)
                             else:
@@ -5954,7 +5954,7 @@ elif st.session_state.current_module == 'asistencia':
                                 df_alu_c['_ord'] = range(1, len(df_alu_c)+1)
                             df_alu_c = df_alu_c.sort_values('_ord')
 
-                            # Calcular por alumno mediante la funciÃ³n oficial y unificada
+                            # Calcular por alumno mediante la función oficial y unificada
                             rows_res = []
                             for _, alu in df_alu_c.iterrows():
                                 num_l    = int(alu['_ord'])
@@ -5963,21 +5963,21 @@ elif st.session_state.current_module == 'asistencia':
 
                                 etiqueta_alu = nombre_a
                                 if asis_alu["es_retirado"]:
-                                    etiqueta_alu += " ðŸ”´ (Retirado)"
+                                    etiqueta_alu += " 🔴 (Retirado)"
 
                                 rows_res.append({
-                                    "NÂ°":                  num_l,
+                                    "N°":                  num_l,
                                     "Alumno":              etiqueta_alu,
-                                    "DÃ­as Clase":         asis_alu["dias_clase"],
-                                    "DÃ­as Asistidos":     asis_alu["dias_asist"],
-                                    "DÃ­as Inasistencia":  asis_alu["dias_inasist"],
+                                    "Días Clase":         asis_alu["dias_clase"],
+                                    "Días Asistidos":     asis_alu["dias_asist"],
+                                    "Días Inasistencia":  asis_alu["dias_inasist"],
                                     "% Asistencia":        asis_alu["pct_asist"]
                                 })
 
                             df_res = pd.DataFrame(rows_res)
 
                             st.markdown(f"""
-                            | ðŸ“… Total dÃ­as clase del curso ({year}) | **{total_dias}** |
+                            | 📅 Total días clase del curso ({year}) | **{total_dias}** |
                             |---|---|
                             """)
 
@@ -5990,13 +5990,13 @@ elif st.session_state.current_module == 'asistencia':
                             styled_res = df_res.style.map(_color_pct, subset=['% Asistencia'])\
                                                      .format({'% Asistencia': '{:.1f}%'})
                             st.dataframe(styled_res, use_container_width=True, hide_index=True)
-                            st.caption("ðŸŸ¢ â‰¥85%Â asistenciaÂ correcta Â· ðŸŸ  75-84%Â enÂ riesgo Â· ðŸ”´ <75%Â crÃ­tico")
+                            st.caption("🟢 ≥85% asistencia correcta · 🟠 75-84% en riesgo · 🔴 <75% crítico")
 
             except Exception as e:
                 st.error(f"Error al calcular resumen: {e}")
 
     st.write("")
-    if st.button("â¬…ï¸ Volver al Dashboard Principal", key="btn_volver_asistencia"):
+    if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_asistencia"):
         navigate('home')
         st.rerun()
 
@@ -6005,10 +6005,10 @@ elif st.session_state.current_module == 'configuracion':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>âš™ï¸ ConfiguraciÃ³n del Establecimiento</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>⚙️ Configuración del Establecimiento</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_conf", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_conf", use_container_width=True):
             navigate('home')
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -6016,7 +6016,7 @@ elif st.session_state.current_module == 'configuracion':
 
     sheet_config = get_config_sheet()
     if not sheet_config:
-        st.error("âŒ Error de conexiÃ³n con la hoja de configuraciÃ³n.")
+        st.error("❌ Error de conexión con la hoja de configuración.")
     else:
         try:
             recs_c = sheet_config.get_all_records()
@@ -6027,10 +6027,10 @@ elif st.session_state.current_module == 'configuracion':
                 if k: conf_dict[k] = v
 
             # Valores actuales o predeterminados
-            c_nom_col = conf_dict.get("nombre_colegio", "ESCUELA VILLA LAS PEÃ‘AS")
-            c_region = conf_dict.get("region", "BÃOBÃO")
-            c_ciudad = conf_dict.get("ciudad", "MulchÃ©n")
-            c_director = conf_dict.get("nombre_director", "RUBÃ‰N MARCOS QUEZADA BALBOA")
+            c_nom_col = conf_dict.get("nombre_colegio", "ESCUELA VILLA LAS PEÑAS")
+            c_region = conf_dict.get("region", "BÍOBÍO")
+            c_ciudad = conf_dict.get("ciudad", "Mulchén")
+            c_director = conf_dict.get("nombre_director", "RUBÉN MARCOS QUEZADA BALBOA")
             c_rbd = conf_dict.get("rbd", "4410-5")
             c_s1_ini = conf_dict.get("semestre_1_inicio", "01-03-2026")
             c_s1_fin = conf_dict.get("semestre_1_fin", "05-07-2026")
@@ -6038,24 +6038,24 @@ elif st.session_state.current_module == 'configuracion':
             c_s2_fin = conf_dict.get("semestre_2_fin", "10-12-2026")
             c_firma_b64 = conf_dict.get("firma_director_b64", "")
 
-            tab_datos_col, tab_permisos_cfg = st.tabs(["ðŸ›ï¸ Datos Institucionales y Calendario", "ðŸ›¡ï¸ Roles y Permisos de MÃ³dulos"])
+            tab_datos_col, tab_permisos_cfg = st.tabs(["🏛️ Datos Institucionales y Calendario", "🛡️ Roles y Permisos de Módulos"])
 
             with tab_datos_col:
                 st.markdown(
                     "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#334155;font-size:0.83rem;'>"
-                    "â„¹ï¸ Estos datos se utilizarÃ¡n para la cabecera oficial, firma ministerial y cÃ¡lculo de perÃ­odos en los <b>Informes de Notas</b> y documentos oficiales.</div>",
+                    "ℹ️ Estos datos se utilizarán para la cabecera oficial, firma ministerial y cálculo de períodos en los <b>Informes de Notas</b> y documentos oficiales.</div>",
                     unsafe_allow_html=True
                 )
 
                 col_izq_cfg, col_der_cfg = st.columns([3.2, 2.8], gap="large")
 
                 with col_izq_cfg:
-                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>ðŸ›ï¸ IdentificaciÃ³n Institucional</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>🏛️ Identificación Institucional</div>", unsafe_allow_html=True)
                     with st.container(border=True):
                         in_cfg_col = st.text_input("Nombre del Establecimiento:", value=c_nom_col, key="cfg_in_col").strip()
                         c_c0, c_c1, c_c2 = st.columns([1.2, 1.2, 1])
                         with c_c0:
-                            in_cfg_reg = st.text_input("RegiÃ³n:", value=c_region, key="cfg_in_reg").strip()
+                            in_cfg_reg = st.text_input("Región:", value=c_region, key="cfg_in_reg").strip()
                         with c_c1:
                             in_cfg_ciudad = st.text_input("Ciudad / Comuna:", value=c_ciudad, key="cfg_in_ciu").strip()
                         with c_c2:
@@ -6063,16 +6063,16 @@ elif st.session_state.current_module == 'configuracion':
 
                         in_cfg_dir = st.text_input("Nombre Completo del Director(a):", value=c_director, key="cfg_in_dir").strip()
 
-                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin:12px 0 8px 0;'>ðŸ“… Calendario de Semestres Escolares</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin:12px 0 8px 0;'>📅 Calendario de Semestres Escolares</div>", unsafe_allow_html=True)
                     with st.container(border=True):
-                        # FunciÃ³n auxiliar para parsear fechas en formato dd-mm-aaaa
+                        # Función auxiliar para parsear fechas en formato dd-mm-aaaa
                         def _parse_fecha(s, fallback):
                             try:
                                 return datetime.datetime.strptime(s.strip(), "%d-%m-%Y").date()
                             except Exception:
                                 return fallback
 
-                        st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;'>1Â° Semestre:</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;'>1° Semestre:</div>", unsafe_allow_html=True)
                         s1_c1, s1_c2 = st.columns(2)
                         with s1_c1:
                             _d_s1_ini = _parse_fecha(c_s1_ini, datetime.date(datetime.date.today().year, 3, 1))
@@ -6080,10 +6080,10 @@ elif st.session_state.current_module == 'configuracion':
                             in_s1_ini = _v_s1_ini.strftime("%d-%m-%Y") if _v_s1_ini else c_s1_ini
                         with s1_c2:
                             _d_s1_fin = _parse_fecha(c_s1_fin, datetime.date(datetime.date.today().year, 7, 5))
-                            _v_s1_fin = st.date_input("Fecha TÃ©rmino:", value=_d_s1_fin, key="cfg_in_s1_fin", format="DD/MM/YYYY")
+                            _v_s1_fin = st.date_input("Fecha Término:", value=_d_s1_fin, key="cfg_in_s1_fin", format="DD/MM/YYYY")
                             in_s1_fin = _v_s1_fin.strftime("%d-%m-%Y") if _v_s1_fin else c_s1_fin
 
-                        st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;margin-top:8px;'>2Â° Semestre:</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='font-weight:600;font-size:0.82rem;color:#475569;margin-top:8px;'>2° Semestre:</div>", unsafe_allow_html=True)
                         s2_c1, s2_c2 = st.columns(2)
                         with s2_c1:
                             _d_s2_ini = _parse_fecha(c_s2_ini, datetime.date(datetime.date.today().year, 7, 22))
@@ -6091,11 +6091,11 @@ elif st.session_state.current_module == 'configuracion':
                             in_s2_ini = _v_s2_ini.strftime("%d-%m-%Y") if _v_s2_ini else c_s2_ini
                         with s2_c2:
                             _d_s2_fin = _parse_fecha(c_s2_fin, datetime.date(datetime.date.today().year, 12, 10))
-                            _v_s2_fin = st.date_input("Fecha TÃ©rmino:", value=_d_s2_fin, key="cfg_in_s2_fin", format="DD/MM/YYYY")
+                            _v_s2_fin = st.date_input("Fecha Término:", value=_d_s2_fin, key="cfg_in_s2_fin", format="DD/MM/YYYY")
                             in_s2_fin = _v_s2_fin.strftime("%d-%m-%Y") if _v_s2_fin else c_s2_fin
 
                 with col_der_cfg:
-                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>âœï¸ Firma y Timbre del Director(a)</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-weight:700;font-size:0.92rem;color:#1a5c32;margin-bottom:8px;'>✍️ Firma y Timbre del Director(a)</div>", unsafe_allow_html=True)
                     with st.container(border=True):
                         st.write("Sube la imagen de la firma y timbre en formato **PNG** (idealmente con fondo transparente):")
                         
@@ -6109,7 +6109,7 @@ elif st.session_state.current_module == 'configuracion':
                                 img_pil = Image.open(up_firma)
                                 # Convertir a RGBA para preservar transparencia
                                 img_pil = img_pil.convert("RGBA")
-                                # Redimensionar para firma proporcional (ancho mÃ¡x 260px, alto mÃ¡x 90px)
+                                # Redimensionar para firma proporcional (ancho máx 260px, alto máx 90px)
                                 img_pil.thumbnail((260, 90), Image.Resampling.LANCZOS)
                                 
                                 buffer_out = io.BytesIO()
@@ -6119,14 +6119,14 @@ elif st.session_state.current_module == 'configuracion':
                                 
                                 firma_a_guardar = b64_str
                                 st.session_state['temp_firma_b64'] = b64_str
-                                st.success(f"âœ… Firma procesada y optimizada ({len(firma_a_guardar)} caracteres, dentro del lÃ­mite de Sheets).")
+                                st.success(f"✅ Firma procesada y optimizada ({len(firma_a_guardar)} caracteres, dentro del límite de Sheets).")
                             except Exception as e:
                                 st.error(f"Error al procesar la imagen de firma: {e}")
                         elif 'temp_firma_b64' in st.session_state:
                             firma_a_guardar = st.session_state['temp_firma_b64']
 
                         if firma_a_guardar:
-                            st.markdown("<div style='font-size:0.78rem;font-weight:600;color:#64748b;margin:8px 0 4px 0;'>PrevisualizaciÃ³n en Informes:</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='font-size:0.78rem;font-weight:600;color:#64748b;margin:8px 0 4px 0;'>Previsualización en Informes:</div>", unsafe_allow_html=True)
                             st.markdown(
                                 f"<div style='background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:12px;text-align:center;'>"
                                 f"<img src='data:image/png;base64,{firma_a_guardar}' style='max-height:85px;max-width:240px;object-fit:contain;'/>"
@@ -6135,21 +6135,21 @@ elif st.session_state.current_module == 'configuracion':
                                 f"</div>",
                                 unsafe_allow_html=True
                             )
-                            if st.button("ðŸ—‘ï¸ Quitar Firma", key="btn_quitar_firma"):
+                            if st.button("🗑️ Quitar Firma", key="btn_quitar_firma"):
                                 if 'temp_firma_b64' in st.session_state:
                                     del st.session_state['temp_firma_b64']
                                 firma_a_guardar = ""
                                 st.rerun()
                         else:
-                            st.info("Sin firma digital cargada. En el informe se mostrarÃ¡ la lÃ­nea tradicional para firma manual.")
+                            st.info("Sin firma digital cargada. En el informe se mostrará la línea tradicional para firma manual.")
 
                 st.markdown("<hr style='margin:18px 0 12px 0;'>", unsafe_allow_html=True)
 
                 if st.session_state.get('conf_guardada_ok', False):
-                    st.success("âœ… Â¡ConfiguraciÃ³n del establecimiento guardada y actualizada exitosamente!")
+                    st.success("✅ ¡Configuración del establecimiento guardada y actualizada exitosamente!")
                     st.session_state['conf_guardada_ok'] = False
 
-                if st.button("ðŸ’¾ Guardar Toda la ConfiguraciÃ³n Institucional", type="primary", use_container_width=True, key="btn_save_config_all"):
+                if st.button("💾 Guardar Toda la Configuración Institucional", type="primary", use_container_width=True, key="btn_save_config_all"):
                     with st.spinner("Guardando en la base de datos..."):
                         try:
                             filas_actualizadas = [
@@ -6171,25 +6171,25 @@ elif st.session_state.current_module == 'configuracion':
                             sheet_config.clear()
                             sheet_config.update(values=filas_actualizadas)
                             st.session_state['conf_guardada_ok'] = True
-                            st.toast("âœ… Â¡ConfiguraciÃ³n guardada exitosamente!", icon="ðŸŽ‰")
+                            st.toast("✅ ¡Configuración guardada exitosamente!", icon="🎉")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error al guardar configuraciÃ³n: {e}")
+                            st.error(f"Error al guardar configuración: {e}")
 
             with tab_permisos_cfg:
-                st.markdown("<h3 style='margin:4px 0 6px 0;color:#1a5c32;font-size:1.15rem;'>ðŸ›¡ï¸ Matriz de Control de Acceso por Rol</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='margin:4px 0 6px 0;color:#1a5c32;font-size:1.15rem;'>🛡️ Matriz de Control de Acceso por Rol</h3>", unsafe_allow_html=True)
                 st.markdown(
                     "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#334155;font-size:0.83rem;'>"
-                    "â„¹ï¸ Define a quÃ© mÃ³dulos tiene acceso cada rol en la Escuela Villa Las PeÃ±as. "
+                    "ℹ️ Define a qué módulos tiene acceso cada rol en la Escuela Villa Las Peñas. "
                     "El rol <b>Administrador Total</b> siempre cuenta con acceso irrestricto por seguridad del sistema.</div>",
                     unsafe_allow_html=True
                 )
 
                 matriz_actual_cfg = obtener_matriz_permisos(sheet_config)
 
-                st.info("ðŸ”’ **Administrador Total:** Acceso permanente a todos los 12 mÃ³dulos del sistema.")
+                st.info("🔒 **Administrador Total:** Acceso permanente a todos los 12 módulos del sistema.")
 
-                tabs_roles_cfg = st.tabs([f"ðŸŽ­ {r}" for r in ROLES_CONFIGURABLES])
+                tabs_roles_cfg = st.tabs([f"🎭 {r}" for r in ROLES_CONFIGURABLES])
 
                 cambios_matriz = {}
                 for idx_r, rol_nom in enumerate(ROLES_CONFIGURABLES):
@@ -6205,7 +6205,7 @@ elif st.session_state.current_module == 'configuracion':
                             with col_destino:
                                 esta_activo = mod["id"] in permisos_este_rol
                                 chk_val = st.checkbox(
-                                    f"{mod['titulo']} â€” *{mod['sub']}*",
+                                    f"{mod['titulo']} — *{mod['sub']}*",
                                     value=esta_activo,
                                     key=f"chk_perm_{rol_nom}_{mod['id']}"
                                 )
@@ -6217,10 +6217,10 @@ elif st.session_state.current_module == 'configuracion':
                 st.markdown("<hr style='margin:18px 0 12px 0;'>", unsafe_allow_html=True)
 
                 if st.session_state.get('permisos_guardados_ok', False):
-                    st.success("âœ… Â¡Permisos de roles institucionales guardados y aplicados exitosamente!")
+                    st.success("✅ ¡Permisos de roles institucionales guardados y aplicados exitosamente!")
                     st.session_state['permisos_guardados_ok'] = False
 
-                if st.button("ðŸ’¾ Guardar Permisos de Roles", type="primary", use_container_width=True, key="btn_save_permisos_roles"):
+                if st.button("💾 Guardar Permisos de Roles", type="primary", use_container_width=True, key="btn_save_permisos_roles"):
                     with st.spinner("Guardando matriz de permisos en la base de datos..."):
                         try:
                             import json
@@ -6244,13 +6244,13 @@ elif st.session_state.current_module == 'configuracion':
                             sheet_config.clear()
                             sheet_config.update(values=[df_cfg_all.columns.tolist()] + df_cfg_all.values.tolist())
                             st.session_state['permisos_guardados_ok'] = True
-                            st.toast("âœ… Â¡Permisos actualizados con Ã©xito!", icon="ðŸ›¡ï¸")
+                            st.toast("✅ ¡Permisos actualizados con éxito!", icon="🛡️")
                             st.rerun()
                         except Exception as err_p:
                             st.error(f"Error al guardar permisos: {err_p}")
 
         except Exception as e:
-            st.error(f"Error al cargar mÃ³dulo de configuraciÃ³n: {e}")
+            st.error(f"Error al cargar módulo de configuración: {e}")
 
 
 
@@ -6259,10 +6259,10 @@ elif st.session_state.current_module == 'preacta':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ“Š Preacta Anual de Calificaciones</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>📊 Preacta Anual de Calificaciones</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_preacta", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_preacta", use_container_width=True):
             navigate('home')
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -6274,20 +6274,20 @@ elif st.session_state.current_module == 'preacta':
     sheet_config = get_config_sheet()
 
     if not sheet_alumnos or not sheet_notas or not sheet_preacta:
-        st.error("âŒ Error de conexiÃ³n con la base de datos de Google Sheets.")
+        st.error("❌ Error de conexión con la base de datos de Google Sheets.")
     else:
         try:
-            # 1. Cargar ConfiguraciÃ³n del Establecimiento
+            # 1. Cargar Configuración del Establecimiento
             conf_data = {}
             if sheet_config:
                 for r in sheet_config.get_all_records():
                     conf_data[str(r.get("Clave","")).strip()] = str(r.get("Valor","")).strip()
 
             anio_actual = datetime.date.today().year
-            nombre_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÃ‘AS")
+            nombre_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÑAS")
             rbd_colegio = conf_data.get("rbd", "4410-5")
-            comuna_colegio = conf_data.get("ciudad") or conf_data.get("comuna") or "MulchÃ©n"
-            director_colegio = conf_data.get("nombre_director", "CÃ‰SAR JULIÃN ROA SOTO")
+            comuna_colegio = conf_data.get("ciudad") or conf_data.get("comuna") or "Mulchén"
+            director_colegio = conf_data.get("nombre_director", "CÉSAR JULIÁN ROA SOTO")
             firma_director_b64 = conf_data.get("firma_director_b64", "")
 
             # Cargar insignia en Base64
@@ -6310,22 +6310,22 @@ elif st.session_state.current_module == 'preacta':
             col_c = next((c for c in df_al.columns if 'curs' in c.lower()), 'Curso')
             col_n = next((c for c in df_al.columns if 'nomb' in c.lower()), 'Nombre')
             col_r = next((c for c in df_al.columns if 'rut' in c.lower()), 'RUT')
-            col_o = next((c for c in df_al.columns if any(x in c.lower() for x in ['list','orden','nÂ°','nro'])), 'NÂ° Lista')
+            col_o = next((c for c in df_al.columns if any(x in c.lower() for x in ['list','orden','n°','nro'])), 'N° Lista')
             col_baja = next((c for c in df_al.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
             col_ing_pre = next((c for c in df_al.columns if any(x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
 
-            # Filtrar exclusivamente cursos de EducaciÃ³n BÃ¡sica (1Â° a 8Â°) ya que Preacta y SIGE Tipo 4/5 corresponden al plan de asignaturas
+            # Filtrar exclusivamente cursos de Educación Básica (1° a 8°) ya que Preacta y SIGE Tipo 4/5 corresponden al plan de asignaturas
             cursos_disp = [
                 c for c in sorted([str(c).strip() for c in df_al[col_c].unique() if str(c).strip()], key=orden_curso_sistema)
                 if not any(k in c.upper() for k in ['NT1', 'NT2', 'PRE-K', 'KINDER', 'PARV'])
-            ] if not df_al.empty and col_c in df_al.columns else ["1Â° BÃ¡sico A"]
+            ] if not df_al.empty and col_c in df_al.columns else ["1° Básico A"]
 
             # Barra superior de filtros
             c_p1, c_p2 = st.columns([2.5, 1.5])
             with c_p1:
-                curso_preacta_sel = st.selectbox("ðŸ“š Selecciona el Curso para Preacta:", cursos_disp, key="sel_curso_preacta")
+                curso_preacta_sel = st.selectbox("📚 Selecciona el Curso para Preacta:", cursos_disp, key="sel_curso_preacta")
             with c_p2:
-                anio_preacta_sel = st.number_input("ðŸ“… AÃ±o Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_preacta")
+                anio_preacta_sel = st.number_input("📅 Año Escolar:", min_value=2020, max_value=2035, value=anio_actual, step=1, key="num_anio_preacta")
 
             # Cargar alumnos del curso (incluyendo retirados para el registro oficial completo)
             df_curso = df_al[df_al[col_c].astype(str).str.strip() == str(curso_preacta_sel).strip()].copy()
@@ -6352,7 +6352,7 @@ elif st.session_state.current_module == 'preacta':
                             
                             import unicodedata
                             def _norm_cmp_jefe(s):
-                                return "".join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('Â°','').replace('.','').strip()
+                                return "".join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('°','').replace('.','').strip()
 
                             cur_preacta_norm = _norm_cmp_jefe(curso_preacta_sel)
                             m_jef = df_asig_temp[
@@ -6387,23 +6387,23 @@ elif st.session_state.current_module == 'preacta':
                     df_preacta_existente.columns = [str(c).strip() for c in df_preacta_existente.columns]
                     if 'RUT' in df_preacta_existente.columns:
                         df_preacta_existente['RUT_NORM'] = df_preacta_existente['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
-                    if 'AÃ±o' in df_preacta_existente.columns:
-                        df_preacta_existente['AÃ±o_STR'] = df_preacta_existente['AÃ±o'].astype(str).str.strip()
+                    if 'Año' in df_preacta_existente.columns:
+                        df_preacta_existente['Año_STR'] = df_preacta_existente['Año'].astype(str).str.strip()
 
-                # Asignaturas oficiales con divisiÃ³n de ReligiÃ³n (EvangÃ©lica y CatÃ³lica):
+                # Asignaturas oficiales con división de Religión (Evangélica y Católica):
                 asigs_catalogo = [
                     ("Lengua y Literatura", "Lenguaje", "Leng"),
-                    ("Idioma Extranjero InglÃ©s", "InglÃ©s", "Ing"),
-                    ("MatemÃ¡tica", "MatemÃ¡tica", "Mat"),
-                    ("Historia, GeografÃ­a y Ciencias Sociales", "Historia", "Hist"),
+                    ("Idioma Extranjero Inglés", "Inglés", "Ing"),
+                    ("Matemática", "Matemática", "Mat"),
+                    ("Historia, Geografía y Ciencias Sociales", "Historia", "Hist"),
                     ("Ciencias Naturales", "Ciencias", "Cien"),
-                    ("TecnologÃ­a", "TecnologÃ­a", "Tec"),
-                    ("MÃºsica", "MÃºsica", "MÃºs"),
-                    ("EducaciÃ³n FÃ­sica y Salud", "Ed. FÃ­sica", "EF"),
+                    ("Tecnología", "Tecnología", "Tec"),
+                    ("Música", "Música", "Mús"),
+                    ("Educación Física y Salud", "Ed. Física", "EF"),
                     ("Artes Visuales", "Artes", "Art"),
-                    ("ReligiÃ³n EvangÃ©lica", "Rel. Evang.", "R.Ev"),
-                    ("ReligiÃ³n CatÃ³lica", "Rel. Cat.", "R.Cat"),
-                    ("OrientaciÃ³n", "OrientaciÃ³n", "Ori")
+                    ("Religión Evangélica", "Rel. Evang.", "R.Ev"),
+                    ("Religión Católica", "Rel. Cat.", "R.Cat"),
+                    ("Orientación", "Orientación", "Ori")
                 ]
 
                 # Asistencia del curso y fechas de semestres institucionales
@@ -6425,8 +6425,8 @@ elif st.session_state.current_module == 'preacta':
                     col_d_asist = next((c for c in df_c_asist.columns if any(x in c.lower() for x in ['dato', 'ina', 'aus', 'asis'])), 'Datos')
 
                 def match_asig(nombre_bd, asig_cat_full):
-                    nbd = str(nombre_bd).lower().replace('Ã¡','a').replace('Ã©','e').replace('Ã­','i').replace('Ã³','o').replace('Ãº','u').strip()
-                    ncat = str(asig_cat_full).lower().replace('Ã¡','a').replace('Ã©','e').replace('Ã­','i').replace('Ã³','o').replace('Ãº','u').strip()
+                    nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
+                    ncat = str(asig_cat_full).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
                     if nbd == ncat or nbd in ncat or ncat in nbd: return True
                     if 'matemat' in nbd and 'matemat' in ncat: return True
                     if ('lengua' in nbd or 'lenguaje' in nbd) and ('lengua' in ncat or 'lenguaje' in ncat): return True
@@ -6465,7 +6465,7 @@ elif st.session_state.current_module == 'preacta':
                     nom_al = str(r_al.get(col_n, '')).strip().upper()
                     n_lista = int(r_al.get('_ord', 1))
 
-                    # DetecciÃ³n de Retirado
+                    # Detección de Retirado
                     val_baja = str(r_al.get(col_baja, '')).strip() if col_baja in r_al else ""
                     es_ret = bool(val_baja and val_baja not in ['', 'nan', 'None'] and not pd.isna(r_al.get(col_baja)))
 
@@ -6477,9 +6477,9 @@ elif st.session_state.current_module == 'preacta':
                             "nombre": nom_al,
                             "es_retirado": True,
                             "fecha_baja": val_baja,
-                            "promedios_asig": {asig_corta: "â€”" for _, asig_corta, _ in asigs_catalogo},
+                            "promedios_asig": {asig_corta: "—" for _, asig_corta, _ in asigs_catalogo},
                             "prom_gral_num": 0.0,
-                            "prom_gral_str": "â€”",
+                            "prom_gral_str": "—",
                             "pct_asist": 0.0,
                             "rojas": 0,
                             "situacion": "RETIRADO",
@@ -6551,31 +6551,31 @@ elif st.session_state.current_module == 'preacta':
                         prom_gral_str = f"{prom_gral_num:.1f}".replace('.', ',')
                     else:
                         prom_gral_num = 0.0
-                        prom_gral_str = "â€”"
+                        prom_gral_str = "—"
 
-                    # Asistencia del Alumno considerando fecha de matrÃ­cula / ingreso oficial
+                    # Asistencia del Alumno considerando fecha de matrícula / ingreso oficial
                     asis_pre = calcular_asistencia_estudiante(r_al, df_asist, curso_preacta_sel, periodo='anual', config_inst=conf_inst_pre)
                     dias_clase_al = asis_pre["dias_clase"]
                     inasist_al = asis_pre["dias_inasist"]
                     pct_asist_num = asis_pre["pct_asist"]
 
-                    # Conteo de rojas numÃ©ricas (< 4.0)
+                    # Conteo de rojas numéricas (< 4.0)
                     cant_rojas = sum(1 for p in promedios_computables if p < 4.0)
 
-                    # Verificar si ya tenÃ­a datos guardados en Preacta
+                    # Verificar si ya tenía datos guardados en Preacta
                     sit_guardada = None
                     obs_guardada = ""
                     if not df_preacta_existente.empty and 'RUT_NORM' in df_preacta_existente.columns:
                         coincid = df_preacta_existente[
                             (df_preacta_existente['RUT_NORM'] == r_norm) &
-                            (df_preacta_existente.get('AÃ±o_STR', '') == str(anio_preacta_sel).strip())
+                            (df_preacta_existente.get('Año_STR', '') == str(anio_preacta_sel).strip())
                         ]
                         if not coincid.empty:
                             row_p = coincid.iloc[-1]
                             sit_guardada = str(row_p.get('Situacion_Final', '')).strip()
                             obs_guardada = str(row_p.get('Observaciones', '')).strip()
 
-                    # Verificar si el usuario modificÃ³ manualmente en la sesiÃ³n actual
+                    # Verificar si el usuario modificó manualmente en la sesión actual
                     k_mod = f"preacta_mod_{curso_preacta_sel}_{r_norm}"
                     if k_mod in st.session_state:
                         sit_base = st.session_state[k_mod].get("situacion", "Promovido(a)")
@@ -6603,7 +6603,7 @@ elif st.session_state.current_module == 'preacta':
                         "observaciones": obs_base
                     })
 
-                # MÃ©tricas superiores resumen del curso (calculadas sobre estudiantes activos)
+                # Métricas superiores resumen del curso (calculadas sobre estudiantes activos)
                 total_al = len(filas_matriz)
                 total_retirados = sum(1 for f in filas_matriz if f['es_retirado'])
                 alumnos_activos = [f for f in filas_matriz if not f['es_retirado']]
@@ -6612,11 +6612,11 @@ elif st.session_state.current_module == 'preacta':
                 total_reprobados = total_activos - total_promovidos
                 proms_validos = [f['prom_gral_num'] for f in alumnos_activos if f['prom_gral_num'] > 0]
                 prom_curso_gral = redondear_nota(sum(proms_validos) / len(proms_validos), 1) if proms_validos else 0.0
-                prom_curso_str = f"{prom_curso_gral:.1f}".replace('.', ',') if prom_curso_gral > 0 else "â€”"
+                prom_curso_str = f"{prom_curso_gral:.1f}".replace('.', ',') if prom_curso_gral > 0 else "—"
                 pct_promovidos = round(total_promovidos / total_activos * 100, 1) if total_activos else 100
                 fecha_emision_str = datetime.date.today().strftime('%d/%m/%Y')
 
-                # (Las mÃ©tricas y el botÃ³n de imprimir se despliegan en la cabecera de la pestaÃ±a oficial)
+                # (Las métricas y el botón de imprimir se despliegan en la cabecera de la pestaña oficial)
 
 
                 # Construir Tabla Oficial en HTML para pantalla:
@@ -6626,7 +6626,7 @@ elif st.session_state.current_module == 'preacta':
                 filas_html_pantalla = ""
                 for f in filas_matriz:
                     if f["es_retirado"]:
-                        celdas_ret = "".join(["<td style='text-align:center;padding:5px 2px;color:#cbd5e1;border:1px solid #e2e8f0;'>â€”</td>" for _ in asigs_catalogo])
+                        celdas_ret = "".join(["<td style='text-align:center;padding:5px 2px;color:#cbd5e1;border:1px solid #e2e8f0;'>—</td>" for _ in asigs_catalogo])
                         filas_html_pantalla += f"""
                         <tr style='background-color:#fef2f2;border-left:4px solid #ef4444;'>
                             <td style='text-align:center;font-weight:700;color:#991b1b;padding:5px 4px;border:1px solid #fecaca;'>{f['lista']}</td>
@@ -6634,8 +6634,8 @@ elif st.session_state.current_module == 'preacta':
                                 {f['nombre']} <span style='background:#fee2e2;color:#b91c1c;border:1px solid #f87171;font-size:0.68rem;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;'>RETIRADO</span>
                             </td>
                             {celdas_ret}
-                            <td style='text-align:center;color:#cbd5e1;font-weight:bold;border:1px solid #fecaca;'>â€”</td>
-                            <td style='text-align:center;color:#cbd5e1;border:1px solid #fecaca;'>â€”</td>
+                            <td style='text-align:center;color:#cbd5e1;font-weight:bold;border:1px solid #fecaca;'>—</td>
+                            <td style='text-align:center;color:#cbd5e1;border:1px solid #fecaca;'>—</td>
                             <td style='text-align:center;padding:5px 4px;border:1px solid #fecaca;'><span style='background:#fee2e2;color:#dc2626;font-weight:800;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>RETIRADO</span></td>
                             <td style='padding:5px 10px;font-size:0.75rem;color:#b91c1c;border:1px solid #fecaca;min-width:240px;white-space:normal;word-break:break-word;line-height:1.3;'>{f['observaciones']}</td>
                         </tr>
@@ -6655,13 +6655,13 @@ elif st.session_state.current_module == 'preacta':
                             elif val:
                                 celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#1e293b;border:1px solid #e2e8f0;'>{val}</td>"
                             else:
-                                celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#cbd5e1;border:1px solid #e2e8f0;'>â€”</td>"
+                                celdas_asig_p += f"<td style='text-align:center;padding:5px 3px;color:#cbd5e1;border:1px solid #e2e8f0;'>—</td>"
 
                         color_prom_gen = "#dc2626" if f["prom_gral_num"] > 0 and f["prom_gral_num"] < 4.0 else "#008F39"
                         badge_sit = (
-                            "<span style='background:#dcfce7;color:#15803d;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>âœ“ Promovido(a)</span>"
+                            "<span style='background:#dcfce7;color:#15803d;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>✓ Promovido(a)</span>"
                             if f["situacion"] == "Promovido(a)" else
-                            "<span style='background:#fee2e2;color:#b91c1c;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>âœ— Reprobado(a)</span>"
+                            "<span style='background:#fee2e2;color:#b91c1c;font-weight:700;padding:2px 8px;border-radius:4px;font-size:0.75rem;'>✗ Reprobado(a)</span>"
                         )
                         filas_html_pantalla += f"""
                         <tr style='border-bottom:1px solid #f1f5f9;'>
@@ -6678,7 +6678,7 @@ elif st.session_state.current_module == 'preacta':
                 celdas_prom_pie = ""
                 for _, asig_corta, _ in asigs_catalogo:
                     arr = sumas_asig[asig_corta]
-                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "â€”"
+                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
                     celdas_prom_pie += f"<th style='text-align:center;font-weight:800;color:#1e293b;padding:5px 3px;border:1px solid #cbd5e1;'>{prom_c}</th>"
 
                 headers_asig_th = "".join([f"<th style='padding:6px 3px;text-align:center;border:1px solid #cbd5e1;font-size:0.75rem;' title='{asig_full}'>{abrev}</th>" for asig_full, _, abrev in asigs_catalogo])
@@ -6688,12 +6688,12 @@ elif st.session_state.current_module == 'preacta':
                 <table style='width:100%;min-width:1300px;border-collapse:collapse;font-size:0.78rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'>
                     <thead>
                         <tr style='background:#f1f5f9;color:#0f172a;'>
-                            <th style='padding:6px 4px;width:28px;text-align:center;border:1px solid #cbd5e1;'>NÂ°</th>
+                            <th style='padding:6px 4px;width:28px;text-align:center;border:1px solid #cbd5e1;'>N°</th>
                             <th style='padding:6px 8px;text-align:left;border:1px solid #cbd5e1;white-space:nowrap;'>Estudiante</th>
                             {headers_asig_th}
                             <th style='padding:6px 4px;width:42px;text-align:center;border:1px solid #cbd5e1;background:#e2e8f0;font-weight:800;'>Prom.</th>
                             <th style='padding:6px 4px;width:44px;text-align:center;border:1px solid #cbd5e1;background:#e2e8f0;'>% Asis</th>
-                            <th style='padding:6px 6px;width:115px;text-align:center;border:1px solid #cbd5e1;white-space:nowrap;'>SituaciÃ³n Final</th>
+                            <th style='padding:6px 6px;width:115px;text-align:center;border:1px solid #cbd5e1;white-space:nowrap;'>Situación Final</th>
                             <th style='padding:6px 10px;text-align:left;border:1px solid #cbd5e1;min-width:240px;white-space:nowrap;'>Observaciones / Decretos</th>
                         </tr>
                     </thead>
@@ -6705,33 +6705,33 @@ elif st.session_state.current_module == 'preacta':
                             <th colspan='2' style='text-align:right;padding:6px 8px;border:1px solid #cbd5e1;font-weight:700;color:#334155;'>PROMEDIO CURSO:</th>
                             {celdas_prom_pie}
                             <th style='text-align:center;font-weight:900;color:#008F39;padding:6px 4px;border:1px solid #cbd5e1;background:#e2e8f0;'>{prom_curso_str}</th>
-                            <th colspan='3' style='text-align:left;padding:6px 10px;border:1px solid #cbd5e1;font-size:0.73rem;color:#64748b;white-space:nowrap;'>Decreto Supremo NÂ° 67/2018 Mineduc</th>
+                            <th colspan='3' style='text-align:left;padding:6px 10px;border:1px solid #cbd5e1;font-size:0.73rem;color:#64748b;white-space:nowrap;'>Decreto Supremo N° 67/2018 Mineduc</th>
                         </tr>
                     </tfoot>
                 </table>
                 </div>
                 """
 
-                # Renderizar tabla limpia y adaptativa (eliminando saltos de lÃ­nea con sangrÃ­a para que Markdown no lo interprete como cÃ³digo preformateado)
+                # Renderizar tabla limpia y adaptativa (eliminando saltos de línea con sangría para que Markdown no lo interprete como código preformateado)
                 tabla_pantalla_html_limpia = re.sub(r'\n\s*', ' ', tabla_pantalla_html).strip()
 
 
-                # Construir HTML oficial para impresiÃ³n apaisada (Landscape)
-                # TÃ­tulo exacto: Preacta de Calificaciones
-                # Comuna dinÃ¡mica de configuraciÃ³n: MulchÃ©n
-                # Firmas: Profesor(a) Jefe (nombre desde asignaciones) y Director (con firma grÃ¡fica b64)
+                # Construir HTML oficial para impresión apaisada (Landscape)
+                # Título exacto: Preacta de Calificaciones
+                # Comuna dinámica de configuración: Mulchén
+                # Firmas: Profesor(a) Jefe (nombre desde asignaciones) y Director (con firma gráfica b64)
                 filas_html_print = ""
                 for f in filas_matriz:
                     if f["es_retirado"]:
-                        celdas_asig_ret = "".join(["<td style='text-align:center;padding:3px;color:#94a3b8;'>â€”</td>" for _ in asigs_catalogo])
+                        celdas_asig_ret = "".join(["<td style='text-align:center;padding:3px;color:#94a3b8;'>—</td>" for _ in asigs_catalogo])
                         filas_html_print += f"""
                         <tr style='background-color:#fee2e2;color:#991b1b;'>
                             <td style='text-align:center;padding:3px;font-weight:bold;'>{f['lista']}</td>
                             <td style='padding:3px;font-family:monospace;font-size:8pt;'>{f['rut']}</td>
                             <td style='padding:3px;font-size:8.5pt;font-weight:bold;'>{f['nombre']}</td>
                             {celdas_asig_ret}
-                            <td style='text-align:center;font-weight:bold;padding:3px;'>â€”</td>
-                            <td style='text-align:center;padding:3px;'>â€”</td>
+                            <td style='text-align:center;font-weight:bold;padding:3px;'>—</td>
+                            <td style='text-align:center;padding:3px;'>—</td>
                             <td style='text-align:center;font-weight:bold;color:#dc2626;padding:3px;'>RETIRADO</td>
                             <td style='padding:3px;font-size:7.5pt;color:#b91c1c;'>{f['observaciones']}</td>
                         </tr>
@@ -6745,7 +6745,7 @@ elif st.session_state.current_module == 'preacta':
                                 if float(str(val).replace(',', '.')) < 4.0: es_roja = True
                             except: pass
                             st_roja = "color:#dc2626;font-weight:bold;" if es_roja else ""
-                            celdas_asig_print += f"<td style='text-align:center;padding:3px;{st_roja}'>{val if val else 'â€”'}</td>"
+                            celdas_asig_print += f"<td style='text-align:center;padding:3px;{st_roja}'>{val if val else '—'}</td>"
 
                         col_sit = "#166534" if f["situacion"] == "Promovido(a)" else "#991b1b"
                         filas_html_print += f"""
@@ -6764,19 +6764,19 @@ elif st.session_state.current_module == 'preacta':
                 celdas_prom_pie_print = ""
                 for _, asig_corta, _ in asigs_catalogo:
                     arr = sumas_asig[asig_corta]
-                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "â€”"
+                    prom_c = f"{redondear_nota(sum(arr)/len(arr)):.1f}".replace('.', ',') if arr else "—"
                     celdas_prom_pie_print += f"<td style='text-align:center;font-weight:bold;padding:3px;'>{prom_c}</td>"
 
                 headers_asig_print = "".join([f"<th style='padding:3px;font-size:7.5pt;'>{abrev}</th>" for _, _, abrev in asigs_catalogo])
                 img_tag_print = f'<img src="data:image/png;base64,{insignia_b64}" style="height:42px;width:auto;" />' if insignia_b64 else ''
 
-                # Estampa de firma del director si existe en base64 en configuraciÃ³n
+                # Estampa de firma del director si existe en base64 en configuración
                 firma_director_html = (
                     f'<img src="data:image/png;base64,{firma_director_b64}" style="max-height:50px;display:block;margin:0 auto -8px auto;" />'
                     if firma_director_b64 else '<div style="height:45px;"></div>'
                 )
 
-                # Token Ãºnico para que cada clic en imprimir recargue limpiamente el diÃ¡logo del navegador
+                # Token único para que cada clic en imprimir recargue limpiamente el diálogo del navegador
                 print_token = int(time.time() * 1000)
 
                 html_doc_impresion = f"""
@@ -6846,24 +6846,24 @@ elif st.session_state.current_module == 'preacta':
                         </div>
                         <div style="text-align:center;">
                             <div style="font-weight:900;font-size:13pt;letter-spacing:0.5px;">Preacta de Calificaciones</div>
-                            <div style="font-size:8.5pt;color:#334155;">AÃ‘O ESCOLAR {anio_preacta_sel} â€” CURSO: {curso_preacta_sel}</div>
+                            <div style="font-size:8.5pt;color:#334155;">AÑO ESCOLAR {anio_preacta_sel} — CURSO: {curso_preacta_sel}</div>
                         </div>
                         <div style="text-align:right;font-size:7.5pt;color:#475569;">
-                            Fecha de EmisiÃ³n: {fecha_emision_str}<br>
-                            MatrÃ­cula: {total_activos} Activos {f'+ {total_retirados} Retirados' if total_retirados else ''} | Promovidos: {total_promovidos} ({pct_promovidos}%)
+                            Fecha de Emisión: {fecha_emision_str}<br>
+                            Matrícula: {total_activos} Activos {f'+ {total_retirados} Retirados' if total_retirados else ''} | Promovidos: {total_promovidos} ({pct_promovidos}%)
                         </div>
                     </div>
 
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:25px;padding:3px;">NÂ°</th>
+                                <th style="width:25px;padding:3px;">N°</th>
                                 <th style="width:75px;padding:3px;">RUN</th>
                                 <th style="padding:3px;text-align:left;">Apellidos y Nombres</th>
                                 {headers_asig_print}
                                 <th style="width:38px;padding:3px;">Prom</th>
                                 <th style="width:38px;padding:3px;">% Asis</th>
-                                <th style="width:80px;padding:3px;">SituaciÃ³n</th>
+                                <th style="width:80px;padding:3px;">Situación</th>
                                 <th style="width:180px;padding:3px;white-space:nowrap;">Observaciones / Decretos</th>
                             </tr>
                         </thead>
@@ -6873,7 +6873,7 @@ elif st.session_state.current_module == 'preacta':
                                 <td colspan="3" style="text-align:right;padding:3px;font-size:8pt;">PROMEDIO CURSO:</td>
                                 {celdas_prom_pie_print}
                                 <td style="text-align:center;padding:3px;font-size:8.5pt;">{prom_curso_str}</td>
-                                <td colspan="3" style="padding:3px;font-size:7.5pt;color:#64748b;">Decreto Supremo NÂ° 67/2018 Mineduc</td>
+                                <td colspan="3" style="padding:3px;font-size:7.5pt;color:#64748b;">Decreto Supremo N° 67/2018 Mineduc</td>
                             </tr>
                         </tbody>
                     </table>
@@ -6905,8 +6905,8 @@ elif st.session_state.current_module == 'preacta':
                 </html>
                 """
 
-                # PestaÃ±as principales de navegaciÃ³n del mÃ³dulo Preacta
-                tab_preacta, tab_decretos, tab_sige = st.tabs(["ðŸ“„ Preacta Oficial", "âš–ï¸ Decretos y Observaciones", "ðŸ’¾ Archivos MagnÃ©ticos SIGE"])
+                # Pestañas principales de navegación del módulo Preacta
+                tab_preacta, tab_decretos, tab_sige = st.tabs(["📄 Preacta Oficial", "⚖️ Decretos y Observaciones", "💾 Archivos Magnéticos SIGE"])
 
                 with tab_preacta:
                     col_met, col_btn = st.columns([3.8, 1.2])
@@ -6918,17 +6918,17 @@ elif st.session_state.current_module == 'preacta':
                     with col_btn:
                         st.write("")
                         st.write("")
-                        btn_imprimir = st.button("ðŸ–¨ï¸ Imprimir Preacta", type="primary", use_container_width=True, key="btn_print_preacta")
+                        btn_imprimir = st.button("🖨️ Imprimir Preacta", type="primary", use_container_width=True, key="btn_print_preacta")
                         if btn_imprimir:
                             st.components.v1.html(html_doc_impresion, height=0, scrolling=False)
-                            st.toast("ðŸ–¨ï¸ Abriendo cuadro de impresiÃ³n oficial...", icon="ðŸ“„")
+                            st.toast("🖨️ Abriendo cuadro de impresión oficial...", icon="📄")
 
                     st.markdown("<hr style='margin:10px 0 12px 0;'>", unsafe_allow_html=True)
                     st.markdown(tabla_pantalla_html_limpia, unsafe_allow_html=True)
 
                 with tab_decretos:
-                    st.markdown("#### âš–ï¸ GestiÃ³n de SituaciÃ³n Final y Decretos de PromociÃ³n")
-                    st.caption("Ajusta la condiciÃ³n final de estudiantes (promovido/reprobado) o registra decretos normativos (ej: Decreto Supremo NÂ° 67/2018) para ser incluidos en el acta oficial.")
+                    st.markdown("#### ⚖️ Gestión de Situación Final y Decretos de Promoción")
+                    st.caption("Ajusta la condición final de estudiantes (promovido/reprobado) o registra decretos normativos (ej: Decreto Supremo N° 67/2018) para ser incluidos en el acta oficial.")
 
                     alumnos_activos_dict = {f"{f['lista']}. {f['nombre']}": f for f in filas_matriz if not f['es_retirado']}
                     if not alumnos_activos_dict:
@@ -6951,34 +6951,34 @@ elif st.session_state.current_module == 'preacta':
                             """, unsafe_allow_html=True)
 
                             idx_rad = 0 if obj_sel.get("situacion", "Promovido(a)") == "Promovido(a)" else 1
-                            nueva_sit = st.radio("SituaciÃ³n Final de PromociÃ³n:", ["Promovido(a)", "Reprobado(a)"], index=idx_rad, horizontal=True, key=f"tab_radio_sit_{obj_sel['rut_norm']}")
+                            nueva_sit = st.radio("Situación Final de Promoción:", ["Promovido(a)", "Reprobado(a)"], index=idx_rad, horizontal=True, key=f"tab_radio_sit_{obj_sel['rut_norm']}")
                             obs_val = st.text_area(
                                 "Observaciones / Decretos aplicados:",
                                 value=obj_sel["observaciones"],
-                                placeholder="Ej: Promovido(a) por Consejo de Profesores segÃºn Decreto Supremo NÂ° 67/2018 Art. 11...",
+                                placeholder="Ej: Promovido(a) por Consejo de Profesores según Decreto Supremo N° 67/2018 Art. 11...",
                                 height=90,
                                 key=f"tab_txt_obs_{obj_sel['rut_norm']}"
                             )
 
                             c_b1, c_b2 = st.columns([1.5, 1.0])
                             with c_b1:
-                                if st.button("ðŸ’¾ Guardar Cambios del Estudiante", type="primary", use_container_width=True, key=f"btn_save_tab_{obj_sel['rut_norm']}"):
+                                if st.button("💾 Guardar Cambios del Estudiante", type="primary", use_container_width=True, key=f"btn_save_tab_{obj_sel['rut_norm']}"):
                                     st.session_state[f"preacta_mod_{curso_preacta_sel}_{obj_sel['rut_norm']}"] = {
                                         "situacion": nueva_sit,
                                         "observaciones": obs_val.strip()
                                     }
-                                    st.toast(f"âœ… SituaciÃ³n de {obj_sel['nombre']} actualizada.", icon="âœ¨")
+                                    st.toast(f"✅ Situación de {obj_sel['nombre']} actualizada.", icon="✨")
                                     st.rerun()
                             with c_b2:
                                 k_mod = f"preacta_mod_{curso_preacta_sel}_{obj_sel['rut_norm']}"
                                 if k_mod in st.session_state:
                                     if st.button("Restablecer", use_container_width=True, key=f"btn_reset_tab_{obj_sel['rut_norm']}"):
                                         del st.session_state[k_mod]
-                                        st.toast(f"Valores de {obj_sel['nombre']} restablecidos por defecto.", icon="ðŸ”„")
+                                        st.toast(f"Valores de {obj_sel['nombre']} restablecidos por defecto.", icon="🔄")
                                         st.rerun()
 
                         with c_ed2:
-                            st.markdown("##### ðŸ“‹ Resumen de Excepciones del Curso")
+                            st.markdown("##### 📋 Resumen de Excepciones del Curso")
                             casos_especiales = [f for f in filas_matriz if f['es_retirado'] or f['situacion'] != 'Promovido(a)' or f['observaciones']]
                             if casos_especiales:
                                 for c in casos_especiales:
@@ -6988,21 +6988,21 @@ elif st.session_state.current_module == 'preacta':
                                     st.markdown(f"""
                                     <div style='background:{bg_col};padding:10px 12px;border-radius:6px;border-left:4px solid {badge_col};margin-bottom:8px;font-size:0.83rem;'>
                                         <div style='font-weight:700;color:#1e293b;'>{c['lista']}. {c['nombre']}</div>
-                                        <div style='color:#475569;font-size:0.78rem;margin-top:2px;'>CondiciÃ³n: <b style='color:{badge_col};'>{c['situacion']}</b></div>
+                                        <div style='color:#475569;font-size:0.78rem;margin-top:2px;'>Condición: <b style='color:{badge_col};'>{c['situacion']}</b></div>
                                         {f"<div style='color:#334155;font-size:0.75rem;margin-top:3px;'><i>{c['observaciones']}</i></div>" if c['observaciones'] else ""}
                                     </div>
                                     """, unsafe_allow_html=True)
                             else:
-                                st.info("No hay excepciones ni observaciones registradas en este curso (todos los estudiantes estÃ¡n promovidos de forma regular).")
+                                st.info("No hay excepciones ni observaciones registradas en este curso (todos los estudiantes están promovidos de forma regular).")
 
                 with tab_sige:
-                    st.markdown("#### ðŸ’¾ GeneraciÃ³n de Archivos MagnÃ©ticos Oficiales para SIGE (Mineduc)")
+                    st.markdown("#### 💾 Generación de Archivos Magnéticos Oficiales para SIGE (Mineduc)")
 
                     c_cur_sg1, c_cur_sg2 = st.columns([2.5, 1.2])
                     with c_cur_sg1:
                         idx_cur_sg = cursos_disp.index(curso_preacta_sel) if curso_preacta_sel in cursos_disp else 0
                         curso_sige_picker = st.selectbox(
-                            "ðŸ“š Seleccionar Curso a Generar:",
+                            "📚 Seleccionar Curso a Generar:",
                             cursos_disp,
                             index=idx_cur_sg,
                             key="sige_picker_course"
@@ -7015,10 +7015,10 @@ elif st.session_state.current_module == 'preacta':
                         chk_excluir_ret = st.checkbox(
                             "Excluir estudiantes retirados",
                             value=True,
-                            key=f"sige_excl_ret_{curso_preacta_sel}"
+                            key=f"sige_excl_ret_{curso_sige_picker}"
                         )
 
-                    # ParÃ¡metros institucionales fijos para SIGE
+                    # Parámetros institucionales fijos para SIGE
                     rbd_sige = "4410"
                     dv_sige = "5"
                     if "-" in str(rbd_colegio):
@@ -7031,7 +7031,7 @@ elif st.session_state.current_module == 'preacta':
                     cod_ens_sige = "110"
                     anio_sige = int(anio_preacta_sel)
 
-                    # Extraer grado y letra automÃ¡ticamente del curso seleccionado
+                    # Extraer grado y letra automáticamente del curso seleccionado
                     m_g = re.search(r'(\d+)', str(curso_sige_picker))
                     grado_sige = m_g.group(1) if m_g else "1"
                     m_l = re.search(r'\b([A-Za-z])\b', str(curso_sige_picker))
@@ -7039,26 +7039,26 @@ elif st.session_state.current_module == 'preacta':
                         m_l = re.search(r'([A-Da-d])\s*$', str(curso_sige_picker))
                     letra_sige = m_l.group(1).upper() if m_l else "A"
 
-                    # Filtrar lista de estudiantes segÃºn la opciÃ³n de retirados
+                    # Filtrar lista de estudiantes según la opción de retirados
                     estudiantes_sige = [f for f in filas_matriz if not (chk_excluir_ret and f['es_retirado'])]
 
                     if not estudiantes_sige:
                         st.warning(f"No hay estudiantes para procesar en {curso_sige_picker}.")
                     else:
-                        # Mapeo oficial de las 12 asignaturas oficiales a cÃ³digos SIGE (OrientaciÃ³n fija en 413)
+                        # Mapeo oficial de las 12 asignaturas oficiales a códigos SIGE (Orientación fija en 413)
                         mapa_sige_asigs = {
                             "Lenguaje": 28,
-                            "InglÃ©s": 6,
-                            "MatemÃ¡tica": 9845,
+                            "Inglés": 6,
+                            "Matemática": 9845,
                             "Historia": 19,
                             "Ciencias": 2280,
-                            "TecnologÃ­a": 14,
+                            "Tecnología": 14,
                             "Artes": 5,
-                            "MÃºsica": 288,
-                            "Ed. FÃ­sica": 517,
+                            "Música": 288,
+                            "Ed. Física": 517,
                             "Rel. Evang.": 22,
                             "Rel. Cat.": 22,
-                            "OrientaciÃ³n": 413
+                            "Orientación": 413
                         }
 
                         def _descomponer_rut_sige(rut_raw):
@@ -7081,7 +7081,7 @@ elif st.session_state.current_module == 'preacta':
 
                             for _, asig_corta, _ in asigs_catalogo:
                                 val_nota = al["promedios_asig"].get(asig_corta, "")
-                                if not val_nota or str(val_nota).strip() in ["â€”", "None", "nan", ""]:
+                                if not val_nota or str(val_nota).strip() in ["—", "None", "nan", ""]:
                                     continue
 
                                 val_str = str(val_nota).strip()
@@ -7108,7 +7108,7 @@ elif st.session_state.current_module == 'preacta':
 
                         contenido_tipo_4 = "\r\n".join(lineas_tipo_4) + "\r\n" if lineas_tipo_4 else ""
 
-                        # 2. Generar contenido ARCHIVO TIPO 5 (SituaciÃ³n Final y PromociÃ³n)
+                        # 2. Generar contenido ARCHIVO TIPO 5 (Situación Final y Promoción)
                         lineas_tipo_5 = []
                         for al in estudiantes_sige:
                             r_cuerpo, r_dv = _descomponer_rut_sige(al['rut'])
@@ -7151,10 +7151,10 @@ elif st.session_state.current_module == 'preacta':
                             st.markdown(f"""
                             <div style='background:#f0fdf4;padding:14px;border-radius:8px;border:1px solid #bbf7d0;'>
                                 <div style='display:flex;align-items:center;gap:8px;'>
-                                    <span style='font-size:1.4rem;'>ðŸ“Š</span>
+                                    <span style='font-size:1.4rem;'>📊</span>
                                     <div>
                                         <b style='color:#166534;font-size:1.02rem;'>Archivo Tipo 4 (.txt)</b>
-                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales â€” {curso_sige_picker}</div>
+                                        <div style='font-size:0.8rem;color:#15803d;'>Calificaciones Anuales — {curso_sige_picker}</div>
                                     </div>
                                 </div>
                             </div>
@@ -7162,7 +7162,7 @@ elif st.session_state.current_module == 'preacta':
                             st.write("")
                             st.metric("Registros de Calificaciones", f"{total_notas_t4} notas generadas")
                             st.download_button(
-                                label="ðŸ“¥ Descargar Archivo Tipo 4 (.txt)",
+                                label="📥 Descargar Archivo Tipo 4 (.txt)",
                                 data=contenido_tipo_4.encode("latin1", errors="replace"),
                                 file_name=f"SIGE_Tipo4_Calificaciones_{anio_sige}_{grado_sige}{letra_sige}.txt",
                                 mime="text/plain",
@@ -7175,10 +7175,10 @@ elif st.session_state.current_module == 'preacta':
                             st.markdown(f"""
                             <div style='background:#eff6ff;padding:14px;border-radius:8px;border:1px solid #bfdbfe;'>
                                 <div style='display:flex;align-items:center;gap:8px;'>
-                                    <span style='font-size:1.4rem;'>ðŸŽ“</span>
+                                    <span style='font-size:1.4rem;'>🎓</span>
                                     <div>
                                         <b style='color:#1e40af;font-size:1.02rem;'>Archivo Tipo 5 (.txt)</b>
-                                        <div style='font-size:0.8rem;color:#1d4ed8;'>SituaciÃ³n Final y PromociÃ³n â€” {curso_sige_picker}</div>
+                                        <div style='font-size:0.8rem;color:#1d4ed8;'>Situación Final y Promoción — {curso_sige_picker}</div>
                                     </div>
                                 </div>
                             </div>
@@ -7186,7 +7186,7 @@ elif st.session_state.current_module == 'preacta':
                             st.write("")
                             st.metric("Estudiantes Procesados", f"{len(lineas_tipo_5)} alumnos incluidos")
                             st.download_button(
-                                label="ðŸ“¥ Descargar Archivo Tipo 5 (.txt)",
+                                label="📥 Descargar Archivo Tipo 5 (.txt)",
                                 data=contenido_tipo_5.encode("latin1", errors="replace"),
                                 file_name=f"SIGE_Tipo5_Promocion_{anio_sige}_{grado_sige}{letra_sige}.txt",
                                 mime="text/plain",
@@ -7197,7 +7197,7 @@ elif st.session_state.current_module == 'preacta':
 
 
         except Exception as e:
-            st.error(f"Error al cargar mÃ³dulo de Preacta: {e}")
+            st.error(f"Error al cargar módulo de Preacta: {e}")
             import traceback; st.code(traceback.format_exc())
 
 
@@ -7207,10 +7207,10 @@ elif st.session_state.current_module == 'informes':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸ“‘ EmisiÃ³n de Informes de Notas</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>📑 Emisión de Informes de Notas</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_inf", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_inf", use_container_width=True):
             navigate('home')
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -7223,20 +7223,20 @@ elif st.session_state.current_module == 'informes':
     sheet_cursos = get_cursos_sheet()
 
     if not sheet_alumnos or not sheet_notas:
-        st.error("âŒ Error de conexiÃ³n con la base de datos.")
+        st.error("❌ Error de conexión con la base de datos.")
     else:
         try:
-            # 1. Cargar ConfiguraciÃ³n del Establecimiento
+            # 1. Cargar Configuración del Establecimiento
             conf_data = {}
             if sheet_config:
                 for r in sheet_config.get_all_records():
                     conf_data[str(r.get("Clave","")).strip()] = str(r.get("Valor","")).strip()
 
-            nom_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÃ‘AS")
-            region_col  = conf_data.get("region", "BÃOBÃO")
-            ciudad_col  = conf_data.get("ciudad", "MulchÃ©n")
+            nom_colegio = conf_data.get("nombre_colegio", "ESCUELA VILLA LAS PEÑAS")
+            region_col  = conf_data.get("region", "BÍOBÍO")
+            ciudad_col  = conf_data.get("ciudad", "Mulchén")
             rbd_col     = conf_data.get("rbd", "4410-5")
-            director_col = conf_data.get("nombre_director", "RUBÃ‰N MARCOS QUEZADA BALBOA")
+            director_col = conf_data.get("nombre_director", "RUBÉN MARCOS QUEZADA BALBOA")
             firma_b64   = conf_data.get("firma_director_b64", "")
 
             # Cargar insignia local institucional en Base64
@@ -7258,9 +7258,9 @@ elif st.session_state.current_module == 'informes':
             col_c = next((c for c in df_al_inf.columns if 'curs' in c.lower()), 'Curso')
             col_n = next((c for c in df_al_inf.columns if 'nomb' in c.lower()), 'Nombre')
             col_r = next((c for c in df_al_inf.columns if 'rut' in c.lower()), 'RUT')
-            col_o = next((c for c in df_al_inf.columns if any(x in c.lower() for x in ['list','orden','nÂ°','nro'])), 'NÂ° Lista')
-            col_mat = next((c for c in df_al_inf.columns if 'matr' in c.lower() and 'fec' not in c.lower()), 'NÂ° MatrÃ­cula')
-            col_f_mat = next((c for c in df_al_inf.columns if 'matr' in c.lower() and ('fec' in c.lower() or 'date' in c.lower())), 'Fecha MatrÃ­cula')
+            col_o = next((c for c in df_al_inf.columns if any(x in c.lower() for x in ['list','orden','n°','nro'])), 'N° Lista')
+            col_mat = next((c for c in df_al_inf.columns if 'matr' in c.lower() and 'fec' not in c.lower()), 'N° Matrícula')
+            col_f_mat = next((c for c in df_al_inf.columns if 'matr' in c.lower() and ('fec' in c.lower() or 'date' in c.lower())), 'Fecha Matrícula')
             col_baja = next((c for c in df_al_inf.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
             col_f_ing = next((c for c in df_al_inf.columns if any(x in c.lower() for x in ['ingres', 'matric', 'matr_fec'])), None)
 
@@ -7272,10 +7272,10 @@ elif st.session_state.current_module == 'informes':
 
             cursos_disp = obtener_cursos_oficiales_sistema()
 
-            # Barra de selecciÃ³n
+            # Barra de selección
             c_sel1, c_sel2, c_sel3 = st.columns([2, 3, 2.8])
             with c_sel1:
-                curso_inf_sel = st.selectbox("ðŸ“š Selecciona el Curso:", cursos_disp, key="sel_curso_informes")
+                curso_inf_sel = st.selectbox("📚 Selecciona el Curso:", cursos_disp, key="sel_curso_informes")
 
             df_curso_inf = df_al_inf[df_al_inf[col_c].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_inf_sel))].copy()
             if not df_curso_inf.empty:
@@ -7295,24 +7295,24 @@ elif st.session_state.current_module == 'informes':
                     map_est_inf[tag] = r.to_dict()
 
             with c_sel2:
-                alumno_inf_sel = st.selectbox("ðŸ‘¤ Selecciona Estudiante:", opciones_est, key="sel_alumno_informes")
+                alumno_inf_sel = st.selectbox("👤 Selecciona Estudiante:", opciones_est, key="sel_alumno_informes")
 
             with c_sel3:
                 tipo_inf_sel = st.selectbox(
-                    "ðŸ“‘ Tipo de Documento:",
+                    "📑 Tipo de Documento:",
                     [
-                        "ðŸ“œ Certificado de Alumno Regular",
-                        "ðŸŸ£ Informe Anual Completo (1Â° y 2Â° Semestre)",
-                        "ðŸ”µ Informe de Notas - 1er Semestre",
-                        "ðŸŸ¢ Informe de Notas - 2do Semestre",
-                        "ðŸŽ“ Certificado Anual de Estudios"
+                        "📜 Certificado de Alumno Regular",
+                        "🟣 Informe Anual Completo (1° y 2° Semestre)",
+                        "🔵 Informe de Notas - 1er Semestre",
+                        "🟢 Informe de Notas - 2do Semestre",
+                        "🎓 Certificado Anual de Estudios"
                     ],
                     key="sel_tipo_inf"
                 )
 
             st.markdown("<hr style='margin:10px 0 14px 0;border-color:#edf2f7;'>", unsafe_allow_html=True)
 
-            # SubtÃ­tulo para informes regulares
+            # Subtítulo para informes regulares
             if "Alumno Regular" in tipo_inf_sel:
                 subtitulo_inf = "CERTIFICADO DE ALUMNO REGULAR"
             elif "1er Semestre" in tipo_inf_sel:
@@ -7344,7 +7344,7 @@ elif st.session_state.current_module == 'informes':
             if not df_asist_all.empty:
                 df_asist_all.columns = [str(c).strip() for c in df_asist_all.columns]
 
-            # FunciÃ³n generadora de HTML para un alumno
+            # Función generadora de HTML para un alumno
             def generar_html_informe_alumno(alumno_dict):
                 r_alu = str(alumno_dict.get(col_r, '')).strip()
                 r_alu_norm = r_alu.replace('.','').strip().lower()
@@ -7358,10 +7358,10 @@ elif st.session_state.current_module == 'informes':
 
                 # Asignaturas oficiales
                 asigs_oficiales = [
-                    "Lengua y Literatura", "Idioma Extranjero InglÃ©s", "MatemÃ¡tica",
-                    "Historia, GeografÃ­a y Ciencias Sociales", "Ciencias Naturales",
-                    "TecnologÃ­a", "MÃºsica", "EducaciÃ³n FÃ­sica y Salud",
-                    "ReligiÃ³n EvangÃ©lica", "ReligiÃ³n CatÃ³lica", "OrientaciÃ³n", "Artes Visuales"
+                    "Lengua y Literatura", "Idioma Extranjero Inglés", "Matemática",
+                    "Historia, Geografía y Ciencias Sociales", "Ciencias Naturales",
+                    "Tecnología", "Música", "Educación Física y Salud",
+                    "Religión Evangélica", "Religión Católica", "Orientación", "Artes Visuales"
                 ]
 
                 # Filtrar notas del alumno
@@ -7380,8 +7380,8 @@ elif st.session_state.current_module == 'informes':
 
                 # Funciones auxiliares para coincidencia flexible y escala 10-70
                 def match_asig_inf(nombre_bd, asig_cat_full):
-                    nbd = str(nombre_bd).lower().replace('Ã¡','a').replace('Ã©','e').replace('Ã­','i').replace('Ã³','o').replace('Ãº','u').strip()
-                    ncat = str(asig_cat_full).lower().replace('Ã¡','a').replace('Ã©','e').replace('Ã­','i').replace('Ã³','o').replace('Ãº','u').strip()
+                    nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
+                    ncat = str(asig_cat_full).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
                     if nbd == ncat or nbd in ncat or ncat in nbd: return True
                     if 'matemat' in nbd and 'matemat' in ncat: return True
                     if ('lengua' in nbd or 'lenguaje' in nbd) and ('lengua' in ncat or 'lenguaje' in ncat): return True
@@ -7477,7 +7477,7 @@ elif st.session_state.current_module == 'informes':
                         except:
                             pass
 
-                    # FunciÃ³n para dar formato rojo a notas deficientes (< 4,0 o concepto 'I')
+                    # Función para dar formato rojo a notas deficientes (< 4,0 o concepto 'I')
                     def _formato_celda_nota(v, base_cls="nota-cell"):
                         s = str(v).strip()
                         if not s:
@@ -7491,7 +7491,7 @@ elif st.session_state.current_module == 'informes':
                                 return f"<td class='{base_cls} nota-roja-rep'>{s}</td>"
                         return f"<td class='{base_cls}'>{s}</td>"
 
-                    # Generar celdas segÃºn modo
+                    # Generar celdas según modo
                     if modo_s1_solo:
                         celdas_notas = "".join([_formato_celda_nota(val, "nota-cell") for val in n_s1])
                         c_p1 = _formato_celda_nota(p1_val, "prom-cell")
@@ -7520,10 +7520,10 @@ elif st.session_state.current_module == 'informes':
                 # Fila de pie de tabla y encabezados con las 10 notas
                 sub_th_10 = "".join([f"<th>N{i}</th>" for i in range(1, 11)])
                 if modo_s1_solo:
-                    fila_pie = f"<tr class='fila-prom-gen'><td class='asig-col' colspan='11'>PROMEDIO DEL PERÃODO</td><td class='{cls_prom_s1}'>{prom_s1_gen}</td></tr>"
+                    fila_pie = f"<tr class='fila-prom-gen'><td class='asig-col' colspan='11'>PROMEDIO DEL PERÍODO</td><td class='{cls_prom_s1}'>{prom_s1_gen}</td></tr>"
                     th_html = f"<tr><th rowspan='2' class='asig-col'>Asignaturas</th><th colspan='10'>1er Semestre</th><th rowspan='2'>P1</th></tr><tr>{sub_th_10}</tr>"
                 elif modo_s2_solo:
-                    fila_pie = f"<tr class='fila-prom-gen'><td class='asig-col' colspan='11'>PROMEDIO DEL PERÃODO</td><td class='{cls_prom_s2}'>{prom_s2_gen}</td></tr>"
+                    fila_pie = f"<tr class='fila-prom-gen'><td class='asig-col' colspan='11'>PROMEDIO DEL PERÍODO</td><td class='{cls_prom_s2}'>{prom_s2_gen}</td></tr>"
                     th_html = f"<tr><th rowspan='2' class='asig-col'>Asignaturas</th><th colspan='10'>2do Semestre</th><th rowspan='2'>P2</th></tr><tr>{sub_th_10}</tr>"
                 else: # ANUAL
                     fila_pie = (
@@ -7532,7 +7532,7 @@ elif st.session_state.current_module == 'informes':
                     )
                     th_html = f"<tr><th rowspan='2' class='asig-col'>Asignaturas</th><th colspan='10'>1er Semestre</th><th rowspan='2'>P1</th><th colspan='10'>2do Semestre</th><th rowspan='2'>P2</th><th rowspan='2'>NF</th></tr><tr>{sub_th_10}{sub_th_10}</tr>"
 
-                # Calcular Asistencia oficial y exacta mediante la funciÃ³n unificada
+                # Calcular Asistencia oficial y exacta mediante la función unificada
                 periodo_inf = "s1" if modo_s1_solo else ("s2" if modo_s2_solo else "anual")
                 asis_inf = calcular_asistencia_estudiante(alumno_dict, df_asist_all, curso_inf_sel, periodo=periodo_inf, config_inst=conf_inst_inf)
                 total_dias_asis = asis_inf["dias_clase"]
@@ -7541,7 +7541,7 @@ elif st.session_state.current_module == 'informes':
                 label_asist_rec = "Asistencia 1er Semestre(%)" if modo_s1_solo else ("Asistencia 2do Semestre(%)" if modo_s2_solo else "Asistencia Anual(%)")
 
                 # Insignia en Base64 o fallback
-                insignia_img_tag = f"<img src='data:image/png;base64,{insignia_b64_html}' style='max-height:65px;max-width:65px;object-fit:contain;'>" if insignia_b64_html else "<div style='font-size:1.8rem;'>ðŸ«</div>"
+                insignia_img_tag = f"<img src='data:image/png;base64,{insignia_b64_html}' style='max-height:65px;max-width:65px;object-fit:contain;'>" if insignia_b64_html else "<div style='font-size:1.8rem;'>🏫</div>"
 
                 # Firma del Director en HTML
                 img_firma_tag = f"<img src='data:image/png;base64,{firma_b64}' style='max-height:55px;max-width:180px;object-fit:contain;display:block;margin:0 auto;'>" if firma_b64 else ""
@@ -7563,12 +7563,12 @@ elif st.session_state.current_module == 'informes':
                     if not val_f_mat or val_f_mat in ['nan', 'None']:
                         val_f_mat = f"01-03-{hoy.year}"
 
-                    # Curso del alumno en palabras (CON letra, en MAYÃšSCULAS)
+                    # Curso del alumno en palabras (CON letra, en MAYÚSCULAS)
                     _c_reg = str(alumno_dict.get(col_c, curso_inf_sel) or curso_inf_sel).strip()
                     _k_reg = extraer_clave_curso(_c_reg)
                     _niv_reg = _k_reg[0]
                     _num_reg = next((ch for ch in _c_reg if ch.isdigit()), None)
-                    # Extraer letra del curso (Ãºltima letra mayÃºscula, ej: "3Â°A" -> "A")
+                    # Extraer letra del curso (última letra mayúscula, ej: "3°A" -> "A")
                     _letra_reg = ''
                     for _ch in reversed(_c_reg):
                         if _ch.isalpha() and _ch.upper() in 'ABCDEFGHIJ':
@@ -7576,23 +7576,23 @@ elif st.session_state.current_module == 'informes':
                             break
                     _sufijo_letra = f' {_letra_reg}' if _letra_reg else ''
                     _map_reg = {
-                        "1": "PRIMER AÃ‘O", "2": "SEGUNDO AÃ‘O", "3": "TERCER AÃ‘O",
-                        "4": "CUARTO AÃ‘O", "5": "QUINTO AÃ‘O", "6": "SEXTO AÃ‘O",
-                        "7": "SÃ‰PTIMO AÃ‘O", "8": "OCTAVO AÃ‘O"
+                        "1": "PRIMER AÑO", "2": "SEGUNDO AÑO", "3": "TERCER AÑO",
+                        "4": "CUARTO AÑO", "5": "QUINTO AÑO", "6": "SEXTO AÑO",
+                        "7": "SÉPTIMO AÑO", "8": "OCTAVO AÑO"
                     }
                     if _niv_reg == "nt1":
-                        curso_reg_palabras = f"PRIMER NIVEL DE TRANSICIÃ“N (NT1){_sufijo_letra} DE EDUCACIÃ“N PARVULARIA"
+                        curso_reg_palabras = f"PRIMER NIVEL DE TRANSICIÓN (NT1){_sufijo_letra} DE EDUCACIÓN PARVULARIA"
                     elif _niv_reg == "nt2":
-                        curso_reg_palabras = f"SEGUNDO NIVEL DE TRANSICIÃ“N (NT2){_sufijo_letra} DE EDUCACIÃ“N PARVULARIA"
+                        curso_reg_palabras = f"SEGUNDO NIVEL DE TRANSICIÓN (NT2){_sufijo_letra} DE EDUCACIÓN PARVULARIA"
                     elif _num_reg and _num_reg in _map_reg:
-                        curso_reg_palabras = f"{_map_reg[_num_reg]}{_sufijo_letra} DE EDUCACIÃ“N GENERAL BÃSICA"
+                        curso_reg_palabras = f"{_map_reg[_num_reg]}{_sufijo_letra} DE EDUCACIÓN GENERAL BÁSICA"
                     else:
                         curso_reg_palabras = _c_reg.upper()
 
 
                     return f"""
                     <div class="carta-hoja cert-hoja cert-regular-hoja">
-                        <!-- ENCABEZADO INSTITUCIONAL CON LÃNEA VERDE Y DATOS MINISTERIALES -->
+                        <!-- ENCABEZADO INSTITUCIONAL CON LÍNEA VERDE Y DATOS MINISTERIALES -->
                         <div class="header-cert-container">
                             <div class="header-cert-insignia">
                                 {insignia_img_tag}
@@ -7602,10 +7602,10 @@ elif st.session_state.current_module == 'informes':
                                 <div class="doc-subtitulo" style="font-size:1.10rem;letter-spacing:1px;font-weight:800;color:#1a5c32;">CERTIFICADO DE ALUMNO REGULAR</div>
                             </div>
                             <div class="header-cert-datos">
-                                <div><b>RegiÃ³n:</b> {region_col.upper()}</div>
+                                <div><b>Región:</b> {region_col.upper()}</div>
                                 <div><b>Comuna:</b> {ciudad_col.upper()}</div>
                                 <div><b>RBD:</b> {rbd_col}</div>
-                                <div><b>AÃ±o Escolar:</b> {hoy.year}</div>
+                                <div><b>Año Escolar:</b> {hoy.year}</div>
                             </div>
                         </div>
 
@@ -7613,7 +7613,7 @@ elif st.session_state.current_module == 'informes':
                         <div style="padding:40px 32px 20px 32px;font-size:0.96rem;line-height:2.2;color:#111827;text-align:justify;">
 
                             <p style="margin-bottom:24px;">
-                                La DirecciÃ³n del Establecimiento Educacional <b>{nom_colegio}</b>, de {ciudad_col},
+                                La Dirección del Establecimiento Educacional <b>{nom_colegio}</b>, de {ciudad_col},
                             </p>
 
                             <p style="text-indent:40px;margin-bottom:20px;font-weight:700;font-size:0.97rem;">
@@ -7622,9 +7622,9 @@ elif st.session_state.current_module == 'informes':
 
                             <p style="text-indent:40px;margin-bottom:24px;">
                                 El (La) estudiante <b>{nom_alu}</b>, portador(a) del RUN <b>{r_alu_fmt}</b>,
-                                se encuentra debidamente matriculado(a) en este establecimiento con el nÃºmero
-                                de matrÃ­cula <b>{val_mat}</b>, cursando actualmente el nivel de
-                                <b>{curso_reg_palabras}</b>, en el aÃ±o escolar <b>{hoy.year}</b>.
+                                se encuentra debidamente matriculado(a) en este establecimiento con el número
+                                de matrícula <b>{val_mat}</b>, cursando actualmente el nivel de
+                                <b>{curso_reg_palabras}</b>, en el año escolar <b>{hoy.year}</b>.
                             </p>
 
                             <p style="text-indent:40px;margin-bottom:32px;">
@@ -7658,7 +7658,7 @@ elif st.session_state.current_module == 'informes':
                     # Formato RUN estricto: sin puntos, solo guion
                     r_alu_sin_puntos = r_alu.replace('.', '').strip()
 
-                    # Leer Preacta para obtener decisiÃ³n oficial y observaciones del Consejo
+                    # Leer Preacta para obtener decisión oficial y observaciones del Consejo
                     recs_pre_inf = sheet_preacta.get_all_records() if sheet_preacta else []
                     df_pre_inf = pd.DataFrame(recs_pre_inf) if recs_pre_inf else pd.DataFrame()
                     sit_oficial = None
@@ -7674,16 +7674,16 @@ elif st.session_state.current_module == 'informes':
                                 sit_oficial = str(row_pre.get('Situacion_Final', '')).strip()
                                 obs_oficial = str(row_pre.get('Observaciones', '')).strip()
 
-                    # Fallback si aÃºn no se ha guardado la Preacta: por defecto Promovido(a)
+                    # Fallback si aún no se ha guardado la Preacta: por defecto Promovido(a)
                     if not sit_oficial:
                         sit_oficial = "Promovido(a)"
 
-                    # ConversiÃ³n formal de curso a texto en palabras
+                    # Conversión formal de curso a texto en palabras
                     c_actual_str = str(alumno_dict.get(col_c, curso_inf_sel) or curso_inf_sel).strip()
                     k_cur = extraer_clave_curso(c_actual_str)
                     nivel_norm, letra_norm = k_cur[0], k_cur[1]
 
-                    # Obtener la letra oficial directamente desde el catÃ¡logo de Cursos o clave canÃ³nica
+                    # Obtener la letra oficial directamente desde el catálogo de Cursos o clave canónica
                     letra_oficial = letra_norm.upper() if letra_norm else "A"
                     if sheet_cursos:
                         try:
@@ -7697,39 +7697,39 @@ elif st.session_state.current_module == 'informes':
                             pass
 
                     map_curso_palabras = {
-                        "1": "Primer AÃ±o",
-                        "2": "Segundo AÃ±o",
-                        "3": "Tercer AÃ±o",
-                        "4": "Cuarto AÃ±o",
-                        "5": "Quinto AÃ±o",
-                        "6": "Sexto AÃ±o",
-                        "7": "SÃ©ptimo AÃ±o",
-                        "8": "Octavo AÃ±o"
+                        "1": "Primer Año",
+                        "2": "Segundo Año",
+                        "3": "Tercer Año",
+                        "4": "Cuarto Año",
+                        "5": "Quinto Año",
+                        "6": "Sexto Año",
+                        "7": "Séptimo Año",
+                        "8": "Octavo Año"
                     }
 
                     num_c = next((ch for ch in c_actual_str if ch.isdigit()), None)
 
                     if nivel_norm == "nt1":
-                        nom_curso_palabras = f"Primer Nivel de TransiciÃ³n (NT1) {letra_oficial} de EducaciÃ³n Parvularia"
-                        reprobado_curso_palabras = "Primer Nivel de TransiciÃ³n de EducaciÃ³n Parvularia"
-                        sig_curso_palabras = "Segundo Nivel de TransiciÃ³n de EducaciÃ³n Parvularia"
+                        nom_curso_palabras = f"Primer Nivel de Transición (NT1) {letra_oficial} de Educación Parvularia"
+                        reprobado_curso_palabras = "Primer Nivel de Transición de Educación Parvularia"
+                        sig_curso_palabras = "Segundo Nivel de Transición de Educación Parvularia"
                     elif nivel_norm == "nt2":
-                        nom_curso_palabras = f"Segundo Nivel de TransiciÃ³n (NT2) {letra_oficial} de EducaciÃ³n Parvularia"
-                        reprobado_curso_palabras = "Segundo Nivel de TransiciÃ³n de EducaciÃ³n Parvularia"
-                        sig_curso_palabras = "Primer AÃ±o de EducaciÃ³n General BÃ¡sica"
+                        nom_curso_palabras = f"Segundo Nivel de Transición (NT2) {letra_oficial} de Educación Parvularia"
+                        reprobado_curso_palabras = "Segundo Nivel de Transición de Educación Parvularia"
+                        sig_curso_palabras = "Primer Año de Educación General Básica"
                     elif num_c and num_c in map_curso_palabras:
-                        nom_curso_palabras = f"{map_curso_palabras[num_c]} {letra_oficial} de EducaciÃ³n General BÃ¡sica"
-                        reprobado_curso_palabras = f"{map_curso_palabras[num_c]} de EducaciÃ³n General BÃ¡sica"
+                        nom_curso_palabras = f"{map_curso_palabras[num_c]} {letra_oficial} de Educación General Básica"
+                        reprobado_curso_palabras = f"{map_curso_palabras[num_c]} de Educación General Básica"
                         num_siguiente = str(int(num_c) + 1)
                         if num_siguiente in map_curso_palabras:
-                            sig_curso_palabras = f"{map_curso_palabras[num_siguiente]} de EducaciÃ³n General BÃ¡sica"
+                            sig_curso_palabras = f"{map_curso_palabras[num_siguiente]} de Educación General Básica"
                         elif num_siguiente == "9":
-                            sig_curso_palabras = "Primer AÃ±o de EnseÃ±anza Media"
+                            sig_curso_palabras = "Primer Año de Enseñanza Media"
                         else:
                             sig_curso_palabras = "el siguiente nivel educativo"
                     else:
-                        nom_curso_palabras = f"{c_actual_str} de EducaciÃ³n General BÃ¡sica"
-                        reprobado_curso_palabras = f"{c_actual_str} de EducaciÃ³n General BÃ¡sica"
+                        nom_curso_palabras = f"{c_actual_str} de Educación General Básica"
+                        reprobado_curso_palabras = f"{c_actual_str} de Educación General Básica"
                         sig_curso_palabras = "el siguiente nivel educativo"
 
                     if "promov" in sit_oficial.lower():
@@ -7737,7 +7737,7 @@ elif st.session_state.current_module == 'informes':
                     else:
                         texto_consecuencia = f"ha reprobado el {reprobado_curso_palabras}."
 
-                    # Tabla limpia con Asignaturas y CalificaciÃ³n Final (solo cifras)
+                    # Tabla limpia con Asignaturas y Calificación Final (solo cifras)
                     filas_cert_html = ""
                     for asig in asigs_oficiales:
                         asig_es_conceptual = any(k in asig.lower() for k in ['religi', 'orientac'])
@@ -7786,7 +7786,7 @@ elif st.session_state.current_module == 'informes':
 
                     return f"""
                     <div class="carta-hoja cert-hoja">
-                        <!-- ENCABEZADO INSTITUCIONAL CON LÃNEA VERDE Y DATOS MINISTERIALES -->
+                        <!-- ENCABEZADO INSTITUCIONAL CON LÍNEA VERDE Y DATOS MINISTERIALES -->
                         <div class="header-cert-container">
                             <div class="header-cert-insignia">
                                 {insignia_img_tag}
@@ -7796,21 +7796,21 @@ elif st.session_state.current_module == 'informes':
                                 <div class="doc-subtitulo" style="font-size:1.05rem;letter-spacing:0.8px;">CERTIFICADO ANUAL DE ESTUDIOS</div>
                             </div>
                             <div class="header-cert-datos">
-                                <div><b>RegiÃ³n:</b> {region_col.upper()}</div>
+                                <div><b>Región:</b> {region_col.upper()}</div>
                                 <div><b>Comuna:</b> {ciudad_col.upper()}</div>
                                 <div><b>RBD:</b> {rbd_col}</div>
-                                <div><b>AÃ±o Escolar:</b> {hoy.year}</div>
+                                <div><b>Año Escolar:</b> {hoy.year}</div>
                             </div>
                         </div>
 
                         <!-- NORMATIVAS Y DECRETOS OFICIALES -->
                         <div class="cert-decretos">
-                            <div class="cert-dec-line"><span>Plan y Programa de Estudio aprobado por: (Decreto Supremo; Decreto Supremo Exento)</span> <b>NÂ° 628 de 2016</b></div>
-                            <div class="cert-dec-line"><span>Reglamento de EvaluaciÃ³n y PromociÃ³n Escolar Decreto Supremo Exento</span> <b>NÂ° decreto 67 de 2018</b></div>
-                            <div class="cert-dec-line"><span>Documento que lo declara reconocido oficialmente por el Ministerio de EducaciÃ³n de la RepÃºblica de Chile</span> <b>NÂ° 4711 de 1981</b></div>
+                            <div class="cert-dec-line"><span>Plan y Programa de Estudio aprobado por: (Decreto Supremo; Decreto Supremo Exento)</span> <b>N° 628 de 2016</b></div>
+                            <div class="cert-dec-line"><span>Reglamento de Evaluación y Promoción Escolar Decreto Supremo Exento</span> <b>N° decreto 67 de 2018</b></div>
+                            <div class="cert-dec-line"><span>Documento que lo declara reconocido oficialmente por el Ministerio de Educación de la República de Chile</span> <b>N° 4711 de 1981</b></div>
                         </div>
 
-                        <!-- IDENTIFICACIÃ“N DEL ESTUDIANTE -->
+                        <!-- IDENTIFICACIÓN DEL ESTUDIANTE -->
                         <div class="cert-alumno-intro">
                             <div style="margin-bottom:5px;">Don(a) <b style="font-size:0.88rem;">{nom_alu}</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b style="font-size:0.88rem;">RUN: {r_alu_sin_puntos}</b></div>
                             <div style="margin-bottom:5px;">Alumno(a) de <b style="font-size:0.86rem;">{nom_colegio}</b></div>
@@ -7822,7 +7822,7 @@ elif st.session_state.current_module == 'informes':
                             <thead>
                                 <tr>
                                     <th class="asig-col" style="padding-left:12px;text-transform:uppercase;">Asignaturas</th>
-                                    <th style="width:140px;text-align:center;">CALIFICACIÃ“N FINAL<br><span style="font-size:0.70rem;font-weight:600;">CIFRAS</span></th>
+                                    <th style="width:140px;text-align:center;">CALIFICACIÓN FINAL<br><span style="font-size:0.70rem;font-weight:600;">CIFRAS</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -7856,7 +7856,7 @@ elif st.session_state.current_module == 'informes':
                             {ciudad_col.upper()}, {hoy.day} de {meses_es[hoy.month - 1]} de {hoy.year}.
                         </div>
 
-                        <!-- SECCIÃ“N FIRMAS CON DATOS OFICIALES -->
+                        <!-- SECCIÓN FIRMAS CON DATOS OFICIALES -->
                         <div class="firmas-container" style="margin-top:20px;">
                             <div class="firma-box">
                                 <div class="espacio-firma-grafica"></div>
@@ -7916,12 +7916,12 @@ elif st.session_state.current_module == 'informes':
 
                     <!-- RECUADRO ASISTENCIA -->
                     <div class="recuadro-asistencia">
-                        <div>Total DÃ­as Trabajados: <b>{total_dias_asis}</b></div>
+                        <div>Total Días Trabajados: <b>{total_dias_asis}</b></div>
                         <div>{label_asist_rec}: <b>{pct_asis}%</b></div>
-                        <div>Total DÃ­as Inasistentes: <b>{total_inasist}</b></div>
+                        <div>Total Días Inasistentes: <b>{total_inasist}</b></div>
                     </div>
 
-                    <!-- SECCIÃ“N FIRMAS PERFECTAMENTE ALINEADAS -->
+                    <!-- SECCIÓN FIRMAS PERFECTAMENTE ALINEADAS -->
                     <div class="firmas-container">
                         <div class="firma-box">
                             <div class="espacio-firma-grafica"></div>
@@ -7944,7 +7944,7 @@ elif st.session_state.current_module == 'informes':
                 </div>
                 """
 
-            # Estilos CSS de alta resoluciÃ³n Carta Vertical estricta (8.5in x 11in)
+            # Estilos CSS de alta resolución Carta Vertical estricta (8.5in x 11in)
             css_informe = """
             <!DOCTYPE html>
             <html lang="es">
@@ -8167,7 +8167,7 @@ elif st.session_state.current_module == 'informes':
                     }
 
                     /* ==========================================================
-                       ESTILOS ESPECÃFICOS PARA CERTIFICADO ANUAL DE ESTUDIOS
+                       ESTILOS ESPECÍFICOS PARA CERTIFICADO ANUAL DE ESTUDIOS
                        ========================================================== */
                     .cert-hoja {
                         padding: 14px 18px !important;
@@ -8275,17 +8275,17 @@ elif st.session_state.current_module == 'informes':
             else:
                 alumnos_a_generar.append(map_est_inf[alumno_inf_sel])
 
-            # BotÃ³n Streamlit nativo: no requiere vista previa invasiva en pantalla
+            # Botón Streamlit nativo: no requiere vista previa invasiva en pantalla
             c_btn1, c_btn2 = st.columns([2.5, 4.5])
             with c_btn1:
-                btn_lanzar_impresion = st.button("ðŸ–¨ï¸ Imprimir / Guardar PDF", type="primary", use_container_width=True, key="btn_trigger_print")
+                btn_lanzar_impresion = st.button("🖨️ Imprimir / Guardar PDF", type="primary", use_container_width=True, key="btn_trigger_print")
 
             if btn_lanzar_impresion:
                 html_acumulado = css_informe
                 for al_item in alumnos_a_generar:
                     html_acumulado += generar_html_informe_alumno(al_item)
                 
-                # Identificador de tiempo Ãºnico para evitar cacheo del navegador
+                # Identificador de tiempo único para evitar cacheo del navegador
                 ts_print = int(time.time() * 1000)
                 html_acumulado += f"""
                 <!-- ts_{ts_print} -->
@@ -8300,7 +8300,7 @@ elif st.session_state.current_module == 'informes':
 
                 # Iframe invisible con contenido dinamico (ts) para garantizar re-ejecucion sin parametro key
                 st.components.v1.html(html_acumulado, height=0, scrolling=False)
-                st.success(f"âœ… Enviando {len(alumnos_a_generar)} informe(s) a la ventana de impresiÃ³n...")
+                st.success(f"✅ Enviando {len(alumnos_a_generar)} informe(s) a la ventana de impresión...")
         except Exception as e:
             st.error(f"Error al generar los informes: {e}")
 
@@ -8310,10 +8310,10 @@ elif st.session_state.current_module == 'desarrollo_personal':
 
     col_titulo, col_escape = st.columns([4.2, 1.1])
     with col_titulo:
-        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>ðŸŒ± Informe de Desarrollo Personal y Social</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='margin:0;padding:2px 0;line-height:1.3;'>🌱 Informe de Desarrollo Personal y Social</h1>", unsafe_allow_html=True)
     with col_escape:
         st.markdown("<div class='btn-volver-container' style='padding-top:2px;'>", unsafe_allow_html=True)
-        if st.button("ðŸ  Volver", key="btn_escape_sup_dp", use_container_width=True):
+        if st.button("🏠 Volver", key="btn_escape_sup_dp", use_container_width=True):
             navigate('home')
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -8324,20 +8324,20 @@ elif st.session_state.current_module == 'desarrollo_personal':
     sheet_dp = get_desarrollo_personal_sheet()
 
     if not sheet_alumnos or not sheet_dp:
-        st.error("âŒ Error de conexiÃ³n con la base de datos.")
+        st.error("❌ Error de conexión con la base de datos.")
     else:
         try:
-            # 1. Cargar ConfiguraciÃ³n Institucional
+            # 1. Cargar Configuración Institucional
             conf_data = {}
             if sheet_config:
                 for r in sheet_config.get_all_records():
                     conf_data[str(r.get("Clave","")).strip()] = str(r.get("Valor","")).strip()
 
-            nom_colegio = conf_data.get("nombre_colegio", "ESCUELA ARTÃSTICA VILLA LAS PEÃ‘AS")
-            region_col  = conf_data.get("region", "BÃOBÃO")
-            ciudad_col  = conf_data.get("ciudad", "MulchÃ©n")
+            nom_colegio = conf_data.get("nombre_colegio", "ESCUELA ARTÍSTICA VILLA LAS PEÑAS")
+            region_col  = conf_data.get("region", "BÍOBÍO")
+            ciudad_col  = conf_data.get("ciudad", "Mulchén")
             rbd_col     = conf_data.get("rbd", "4410-5")
-            director_col = conf_data.get("nombre_director", "RUBÃ‰N MARCOS QUEZADA BALBOA")
+            director_col = conf_data.get("nombre_director", "RUBÉN MARCOS QUEZADA BALBOA")
             firma_b64   = conf_data.get("firma_director_b64", "")
 
             # Cargar insignia local institucional en Base64
@@ -8360,25 +8360,25 @@ elif st.session_state.current_module == 'desarrollo_personal':
             col_c = next((c for c in df_al_dp.columns if 'curs' in c.lower()), 'Curso')
             col_n = next((c for c in df_al_dp.columns if 'nomb' in c.lower()), 'Nombre')
             col_r = next((c for c in df_al_dp.columns if 'rut' in c.lower()), 'RUT')
-            col_o = next((c for c in df_al_dp.columns if any(x in c.lower() for x in ['list','orden','nÂ°','nro'])), 'NÂ° Lista')
+            col_o = next((c for c in df_al_dp.columns if any(x in c.lower() for x in ['list','orden','n°','nro'])), 'N° Lista')
             col_baja = next((c for c in df_al_dp.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
 
             cursos_disp = obtener_cursos_oficiales_sistema()
 
-            # DefiniciÃ³n Oficial de Dimensiones y Criterios
+            # Definición Oficial de Dimensiones y Criterios
             DIMENSIONES_CRITERIOS = [
                 (
                     "RESPONSABILIDAD",
                     [
                         ("C1", "1.- El estudiante manifiesta responsabilidad y puntualidad en el cumplimiento de sus deberes escolares."),
-                        ("C2", "2.- El estudiante manifiesta interÃ©s y preocupaciÃ³n por su aprendizaje."),
-                        ("C3", "3.- El estudiante manifiesta respeto y aceptaciÃ³n por las normas de trabajo acordadas, cumpliendo cada una de ellas.")
+                        ("C2", "2.- El estudiante manifiesta interés y preocupación por su aprendizaje."),
+                        ("C3", "3.- El estudiante manifiesta respeto y aceptación por las normas de trabajo acordadas, cumpliendo cada una de ellas.")
                     ]
                 ),
                 (
-                    "INTERACCIÃ“N Y PARTICIPACIÃ“N",
+                    "INTERACCIÓN Y PARTICIPACIÓN",
                     [
-                        ("C4", "1.- El estudiante interactÃºa con sus pares y/o funcionarios cumpliendo con las normas de convivencia establecidas."),
+                        ("C4", "1.- El estudiante interactúa con sus pares y/o funcionarios cumpliendo con las normas de convivencia establecidas."),
                         ("C5", "2.- El estudiante participa de las diversas actividades programadas por el establecimiento."),
                         ("C6", "3.- El estudiante contribuye a lograr una buena convivencia en su curso.")
                     ]
@@ -8386,7 +8386,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 (
                     "TRABAJO ESCOLAR",
                     [
-                        ("C7", "1.- El estudiante , dadas las instrucciones, es capaz de realizar un trabajo autÃ³nomo en las diversas actividades pedagÃ³gicas."),
+                        ("C7", "1.- El estudiante , dadas las instrucciones, es capaz de realizar un trabajo autónomo en las diversas actividades pedagógicas."),
                         ("C8", "2.- El estudiante demuestra iniciativa en el trabajo escolar individual y grupal."),
                         ("C9", "3.- El estudiante comunica oportunamente al profesor (a) las dificultades que le impidan realizar las actividades solicitadas.")
                     ]
@@ -8394,23 +8394,23 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 (
                     "CRECIMIENTO PERSONAL",
                     [
-                        ("C10", "1.- El estudiante es capaz de aceptar situaciones desfavorables, en la realizaciÃ³n y desarrollo del trabajo."),
-                        ("C11", "2.- El estudiante plantea nuevos desafÃ­os frente a las limitaciones o dificultades que se le presentan en el trabajo pedagÃ³gico y en el aspecto emocional."),
-                        ("C12", "3.- El estudiante reconoce sus errores y/o dificultades y actÃºa en consecuencia para mejorar.")
+                        ("C10", "1.- El estudiante es capaz de aceptar situaciones desfavorables, en la realización y desarrollo del trabajo."),
+                        ("C11", "2.- El estudiante plantea nuevos desafíos frente a las limitaciones o dificultades que se le presentan en el trabajo pedagógico y en el aspecto emocional."),
+                        ("C12", "3.- El estudiante reconoce sus errores y/o dificultades y actúa en consecuencia para mejorar.")
                     ]
                 )
             ]
             OPCIONES_CONCEPTO = ["Siempre", "Generalmente", "Ocasionalmente", "No Observado"]
 
-            # AÃ±o escolar automÃ¡tico
+            # Año escolar automático
             anio_dp_sel = datetime.date.today().year
 
             # Barra Superior de Filtros: Curso, Periodo y Estudiante
             c_f1, c_f2, c_f3 = st.columns([2.5, 2.5, 4.0])
             with c_f1:
-                curso_dp_sel = st.selectbox("ðŸ“š Curso:", cursos_disp, key="sel_curso_dp")
+                curso_dp_sel = st.selectbox("📚 Curso:", cursos_disp, key="sel_curso_dp")
             with c_f2:
-                periodo_dp_sel = st.selectbox("â³ Periodo:", ["Primer Semestre", "Segundo Semestre", "Anual"], key="sel_periodo_dp")
+                periodo_dp_sel = st.selectbox("⏳ Periodo:", ["Primer Semestre", "Segundo Semestre", "Anual"], key="sel_periodo_dp")
 
             # Filtrar alumnos del curso
             df_curso_dp = df_al_dp[df_al_dp[col_c].astype(str).str.strip().apply(lambda x: calza_nombre_curso(x, curso_dp_sel))].copy()
@@ -8426,7 +8426,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
             if not df_curso_dp.empty:
                 for idx_al, (_, r) in enumerate(df_curso_dp.iterrows()):
                     r_dict = r.to_dict()
-                    # Identificador Ãºnico para evitar colisiones si dos alumnos tienen el mismo nombre
+                    # Identificador único para evitar colisiones si dos alumnos tienen el mismo nombre
                     tag_id = f"{r_dict.get(col_r, idx_al)}_{r_dict.get(col_o, idx_al)}"
                     map_alumnos_dp[tag_id] = r_dict
                     opciones_alumnos.append(tag_id)
@@ -8434,7 +8434,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
             with c_f3:
                 if opciones_alumnos:
                     alumno_dp_tag = st.selectbox(
-                        "ðŸ‘¤ Estudiante:",
+                        "👤 Estudiante:",
                         opciones_alumnos,
                         format_func=lambda tid: str(map_alumnos_dp[tid].get(col_n, "")).strip().upper(),
                         key="sel_alumno_dp"
@@ -8461,7 +8461,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 fila_dp_indice = None
 
                 for idx, r_dp in enumerate(recs_dp_all, start=2): # Cabecera es fila 1
-                    r_anio = str(r_dp.get("AÃ±o", "")).strip()
+                    r_anio = str(r_dp.get("Año", "")).strip()
                     r_per = str(r_dp.get("Periodo", "")).strip()
                     r_rut = str(r_dp.get("RUT", "")).replace(".", "").replace("-", "").upper().strip()
                     if r_anio == str(anio_dp_sel).strip() and r_per == str(periodo_dp_sel).strip() and r_rut == rut_norm:
@@ -8473,11 +8473,11 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 st.markdown(
                     f"""
                     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:16px;">
-                        <span style="color:#008F39;font-weight:700;font-size:0.95rem;">ðŸ‘¤ {nombre_actual}</span>
-                        &nbsp;&nbsp;Â·&nbsp;&nbsp;<b>RUN:</b> {rut_actual}
-                        &nbsp;&nbsp;Â·&nbsp;&nbsp;<b>Curso:</b> {curso_dp_sel}
-                        &nbsp;&nbsp;Â·&nbsp;&nbsp;<b>NÂ° Orden:</b> {orden_actual}
-                        &nbsp;&nbsp;Â·&nbsp;&nbsp;<b>Prof. Jefe:</b> {prof_jefe_nombre}
+                        <span style="color:#008F39;font-weight:700;font-size:0.95rem;">👤 {nombre_actual}</span>
+                        &nbsp;&nbsp;·&nbsp;&nbsp;<b>RUN:</b> {rut_actual}
+                        &nbsp;&nbsp;·&nbsp;&nbsp;<b>Curso:</b> {curso_dp_sel}
+                        &nbsp;&nbsp;·&nbsp;&nbsp;<b>N° Orden:</b> {orden_actual}
+                        &nbsp;&nbsp;·&nbsp;&nbsp;<b>Prof. Jefe:</b> {prof_jefe_nombre}
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -8520,19 +8520,19 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
                 obs_previa = str(eval_existente.get("Observaciones", "")).strip() if eval_existente else ""
                 obs_input = st.text_area(
-                    "ðŸ“ Observaciones Generales (opcional):",
+                    "📝 Observaciones Generales (opcional):",
                     value=obs_previa,
                     height=85,
                     key=f"obs_dp_{rut_norm}_{periodo_dp_sel}_{anio_dp_sel}",
-                    placeholder="Ingrese observaciones cualitativas pedagÃ³gicas o formativas..."
+                    placeholder="Ingrese observaciones cualitativas pedagógicas o formativas..."
                 )
 
-                # Botones de AcciÃ³n
+                # Botones de Acción
                 c_btn_guardar, c_btn_imp_ind, c_btn_imp_cur = st.columns([1.5, 1.5, 1.5])
 
-                # 1. BOTÃ“N GUARDAR
+                # 1. BOTÓN GUARDAR
                 with c_btn_guardar:
-                    if st.button("ðŸ’¾ Guardar EvaluaciÃ³n", type="primary", use_container_width=True, key="btn_save_dp"):
+                    if st.button("💾 Guardar Evaluación", type="primary", use_container_width=True, key="btn_save_dp"):
                         try:
                             ahora_str = obtener_ahora_chile().strftime("%Y-%m-%d %H:%M:%S")
                             fila_datos = [
@@ -8565,20 +8565,20 @@ elif st.session_state.current_module == 'desarrollo_personal':
                                 # Nueva fila
                                 sheet_dp.append_row(fila_datos)
 
-                            st.success(f"âœ… Â¡EvaluaciÃ³n de {nombre_actual} guardada exitosamente!")
+                            st.success(f"✅ ¡Evaluación de {nombre_actual} guardada exitosamente!")
                             time.sleep(0.8)
                             st.rerun()
                         except Exception as err_save:
-                            st.error(f"Error al guardar la evaluaciÃ³n: {err_save}")
+                            st.error(f"Error al guardar la evaluación: {err_save}")
 
-                # Generador HTML para ImpresiÃ³n Institucional Oficial
+                # Generador HTML para Impresión Institucional Oficial
                 def construir_html_informe_dp(al_data, conceptos_dict, obs_texto):
                     nom_al = str(al_data.get(col_n, "")).strip().upper()
                     rut_al = str(al_data.get(col_r, "")).strip()
                     ord_al = str(al_data.get(col_o, "-")).strip()
                     
                     # Fecha en formato formal chileno
-                    dias_es = ["lunes", "martes", "miÃ©rcoles", "jueves", "viernes", "sÃ¡bado", "domingo"]
+                    dias_es = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
                     meses_es = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
                     hoy = datetime.date.today()
                     fecha_str = f"{ciudad_col.upper()}, {dias_es[hoy.weekday()]}, {hoy.day} de {meses_es[hoy.month-1]} de {hoy.year}."
@@ -8622,10 +8622,10 @@ elif st.session_state.current_module == 'desarrollo_personal':
                                 <div class="doc-subtitulo">INFORME DE DESARROLLO PERSONAL Y SOCIAL</div>
                             </div>
                             <div class="header-datos">
-                                <div><span class="lbl">RegiÃ³n:</span> {region_col}</div>
+                                <div><span class="lbl">Región:</span> {region_col}</div>
                                 <div><span class="lbl">Comuna:</span> {ciudad_col.upper()}</div>
                                 <div><span class="lbl">RBD:</span> {rbd_col}</div>
-                                <div><span class="lbl">AÃ±o Escolar:</span> {anio_dp_sel}</div>
+                                <div><span class="lbl">Año Escolar:</span> {anio_dp_sel}</div>
                                 <div><span class="lbl">Periodo:</span> {periodo_dp_sel}</div>
                             </div>
                         </div>
@@ -8645,7 +8645,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                                     <span class="lbl">CURSO:</span> <b>{curso_dp_sel}</b>
                                 </div>
                                 <div class="ficha-col" style="text-align:center;">
-                                    <span class="lbl">NÂ° ORDEN:</span> <b>{ord_al}</b>
+                                    <span class="lbl">N° ORDEN:</span> <b>{ord_al}</b>
                                 </div>
                                 <div class="ficha-col" style="text-align:right;">
                                     <span class="lbl">PROF. JEFE:</span> <b>{prof_jefe_nombre}</b>
@@ -8672,7 +8672,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                             <div class="obs-contenido">{obs_texto if obs_texto else 'Sin observaciones registradas.'}</div>
                         </div>
 
-                        <!-- SECCIÃ“N FIRMAS PERFECTAMENTE ALINEADAS -->
+                        <!-- SECCIÓN FIRMAS PERFECTAMENTE ALINEADAS -->
                         <div class="firmas-container">
                             <div class="firma-box">
                                 <div class="espacio-firma-grafica"></div>
@@ -8934,9 +8934,9 @@ elif st.session_state.current_module == 'desarrollo_personal':
                 if "imprimir_dp_payload" in st.session_state:
                     del st.session_state["imprimir_dp_payload"]
 
-                # 2. BOTÃ“N IMPRIMIR INDIVIDUAL
+                # 2. BOTÓN IMPRIMIR INDIVIDUAL
                 with c_btn_imp_ind:
-                    if st.button("ðŸ–¨ï¸ Imprimir Alumno", use_container_width=True, key="btn_imp_ind_dp"):
+                    if st.button("🖨️ Imprimir Alumno", use_container_width=True, key="btn_imp_ind_dp"):
                         ts_dp_ind = int(time.time() * 1000)
                         html_ind = css_impresion_dp
                         html_ind += construir_html_informe_dp(alumno_sel_data, conceptos_seleccionados, obs_input)
@@ -8952,9 +8952,9 @@ elif st.session_state.current_module == 'desarrollo_personal':
                         """
                         st.components.v1.html(html_ind, height=0, scrolling=False)
 
-                # 3. BOTÃ“N IMPRIMIR CURSO COMPLETO
+                # 3. BOTÓN IMPRIMIR CURSO COMPLETO
                 with c_btn_imp_cur:
-                    if st.button("ðŸ“‘ Imprimir Todo el Curso", use_container_width=True, key="btn_imp_cur_dp"):
+                    if st.button("📑 Imprimir Todo el Curso", use_container_width=True, key="btn_imp_cur_dp"):
                         ts_dp_cur = int(time.time() * 1000)
                         html_curso = css_impresion_dp
                         total_alumnos = len(df_curso_dp)
@@ -8962,7 +8962,7 @@ elif st.session_state.current_module == 'desarrollo_personal':
                         dict_evals_curso = {}
                         if sheet_dp:
                             for r_dp in sheet_dp.get_all_records():
-                                if str(r_dp.get("AÃ±o", "")).strip() == str(anio_dp_sel).strip() and str(r_dp.get("Periodo", "")).strip() == str(periodo_dp_sel).strip():
+                                if str(r_dp.get("Año", "")).strip() == str(anio_dp_sel).strip() and str(r_dp.get("Periodo", "")).strip() == str(periodo_dp_sel).strip():
                                     r_rut_clean = str(r_dp.get("RUT", "")).replace(".", "").replace("-", "").upper().strip()
                                     dict_evals_curso[r_rut_clean] = r_dp
 
@@ -8992,15 +8992,15 @@ elif st.session_state.current_module == 'desarrollo_personal':
                         st.components.v1.html(html_curso, height=0, scrolling=False)
 
         except Exception as e:
-            st.error(f"Error al cargar el mÃ³dulo de Desarrollo Personal: {e}")
+            st.error(f"Error al cargar el módulo de Desarrollo Personal: {e}")
 
 else:
     # Insignia Institucional Centrada
     renderizar_insignia_universal()
 
-    st.header(f"SecciÃ³n en construcciÃ³n: {st.session_state.current_module.capitalize()}")
+    st.header(f"Sección en construcción: {st.session_state.current_module.capitalize()}")
 
     st.write("")
-    if st.button("â¬… Volver al Dashboard Principal", key="btn_volver_fallback"):
+    if st.button("⬅ Volver al Dashboard Principal", key="btn_volver_fallback"):
         navigate('home')
         st.rerun()
