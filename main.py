@@ -567,6 +567,50 @@ def obtener_plan_estudio_curso(nom_curso):
         "mapa_sige": {a[1]: a[4] for a in asigs}
     }
 
+def coincide_asig_bd(asig_bd, asig_buscada):
+    """
+    Empareja con flexibilidad total cualquier variante de nombre de asignatura
+    entre la base de datos (Supabase) y los nombres mostrados en pantalla/reportes:
+    - Matemática <-> Matemáticas
+    - Lenguaje y Comunicación <-> Lengua y Literatura <-> Lenguaje <-> Lengua
+    - Inglés <-> Idioma Extranjero Inglés
+    - Religión (Evangélica / Católica) y Orientación
+    """
+    s_bd = str(asig_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
+    s_bus = str(asig_buscada).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
+    if not s_bd or not s_bus:
+        return False
+    if s_bd == s_bus:
+        return True
+    if 'matemat' in s_bd and 'matemat' in s_bus:
+        return True
+    if ('lengua' in s_bd or 'lenguaje' in s_bd) and ('lengua' in s_bus or 'lenguaje' in s_bus):
+        return True
+    if 'ingles' in s_bd and 'ingles' in s_bus:
+        return True
+    if 'ciencias nat' in s_bd and 'ciencias nat' in s_bus:
+        return True
+    if 'historia' in s_bd and 'historia' in s_bus:
+        return True
+    if 'musica' in s_bd and 'musica' in s_bus:
+        return True
+    if 'arte' in s_bd and 'arte' in s_bus:
+        return True
+    if 'tecnol' in s_bd and 'tecnol' in s_bus:
+        return True
+    if 'fisic' in s_bd and 'fisic' in s_bus:
+        return True
+    if 'orientac' in s_bd and 'orientac' in s_bus:
+        return True
+    if 'catolic' in s_bd and 'catolic' in s_bus:
+        return True
+    if 'evangel' in s_bd and 'evangel' in s_bus:
+        return True
+    if 'religi' in s_bd and not any(k in s_bd for k in ['evangel', 'catolic']) and 'evangel' in s_bus:
+        return True
+    return False
+
+
 
 def obtener_cursos_oficiales_sistema():
     """
@@ -4281,9 +4325,12 @@ elif st.session_state.current_module == 'notas':
             except Exception as e:
                 st.warning(f"No se pudieron cargar las asignaciones: {e}")
 
-    _cur_sel_nt = st.session_state.get('notas_curso_sel', '')
-    _plan_nt = obtener_plan_estudio_curso(_cur_sel_nt)
-    ASIGNATURAS_DEFAULT = _plan_nt['asigs_nombres']
+    ASIGNATURAS_DEFAULT = [
+        "Lenguaje y Comunicación", "Inglés", "Matemáticas",
+        "Ciencias Naturales", "Historia, Geografía y Ciencias Sociales",
+        "Tecnología", "Artes Visuales", "Música", "Educación Física y Salud",
+        "Orientación", "Religión Católica", "Religión Evangélica"
+    ]
     if not asigs_permitidas:
         asigs_permitidas = ASIGNATURAS_DEFAULT
 
@@ -4431,8 +4478,8 @@ elif st.session_state.current_module == 'notas':
                     sem_act_norm = _norm_sem(sem_activo)
 
                     df_filtradas = df_notas[
-                        df_notas[col_cur_n].apply(lambda x: _norm_cmp(x) == cur_act_norm) &
-                        df_notas[col_asig_n].apply(lambda x: _norm_cmp(x) == asig_act_norm) &
+                        df_notas[col_cur_n].apply(lambda x: calza_nombre_curso(x, curso_activo) or _norm_cmp(x) == cur_act_norm) &
+                        df_notas[col_asig_n].apply(lambda x: coincide_asig_bd(x, asig_activa)) &
                         df_notas[col_sem_n].apply(lambda x: _norm_sem(x) == sem_act_norm)
                     ]
                     for _, row_n in df_filtradas.iterrows():
@@ -4702,15 +4749,21 @@ elif st.session_state.current_module == 'notas':
                                     prom_calc
                                 ]
 
-                                clave_fila = (
-                                    _norm_k(rut_k),
-                                    _norm_k(curso_activo),
-                                    _norm_k(asig_activa),
-                                    _norm_sem(sem_activo)
-                                )
+                                # Buscar si ya existe la fila en la BD para este alumno, curso, asignatura y semestre
+                                fila_existente_idx = None
+                                if not df_nf.empty and all([col_rn, col_an, col_sn, col_cn]):
+                                    for row_idx, row_nf in df_nf.iterrows():
+                                        if (
+                                            _norm_k(row_nf[col_rn]) == _norm_k(rut_k) and
+                                            (calza_nombre_curso(row_nf[col_cn], curso_activo) or _norm_k(row_nf[col_cn]) == _norm_k(curso_activo)) and
+                                            coincide_asig_bd(row_nf[col_an], asig_activa) and
+                                            _norm_sem(row_nf[col_sn]) == _norm_sem(sem_activo)
+                                        ):
+                                            fila_existente_idx = row_idx + 2
+                                            break
 
-                                if clave_fila in fila_map:
-                                    row_sheet = fila_map[clave_fila]
+                                if fila_existente_idx is not None:
+                                    row_sheet = fila_existente_idx
                                     sheet_notas.update(values=[fila_data], range_name=f"A{row_sheet}:P{row_sheet}")
                                     filas_actualizadas += 1
                                 else:
@@ -6398,23 +6451,7 @@ elif st.session_state.current_module == 'preacta':
             conf_inst_pre = cargar_datos_configuracion_reportes()
 
             def match_asig(nombre_bd, asig_cat_full):
-                nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
-                ncat = str(asig_cat_full).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
-                if nbd == ncat or nbd in ncat or ncat in nbd: return True
-                if 'matemat' in nbd and 'matemat' in ncat: return True
-                if ('lengua' in nbd or 'lenguaje' in nbd) and ('lengua' in ncat or 'lenguaje' in ncat): return True
-                if 'ingles' in nbd and 'ingles' in ncat: return True
-                if 'ciencias nat' in nbd and 'ciencias nat' in ncat: return True
-                if 'historia' in nbd and 'historia' in ncat: return True
-                if 'musica' in nbd and 'musica' in ncat: return True
-                if 'arte' in nbd and 'arte' in ncat: return True
-                if 'tecnol' in nbd and 'tecnol' in ncat: return True
-                if 'fisic' in nbd and 'fisic' in ncat: return True
-                if 'evangel' in nbd and 'evangel' in ncat: return True
-                if 'catolic' in nbd and 'catolic' in ncat: return True
-                if 'orientac' in nbd and 'orientac' in ncat: return True
-                if 'religi' in nbd and not any(k in nbd for k in ['evangel', 'catolic']) and 'evangel' in ncat: return True
-                return False
+                return coincide_asig_bd(nombre_bd, asig_cat_full)
 
             def parsear_prom_num(val_raw):
                 if val_raw is None or str(val_raw).strip() in ['', 'None', 'nan']:
@@ -7369,22 +7406,7 @@ elif st.session_state.current_module == 'informes':
 
                 # Funciones auxiliares para coincidencia flexible y escala 10-70
                 def match_asig_inf(nombre_bd, asig_cat_full):
-                    nbd = str(nombre_bd).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
-                    ncat = str(asig_cat_full).lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').strip()
-                    if nbd == ncat or nbd in ncat or ncat in nbd: return True
-                    if 'matemat' in nbd and 'matemat' in ncat: return True
-                    if ('lengua' in nbd or 'lenguaje' in nbd) and ('lengua' in ncat or 'lenguaje' in ncat): return True
-                    if 'ingles' in nbd and 'ingles' in ncat: return True
-                    if 'ciencias nat' in nbd and 'ciencias nat' in ncat: return True
-                    if 'historia' in nbd and 'historia' in ncat: return True
-                    if 'musica' in nbd and 'musica' in ncat: return True
-                    if 'arte' in nbd and 'arte' in ncat: return True
-                    if 'tecnol' in nbd and 'tecnol' in ncat: return True
-                    if 'fisic' in nbd and 'fisic' in ncat: return True
-                    if 'catolic' in nbd and 'catolic' in ncat: return True
-                    if 'evangel' in nbd and 'evangel' in ncat: return True
-                    if 'orientac' in nbd and 'orientac' in ncat: return True
-                    return False
+                    return coincide_asig_bd(nombre_bd, asig_cat_full)
 
                 def parsear_prom_inf(val_raw):
                     if val_raw is None or str(val_raw).strip() in ['', 'None', 'nan']: return None
