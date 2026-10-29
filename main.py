@@ -4257,7 +4257,6 @@ elif st.session_state.current_module == 'notas':
     asigs_permitidas  = []
 
     CURSOS_DEFAULT = [
-        "NT1", "NT2",
         "1° básico", "2° básico", "3° básico", "4° básico",
         "5° básico", "6° básico", "7° básico", "8° básico"
     ]
@@ -4324,6 +4323,12 @@ elif st.session_state.current_module == 'notas':
                         asigs_permitidas  = sorted([a for a in df_mias[col_a].unique().tolist() if str(a).strip().upper() != 'JEFATURA'])
             except Exception as e:
                 st.warning(f"No se pudieron cargar las asignaciones: {e}")
+
+    # Excluir exclusivamente Educación Parvularia (NT1 y NT2) de Notas
+    cursos_permitidos = [
+        c for c in cursos_permitidos
+        if not any(k in str(c).upper() for k in ['NT1', 'NT2', 'PRE-K', 'PREK', 'KINDER', 'PARV'])
+    ]
 
     ASIGNATURAS_DEFAULT = [
         "Lenguaje y Comunicación", "Inglés", "Matemáticas",
@@ -8390,7 +8395,11 @@ elif st.session_state.current_module == 'desarrollo_personal':
             col_o = next((c for c in df_al_dp.columns if any(x in c.lower() for x in ['list','orden','n°','nro'])), 'N° Lista')
             col_baja = next((c for c in df_al_dp.columns if 'baja' in c.lower() or 'retir' in c.lower()), 'Fecha Baja')
 
-            cursos_disp = obtener_cursos_oficiales_sistema()
+            # Excluir Educación Parvularia (NT1 y NT2) de Desarrollo Personal y Social (aplica de 1° a 8° Básico)
+            cursos_disp = [
+                c for c in obtener_cursos_oficiales_sistema()
+                if not any(k in str(c).upper() for k in ['NT1', 'NT2', 'PRE-K', 'PREK', 'KINDER', 'PARV'])
+            ]
 
             # Definición Oficial de Dimensiones y Criterios
             DIMENSIONES_CRITERIOS = [
