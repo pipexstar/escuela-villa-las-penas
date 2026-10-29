@@ -521,6 +521,53 @@ def orden_curso_sistema(nom_c):
     idx_n = NIVELES_ORDEN_PEDAGOGICO.index(k[0]) if k[0] in NIVELES_ORDEN_PEDAGOGICO else 90
     return (idx_n, k[1])
 
+def obtener_plan_estudio_curso(nom_curso):
+    """
+    Retorna la configuración ministerial oficial según los decretos autorizados en SIGE para la escuela:
+    - 1° a 6° Básico: Decreto Exento N° 2960 de 2012 (Lenguaje y Comunicación, Matemática, etc.)
+    - 7° y 8° Básico: Decreto Exento N° 628 de 2016 (Lengua y Literatura, Matemática, etc.)
+    """
+    k = extraer_clave_curso(nom_curso)
+    nivel = str(k[0]).lower()
+    
+    es_segundo_ciclo = any(x in nivel for x in ['7', '8'])
+    
+    if es_segundo_ciclo:
+        decreto_num = "N° 628 de 2016"
+        nom_lenguaje = "Lengua y Literatura"
+        abrev_lenguaje = "Lengua"
+        sigla_lenguaje = "Leng"
+    else:
+        decreto_num = "N° 2960 de 2012"
+        nom_lenguaje = "Lenguaje y Comunicación"
+        abrev_lenguaje = "Lenguaje"
+        sigla_lenguaje = "Leng"
+        
+    asigs = [
+        (nom_lenguaje, abrev_lenguaje, sigla_lenguaje, False, 28),
+        ("Idioma Extranjero Inglés", "Inglés", "Ing", False, 6),
+        ("Matemática", "Matemática", "Mat", False, 9845),
+        ("Ciencias Naturales", "Ciencias", "Cien", False, 2280),
+        ("Historia, Geografía y Ciencias Sociales", "Historia", "Hist", False, 19),
+        ("Tecnología", "Tecnología", "Tec", False, 14),
+        ("Artes Visuales", "Artes", "Art", False, 5),
+        ("Música", "Música", "Mús", False, 288),
+        ("Educación Física y Salud", "Ed. Física", "EF", False, 517),
+        ("Orientación", "Orientación", "Ori", True, 413),
+        ("Religión Católica", "Rel. Cat.", "R.Cat", True, 22),
+        ("Religión Evangélica", "Rel. Evang.", "R.Ev", True, 22)
+    ]
+    
+    return {
+        "decreto_plan": decreto_num,
+        "es_segundo_ciclo": es_segundo_ciclo,
+        "asignaturas": asigs,
+        "asigs_nombres": [a[0] for a in asigs],
+        "asigs_catalogo": [(a[0], a[1], a[2]) for a in asigs],
+        "mapa_sige": {a[1]: a[4] for a in asigs}
+    }
+
+
 def obtener_cursos_oficiales_sistema():
     """
     Obtiene la lista oficial, única y ordenada de cursos directamente desde el módulo de Cursos (Google Sheets).
@@ -4234,12 +4281,9 @@ elif st.session_state.current_module == 'notas':
             except Exception as e:
                 st.warning(f"No se pudieron cargar las asignaciones: {e}")
 
-    ASIGNATURAS_DEFAULT = [
-        "Matemáticas", "Lenguaje y Comunicación", "Ciencias Naturales",
-        "Historia, Geografía y Ciencias Sociales", "Inglés",
-        "Educación Física y Salud", "Artes Visuales", "Música",
-        "Tecnología", "Orientación", "Religión Católica", "Religión Evangélica"
-    ]
+    _cur_sel_nt = st.session_state.get('notas_curso_sel', '')
+    _plan_nt = obtener_plan_estudio_curso(_cur_sel_nt)
+    ASIGNATURAS_DEFAULT = _plan_nt['asigs_nombres']
     if not asigs_permitidas:
         asigs_permitidas = ASIGNATURAS_DEFAULT
 
@@ -6347,20 +6391,9 @@ elif st.session_state.current_module == 'preacta':
                 if 'Año' in df_preacta_existente.columns:
                     df_preacta_existente['Año_STR'] = df_preacta_existente['Año'].astype(str).str.strip()
 
-            asigs_catalogo = [
-                ("Lengua y Literatura", "Lenguaje", "Leng"),
-                ("Idioma Extranjero Inglés", "Inglés", "Ing"),
-                ("Matemática", "Matemática", "Mat"),
-                ("Historia, Geografía y Ciencias Sociales", "Historia", "Hist"),
-                ("Ciencias Naturales", "Ciencias", "Cien"),
-                ("Tecnología", "Tecnología", "Tec"),
-                ("Música", "Música", "Mús"),
-                ("Educación Física y Salud", "Ed. Física", "EF"),
-                ("Artes Visuales", "Artes", "Art"),
-                ("Religión Evangélica", "Rel. Evang.", "R.Ev"),
-                ("Religión Católica", "Rel. Cat.", "R.Cat"),
-                ("Orientación", "Orientación", "Ori")
-            ]
+            # Catálogo oficial predeterminado
+            _plan_def_pre = obtener_plan_estudio_curso("1° Básico")
+            asigs_catalogo = _plan_def_pre['asigs_catalogo']
 
             conf_inst_pre = cargar_datos_configuracion_reportes()
 
@@ -6395,6 +6428,8 @@ elif st.session_state.current_module == 'preacta':
                     return None
 
             def obtener_datos_preacta_curso(cur_sel):
+                plan_cur = obtener_plan_estudio_curso(cur_sel)
+                asigs_catalogo = plan_cur['asigs_catalogo']
                 df_cur = df_al[df_al[col_c].astype(str).str.strip() == str(cur_sel).strip()].copy()
                 if df_cur.empty:
                     return df_cur, [], {ac: [] for _, ac, _ in asigs_catalogo}, "Profesor(a) Jefe"
@@ -7313,13 +7348,10 @@ elif st.session_state.current_module == 'informes':
                 hoy = datetime.date.today()
                 fecha_str = f"{ciudad_col.upper()}, {hoy.day} de {meses_es[hoy.month - 1]} de {hoy.year}"
 
-                # Asignaturas oficiales
-                asigs_oficiales = [
-                    "Lengua y Literatura", "Idioma Extranjero Inglés", "Matemática",
-                    "Historia, Geografía y Ciencias Sociales", "Ciencias Naturales",
-                    "Tecnología", "Música", "Educación Física y Salud",
-                    "Religión Evangélica", "Religión Católica", "Orientación", "Artes Visuales"
-                ]
+                # Asignaturas oficiales adaptadas al plan ministerial del curso (Dec. 2960 o Dec. 628)
+                plan_inf = obtener_plan_estudio_curso(curso_inf_sel)
+                asigs_oficiales = plan_inf['asigs_nombres']
+                decreto_plan_inf = plan_inf['decreto_plan']
 
                 # Filtrar notas del alumno
                 df_al_notas = df_notas_all[df_notas_all['RUT_NORM'] == r_alu_norm] if not df_notas_all.empty else pd.DataFrame()
@@ -7762,7 +7794,7 @@ elif st.session_state.current_module == 'informes':
 
                         <!-- NORMATIVAS Y DECRETOS OFICIALES -->
                         <div class="cert-decretos">
-                            <div class="cert-dec-line"><span>Plan y Programa de Estudio aprobado por: (Decreto Supremo; Decreto Supremo Exento)</span> <b>N° 628 de 2016</b></div>
+                            <div class="cert-dec-line"><span>Plan y Programa de Estudio aprobado por: (Decreto Supremo; Decreto Supremo Exento)</span> <b>{decreto_plan_inf}</b></div>
                             <div class="cert-dec-line"><span>Reglamento de Evaluación y Promoción Escolar Decreto Supremo Exento</span> <b>N° decreto 67 de 2018</b></div>
                             <div class="cert-dec-line"><span>Documento que lo declara reconocido oficialmente por el Ministerio de Educación de la República de Chile</span> <b>N° 4711 de 1981</b></div>
                         </div>
