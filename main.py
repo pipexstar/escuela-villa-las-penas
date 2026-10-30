@@ -4793,6 +4793,87 @@ elif st.session_state.current_module == 'notas':
                             if filas_nuevas_batch:
                                 sheet_notas.append_rows(filas_nuevas_batch)
 
+                        # ── Actualizar fila __RESUMEN__ de promedio general por alumno ──
+                        # Leer todas las notas del curso recién guardado para recalcular
+                        # promedios generales por semestre (misma lógica que main.py informes)
+                        try:
+                            _plan_res = obtener_plan_estudio_curso(curso_activo)
+                            _asigs_computable = [
+                                a[0] for a in _plan_res["asignaturas"] if not a[3]  # excluye conceptuales
+                            ]
+                            recs_all_notas = sheet_notas.get_all_records()
+                            df_all_n = pd.DataFrame(recs_all_notas) if recs_all_notas else pd.DataFrame()
+                            if not df_all_n.empty:
+                                df_all_n.columns = [str(c).strip() for c in df_all_n.columns]
+                                _col_r = next((c for c in df_all_n.columns if 'rut'  in c.lower()), None)
+                                _col_c = next((c for c in df_all_n.columns if 'curs' in c.lower()), None)
+                                _col_a = next((c for c in df_all_n.columns if 'asig' in c.lower()), None)
+                                _col_s = next((c for c in df_all_n.columns if 'sem'  in c.lower()), None)
+                                _col_p = next((c for c in df_all_n.columns if 'prom' in c.lower()), None)
+                                _col_n = next((c for c in df_all_n.columns if 'nomb' in c.lower()), None)
+
+                                if all([_col_r, _col_c, _col_a, _col_s, _col_p]):
+                                    # Filtrar solo el curso activo, excluir filas __RESUMEN__
+                                    df_curso_n = df_all_n[
+                                        df_all_n[_col_c].astype(str).str.strip().apply(
+                                            lambda x: calza_nombre_curso(x, curso_activo)
+                                        ) &
+                                        (df_all_n[_col_a].astype(str).str.strip() != "__RESUMEN__")
+                                    ]
+                                    # Calcular promedio general por alumno y semestre
+                                    resumen_rows = []
+                                    for _rut_al, _df_al in df_curso_n.groupby(_col_r):
+                                        _nom_al = str(_df_al[_col_n].iloc[0]).strip() if _col_n else ""
+                                        for _sem_val in ["1", "2"]:
+                                            _df_sem = _df_al[
+                                                _df_al[_col_s].astype(str).str.strip().str.contains(_sem_val)
+                                            ]
+                                            _proms = []
+                                            for _, _row_n in _df_sem.iterrows():
+                                                _asig_n = str(_row_n[_col_a]).strip()
+                                                # Solo asignaturas cuantitativas del catálogo
+                                                if any(coincide_asig_bd(_asig_n, _ac) for _ac in _asigs_computable):
+                                                    _p_raw = str(_row_n[_col_p]).strip().replace(",", ".")
+                                                    try:
+                                                        _p_num = float(_p_raw)
+                                                        if 1.0 <= _p_num <= 7.0:
+                                                            _proms.append(_p_num)
+                                                    except ValueError:
+                                                        pass
+                                            if _proms:
+                                                _prom_gen = redondear_nota(sum(_proms) / len(_proms), 1)
+                                                _prom_str = f"{_prom_gen:.1f}".replace(".", ",")
+                                                resumen_rows.append([
+                                                    str(_rut_al).strip(), _nom_al,
+                                                    str(curso_activo), "__RESUMEN__", _sem_val,
+                                                    "", "", "", "", "", "", "", "", "", "",  # n1-n10 vacíos
+                                                    _prom_str
+                                                ])
+                                    # Upsert: actualizar existentes o insertar nuevos
+                                    for _res_fila in resumen_rows:
+                                        _rut_res = _res_fila[0]
+                                        _sem_res  = _res_fila[4]
+                                        _exist_res = None
+                                        for _ri, _rr in df_all_n.iterrows():
+                                            if (
+                                                _norm_k(str(_rr[_col_r])) == _norm_k(_rut_res) and
+                                                str(_rr[_col_a]).strip() == "__RESUMEN__" and
+                                                str(_rr[_col_s]).strip() == _sem_res and
+                                                calza_nombre_curso(str(_rr[_col_c]), curso_activo)
+                                            ):
+                                                _exist_res = _ri + 2
+                                                break
+                                        if _exist_res:
+                                            sheet_notas.update(
+                                                values=[_res_fila],
+                                                range_name=f"A{_exist_res}:P{_exist_res}"
+                                            )
+                                        else:
+                                            sheet_notas.append_rows([_res_fila])
+                        except Exception as _e_res:
+                            # El resumen no es crítico; si falla no bloquea el guardado normal
+                            st.warning(f"⚠️ Notas guardadas, pero no se pudo actualizar el resumen de promedios: {_e_res}")
+
                         _save_ok = True
 
                     except Exception as e:
