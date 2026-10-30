@@ -5301,8 +5301,8 @@ elif st.session_state.current_module == 'asignaciones':
 
     sheet_alumnos, _, _, sheet_funcionarios, sheet_asignaciones = get_sheets()
 
-    # 1. Obtener lista de Cursos disponibles
-    cursos_list = ["1° Básico", "2° Básico", "3° Básico", "4° Básico", "5° Básico", "6° Básico", "7° Básico", "8° Básico", "1° Medio", "2° Medio", "3° Medio", "4° Medio"]
+    # 1. Obtener lista de Cursos disponibles (excluye Educación Parvularia)
+    cursos_list = ["1° Básico", "2° Básico", "3° Básico", "4° Básico", "5° Básico", "6° Básico", "7° Básico", "8° Básico"]
     try:
         sheet_c_asig = get_cursos_sheet()
         if sheet_c_asig:
@@ -5315,7 +5315,11 @@ elif st.session_state.current_module == 'asignaciones':
                     if 'Orden' in df_c_asig.columns:
                         df_c_asig['_ord_t'] = pd.to_numeric(df_c_asig['Orden'], errors='coerce').fillna(99)
                         df_c_asig = df_c_asig.sort_values(by='_ord_t')
-                    c_oficiales = [str(x).strip() for x in df_c_asig['Nombre'].tolist() if str(x).strip()]
+                    c_oficiales = [
+                        str(x).strip() for x in df_c_asig['Nombre'].tolist()
+                        if str(x).strip()
+                        and not any(k in str(x).upper() for k in ['NT1', 'NT2', 'PRE-K', 'PREK', 'KINDER', 'PARV'])
+                    ]
                     if c_oficiales:
                         cursos_list = c_oficiales
     except Exception:
@@ -5327,7 +5331,14 @@ elif st.session_state.current_module == 'asignaciones':
             df_a = pd.DataFrame(ra)
             col_c = next((c for c in df_a.columns if 'curs' in c.lower()), None)
             if col_c and not df_a.empty:
-                c_db = sorted([str(val) for val in df_a[col_c].unique() if str(val).strip() != ""], key=orden_curso_sistema)
+                c_db = sorted(
+                    [
+                        str(val) for val in df_a[col_c].unique()
+                        if str(val).strip() != ""
+                        and not any(k in str(val).upper() for k in ['NT1', 'NT2', 'PRE-K', 'PREK', 'KINDER', 'PARV'])
+                    ],
+                    key=orden_curso_sistema
+                )
                 if c_db:
                     cursos_list = c_db
         except Exception:
