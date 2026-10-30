@@ -4820,56 +4820,71 @@ elif st.session_state.current_module == 'notas':
                                         ) &
                                         (df_all_n[_col_a].astype(str).str.strip() != "__RESUMEN__")
                                     ]
-                                    # Calcular promedio general por alumno y semestre
+                                    # Calcular promedio general por alumno: S1, S2 y Anual oficial
                                     resumen_rows = []
                                     for _rut_al, _df_al in df_curso_n.groupby(_col_r):
                                         _nom_al = str(_df_al[_col_n].iloc[0]).strip() if _col_n else ""
-                                        for _sem_val in ["1", "2"]:
-                                            _df_sem = _df_al[
-                                                _df_al[_col_s].astype(str).str.strip().str.contains(_sem_val)
+                                        _proms_s1, _proms_s2, _finales_sub = [], [], []
+
+                                        for _ac in _asigs_computable:
+                                            _sub_p1, _sub_p2 = None, None
+                                            _m1 = _df_al[
+                                                _df_al[_col_a].astype(str).apply(lambda x: coincide_asig_bd(x, _ac)) &
+                                                _df_al[_col_s].astype(str).str.contains('1')
                                             ]
-                                            _proms = []
-                                            for _, _row_n in _df_sem.iterrows():
-                                                _asig_n = str(_row_n[_col_a]).strip()
-                                                # Solo asignaturas cuantitativas del catálogo
-                                                if any(coincide_asig_bd(_asig_n, _ac) for _ac in _asigs_computable):
-                                                    _p_raw = str(_row_n[_col_p]).strip().replace(",", ".")
-                                                    try:
-                                                        _p_num = float(_p_raw)
-                                                        if 1.0 <= _p_num <= 7.0:
-                                                            _proms.append(_p_num)
-                                                    except ValueError:
-                                                        pass
-                                            if _proms:
-                                                _prom_gen = redondear_nota(sum(_proms) / len(_proms), 1)
-                                                _prom_str = f"{_prom_gen:.1f}".replace(".", ",")
-                                                resumen_rows.append([
-                                                    str(_rut_al).strip(), _nom_al,
-                                                    str(curso_activo), "__RESUMEN__", _sem_val,
-                                                    "", "", "", "", "", "", "", "", "", "",  # n1-n10 vacíos
-                                                    _prom_str
-                                                ])
-                                    # Upsert: actualizar existentes o insertar nuevos
-                                    for _res_fila in resumen_rows:
-                                        _rut_res = _res_fila[0]
-                                        _sem_res  = _res_fila[4]
-                                        _exist_res = None
-                                        for _ri, _rr in df_all_n.iterrows():
-                                            if (
-                                                _norm_k(str(_rr[_col_r])) == _norm_k(_rut_res) and
-                                                str(_rr[_col_a]).strip() == "__RESUMEN__" and
-                                                str(_rr[_col_s]).strip() == _sem_res and
-                                                calza_nombre_curso(str(_rr[_col_c]), curso_activo)
-                                            ):
-                                                _exist_res = _ri + 2
-                                                break
-                                        if _exist_res:
-                                            sheet_notas.update(
-                                                values=[_res_fila],
-                                                range_name=f"A{_exist_res}:P{_exist_res}"
-                                            )
-                                        else:
-                                            sheet_notas.append_rows([_res_fila])
+                                            if not _m1.empty:
+                                                try:
+                                                    _v1 = float(str(_m1.iloc[0][_col_p]).replace(',', '.'))
+                                                    if 1.0 <= _v1 <= 7.0: _sub_p1 = _v1
+                                                except ValueError: pass
+
+                                            _m2 = _df_al[
+                                                _df_al[_col_a].astype(str).apply(lambda x: coincide_asig_bd(x, _ac)) &
+                                                _df_al[_col_s].astype(str).str.contains('2')
+                                            ]
+                                            if not _m2.empty:
+                                                try:
+                                                    _v2 = float(str(_m2.iloc[0][_col_p]).replace(',', '.'))
+                                                    if 1.0 <= _v2 <= 7.0: _sub_p2 = _v2
+                                                except ValueError: pass
+
+                                            if _sub_p1 is not None: _proms_s1.append(_sub_p1)
+                                            if _sub_p2 is not None: _proms_s2.append(_sub_p2)
+
+                                            if _sub_p1 is not None and _sub_p2 is not None:
+                                                _finales_sub.append(redondear_nota((_sub_p1 + _sub_p2) / 2.0, 1))
+                                            elif _sub_p1 is not None:
+                                                _finales_sub.append(redondear_nota(_sub_p1, 1))
+                                            elif _sub_p2 is not None:
+                                                _finales_sub.append(redondear_nota(_sub_p2, 1))
+
+                                        if _proms_s1:
+                                            _p1_gen = redondear_nota(sum(_proms_s1) / len(_proms_s1), 1)
+                                            resumen_rows.append([
+                                                str(_rut_al).strip(), _nom_al,
+                                                str(curso_activo), "__RESUMEN__", "1",
+                                                "", "", "", "", "", "", "", "", "", "",
+                                                f"{_p1_gen:.1f}".replace('.', ',')
+                                            ])
+                                        if _proms_s2:
+                                            _p2_gen = redondear_nota(sum(_proms_s2) / len(_proms_s2), 1)
+                                            resumen_rows.append([
+                                                str(_rut_al).strip(), _nom_al,
+                                                str(curso_activo), "__RESUMEN__", "2",
+                                                "", "", "", "", "", "", "", "", "", "",
+                                                f"{_p2_gen:.1f}".replace('.', ',')
+                                            ])
+                                        if _finales_sub:
+                                            _pa_gen = redondear_nota(sum(_finales_sub) / len(_finales_sub), 1)
+                                            resumen_rows.append([
+                                                str(_rut_al).strip(), _nom_al,
+                                                str(curso_activo), "__RESUMEN__", "anual",
+                                                "", "", "", "", "", "", "", "", "", "",
+                                                f"{_pa_gen:.1f}".replace('.', ',')
+                                            ])
+
+                                    if resumen_rows:
+                                        sheet_notas.append_rows(resumen_rows)
                         except Exception as _e_res:
                             # El resumen no es crítico; si falla no bloquea el guardado normal
                             st.warning(f"⚠️ Notas guardadas, pero no se pudo actualizar el resumen de promedios: {_e_res}")
