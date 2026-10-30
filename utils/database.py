@@ -306,8 +306,54 @@ class SupabaseSheet:
         return [list(self._cols)] + rows
 
     def find(self, query, in_column=None):
-        """Búsqueda básica. Devuelve None si no encuentra (compatibilidad)."""
+        """
+        Busca `query` en la columna indicada (o en 'rut' por defecto para funcionarios).
+        Retorna un objeto con atributo .row que contiene el RUT buscado (para update_cell).
+        Compatible con la interfaz de gspread Cell.
+        """
+        try:
+            # Determinar columna DB a buscar
+            if in_column:
+                db_col = self._d2db.get(in_column, in_column.lower())
+            else:
+                # Para funcionarios buscamos por rut por defecto
+                db_col = self._d2db.get('RUT', 'rut')
+
+            resp = self._client.table(self._table).select('*').eq(db_col, str(query).strip()).limit(1).execute()
+            rows = resp.data or []
+            if rows:
+                # Retornar objeto compatible con gspread Cell
+                # .row guarda el RUT para que update_cell lo use
+                class _Cell:
+                    def __init__(self, rut_val):
+                        self.row = rut_val   # usamos row para pasar el RUT
+
+                return _Cell(str(query).strip())
+        except Exception as e:
+            print(f"[SupabaseSheet] find '{self._table}': {e}")
         return None
+
+    def update_cell(self, row_rut, col_index, value):
+        """
+        Actualiza una celda por RUT (row_rut = valor del RUT) y número de columna UI.
+        col_index 4 corresponde a PIN (cuarta columna del mapping de funcionarios).
+        Compatible con la llamada: sheet_funcionarios.update_cell(cell.row, 4, nuevo_pin)
+        """
+        try:
+            # Mapear col_index (1-based) al nombre de columna DB
+            cols_list = list(self._cols)   # ordered_display
+            if col_index < 1 or col_index > len(cols_list):
+                raise ValueError(f"Índice de columna fuera de rango: {col_index}")
+            display_col = cols_list[col_index - 1]
+            db_col = self._d2db.get(display_col, display_col.lower())
+
+            # Columna de RUT en DB
+            rut_db_col = self._d2db.get('RUT', 'rut')
+
+            self._client.table(self._table).update({db_col: str(value)}).eq(rut_db_col, str(row_rut)).execute()
+        except Exception as e:
+            print(f"[SupabaseSheet] update_cell '{self._table}': {e}")
+            raise e
 
     def __bool__(self):
         """Permite usar `if sheet_alumnos:` como en el código original."""

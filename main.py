@@ -5356,17 +5356,17 @@ elif st.session_state.current_module == 'asignaciones':
         except Exception:
             pass
 
-    # 3. Asignaturas oficiales
-    asignaturas_list = [
-        "Matemáticas",
+    # 3. Asignaturas oficiales (lista estática base; se sobrescribirá dinámicamente por curso)
+    asignaturas_list_base = [
         "Lenguaje y Comunicación",
+        "Idioma Extranjero Inglés",
+        "Matemática",
         "Ciencias Naturales",
         "Historia, Geografía y Ciencias Sociales",
-        "Inglés",
-        "Educación Física y Salud",
+        "Tecnología",
         "Artes Visuales",
         "Música",
-        "Tecnología",
+        "Educación Física y Salud",
         "Orientación",
         "Religión Católica",
         "Religión Evangélica"
@@ -5385,6 +5385,10 @@ elif st.session_state.current_module == 'asignaciones':
         )
 
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
+    # Resolver lista de asignaturas según el decreto ministerial del curso seleccionado
+    _plan_asig = obtener_plan_estudio_curso(curso_seleccionado)
+    asignaturas_list = _plan_asig["asigs_nombres"]
 
     # 5. Cargar asignaciones vigentes para este curso desde Sheets
     asignaciones_existentes = {} # asig -> [ {"rut":..., "nombre":...}, ... ]
@@ -5413,7 +5417,7 @@ elif st.session_state.current_module == 'asignaciones':
             st.error(f"Error al leer asignaciones: {e}")
 
     # 6. Formulario de Matriz: Asignatura | Profesor 1 | Profesor 2
-    with st.form("form_matriz_asignaciones"):
+    with st.form(f"form_matriz_asignaciones_{curso_seleccionado.replace(' ', '_').replace('°', '')}"):
 
         # Encabezado de la tabla de asignaturas
         ch_asig, ch_p1, ch_p2 = st.columns([2.2, 2.5, 2.5])
@@ -5429,7 +5433,13 @@ elif st.session_state.current_module == 'asignaciones':
         nuevas_elecciones = {}
 
         for idx_asig, asig in enumerate(asignaturas_list):
+            # Recuperar asignaciones previas usando matching flexible (soporta variantes de nombre en BD)
             asignados_previos = asignaciones_existentes.get(asig, [])
+            if not asignados_previos:
+                for asig_bd_key, asig_bd_val in asignaciones_existentes.items():
+                    if coincide_asig_bd(asig_bd_key, asig):
+                        asignados_previos = asig_bd_val
+                        break
             
             # Determinar valor previo para Profesor 1
             default_p1 = "— Sin Asignar —"
@@ -7506,6 +7516,10 @@ elif st.session_state.current_module == 'informes':
                             elif p1_flt:
                                 nf_val = f"{p1_flt:.1f}".replace('.', ',')
                                 promedios_finales.append(p1_flt)
+                            elif p2_flt:
+                                # Alumno incorporado en S2: su nota final es el promedio de S2
+                                nf_val = f"{p2_flt:.1f}".replace('.', ',')
+                                promedios_finales.append(p2_flt)
                         except:
                             pass
 
