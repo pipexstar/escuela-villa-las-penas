@@ -303,11 +303,79 @@ def listar_eventos_asistencia(fecha_desde: date = None, fecha_hasta: date = None
         return []
 
 
-def construir_planilla_asistencia(eventos: list, funcionarios_dict: dict) -> list:
+import json
+
+
+def obtener_observaciones_asistencia(sheet_config=None) -> dict:
+    """Obtiene el mapa de observaciones { 'rut_fecha': 'texto' } desde la configuración."""
+    if sheet_config is None:
+        try:
+            from utils.database import get_config_sheet
+            sheet_config = get_config_sheet()
+        except Exception:
+            sheet_config = None
+
+    if sheet_config:
+        try:
+            records = sheet_config.get_all_records()
+            for r in records:
+                k = str(r.get("Clave", "")).strip()
+                if k == "observaciones_asistencia_funcionarios":
+                    val = str(r.get("Valor", "")).strip()
+                    if val:
+                        return json.loads(val)
+        except Exception as e:
+            print(f"[asistencia] Error al cargar observaciones: {e}")
+    return {}
+
+
+def guardar_observaciones_asistencia(mapa_observaciones: dict, sheet_config=None) -> bool:
+    """Guarda el mapa de observaciones { 'rut_fecha': 'texto' } en la tabla de configuración."""
+    if sheet_config is None:
+        try:
+            from utils.database import get_config_sheet
+            sheet_config = get_config_sheet()
+        except Exception:
+            sheet_config = None
+
+    if not sheet_config:
+        return False
+
+    try:
+        val_json = json.dumps(mapa_observaciones, ensure_ascii=False)
+        recs = sheet_config.get_all_records()
+        df_cfg = pd.DataFrame(recs) if recs else pd.DataFrame(columns=["Clave", "Valor"])
+        df_cfg.columns = [str(c).strip() for c in df_cfg.columns]
+
+        mask = df_cfg["Clave"].astype(str).str.strip() == "observaciones_asistencia_funcionarios"
+        if not df_cfg[mask].empty:
+            idx = df_cfg[mask].index[0]
+            df_cfg.at[idx, "Valor"] = val_json
+        else:
+            nueva = pd.DataFrame([{"Clave": "observaciones_asistencia_funcionarios", "Valor": val_json}])
+            df_cfg = pd.concat([df_cfg, nueva], ignore_index=True)
+
+        cols = ["Clave", "Valor"]
+        for c in df_cfg.columns:
+            if c not in cols and not c.startswith("_"):
+                cols.append(c)
+        df_final = df_cfg[cols].fillna("")
+        sheet_config.clear()
+        sheet_config.update(values=[df_final.columns.tolist()] + df_final.values.tolist())
+        return True
+    except Exception as e:
+        print(f"[asistencia] Error al guardar observaciones: {e}")
+        return False
+
+
+def construir_planilla_asistencia(eventos: list, funcionarios_dict: dict, observaciones_dict: dict = None) -> list:
     """
     Agrupa eventos crudos en filas claras de jornada:
-    Fecha, RUT, Nombre, Rol, Hora Entrada, Hora Salida, Estado
+    RUT, Nombre, Fecha, Hora Entrada, Hora Salida, Estado, Observación
     """
+    if observaciones_dict is None:
+        observaciones_dict = {}
+
     grupos = {}
     for ev in eventos:
         fid = ev["funcionario_id"]
@@ -320,7 +388,6 @@ def construir_planilla_asistencia(eventos: list, funcionarios_dict: dict) -> lis
         lista.sort(key=lambda x: str(x.get("timestamp") or ""))
         f_info = funcionarios_dict.get(fid, {})
         nom = f_info.get("nombre", fid)
-        rol = f_info.get("rol", "Funcionario")
 
         e_in = next((e for e in lista if e["tipo"] == "entrada"), None)
         e_out = next((e for e in reversed(lista) if e["tipo"] == "salida"), None)
@@ -335,14 +402,17 @@ def construir_planilla_asistencia(eventos: list, funcionarios_dict: dict) -> lis
         else:
             estado = "Solo Salida"
 
+        obs_key = f"{fid}_{fec}"
+        obs_val = observaciones_dict.get(obs_key, "")
+
         filas.append({
-            "Fecha": fec,
             "RUT": fid,
             "Nombre": nom,
-            "Rol": rol,
+            "Fecha": fec,
             "Hora de Entrada": h_in,
             "Hora de Salida": h_out,
             "Estado": estado,
+            "Observación": obs_val,
             "_sort": f"{fec} {h_in or h_out}"
         })
 
