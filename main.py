@@ -7,6 +7,12 @@ import io
 import time
 import re
 from utils.database import get_sheets, get_asistencia_sheet, get_config_sheet, get_preacta_sheet, get_desarrollo_personal_sheet, get_cursos_sheet
+from utils.asistencia_funcionarios import (
+    verificar_tabla_eventos_existe,
+    listar_eventos_asistencia,
+    construir_planilla_asistencia,
+    generar_qr_data_url,
+)
 from decimal import Decimal, ROUND_HALF_UP
 
 # Configuración inicial (Debe ser el primer comando de Streamlit)
@@ -4963,9 +4969,10 @@ elif st.session_state.current_module == 'funcionarios':
                 unsafe_allow_html=True
             )
 
-            tab_gestion_f, tab_carga_f = st.tabs([
+            tab_gestion_f, tab_carga_f, tab_asistencia_f = st.tabs([
                 "📋 Nómina de Funcionarios y Claves",
-                "📤 Carga Masiva (Excel / CSV)"
+                "📤 Carga Masiva (Excel / CSV)",
+                "🛂 Control de Asistencia Diaria",
             ])
 
             with tab_gestion_f:
@@ -5372,6 +5379,174 @@ elif st.session_state.current_module == 'funcionarios':
                                     st.rerun()
                     except Exception as e:
                         st.error(f"Error al procesar archivo de funcionarios: {e}")
+
+
+            with tab_asistencia_f:
+                st.markdown("### 🛂 Control de Asistencia del Personal (Código QR)")
+                st.caption("Monitoreo en tiempo real de entradas y salidas de funcionarios.")
+
+                if not verificar_tabla_eventos_existe():
+                    st.warning("⚠️ **Base de Datos:** La tabla `asistencia_funcionarios_eventos` aún no está creada en Supabase.")
+                    st.info(
+                        "Para activarla, entra a tu panel de **Supabase** -> **SQL Editor**, "
+                        "pega la siguiente instrucción SQL y pulsa **Run**:"
+                    )
+                    sql_crear = (
+                        "CREATE TABLE IF NOT EXISTS asistencia_funcionarios_eventos (\n"
+                        "    id BIGSERIAL PRIMARY KEY,\n"
+                        "    funcionario_id TEXT NOT NULL REFERENCES funcionarios(rut) ON DELETE CASCADE,\n"
+                        "    tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'salida')),\n"
+                        "    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()\n"
+                        ");\n"
+                        "CREATE INDEX IF NOT EXISTS idx_asistencia_func_fecha ON asistencia_funcionarios_eventos (funcionario_id, timestamp);"
+                    )
+                    st.code(sql_crear, language="sql")
+                    if st.button("🔄 Comprobar conexión con Supabase", key="btn_check_asist_supa"):
+                        st.rerun()
+                else:
+                    dict_func = {}
+                    if not df_func_all.empty and col_r in df_func_all.columns:
+                        for _, rf in df_func_all.iterrows():
+                            r_clean = str(rf[col_r]).strip()
+                            dict_func[r_clean] = {
+                                "nombre": str(rf.get(col_n, r_clean)).strip(),
+                                "rol": str(rf.get(col_rol, "Funcionario")).strip(),
+                                "estado": str(rf.get(col_est, "Activo")).strip(),
+                            }
+
+                    hoy_date = datetime.date.today()
+                    eventos_hoy = listar_eventos_asistencia(fecha_desde=hoy_date, fecha_hasta=hoy_date)
+                    registros_hoy = construir_planilla_asistencia(eventos_hoy, dict_func)
+
+                    en_recinto = [r for r in registros_hoy if r["Estado"] == "En Recinto"]
+                    jornada_terminada = [r for r in registros_hoy if r["Estado"] == "Jornada Completa"]
+                    ruts_marcados_hoy = {r["RUT"] for r in registros_hoy}
+
+                    ausentes_o_pendientes = [
+                        {"RUT": r, "Nombre": info["nombre"], "Rol": info["rol"]}
+                        for r, info in dict_func.items()
+                        if r not in ruts_marcados_hoy and info.get("estado", "").lower() != "inactivo" and r.lower() != "admin"
+                    ]
+
+                    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+                    with kpi1:
+                        st.metric("👥 Dotación Activa", cant_activos_f)
+                    with kpi2:
+                        st.metric("🏢 En Recinto Ahora", len(en_recinto))
+                    with kpi3:
+                        st.metric("🚪 Salidas del Día", len(jornada_terminada))
+                    with kpi4:
+                        st.metric("⏳ Pendientes / Ausentes", len(ausentes_o_pendientes))
+
+                    subtab_hoy, subtab_hist, subtab_accesos = st.tabs([
+                        "📍 Estado Actual de Hoy",
+                        "📊 Historial y Reportes Excel",
+                        "📷 Accesos Tablet y Credencial QR"
+                    ])
+
+                    with subtab_hoy:
+                        if en_recinto:
+                            st.markdown(f"#### 🏢 Personal en el Colegio ({len(en_recinto)})")
+                            df_en_recinto = pd.DataFrame(en_recinto)[["Nombre", "Rol", "Hora de Entrada", "RUT"]]
+                            st.dataframe(df_en_recinto, hide_index=True, use_container_width=True)
+                        else:
+                            st.info("No hay funcionarios registrados en el recinto en este momento.")
+
+                        st.markdown("---")
+                        st.markdown(f"#### 📋 Todos los Marcajes de Hoy ({len(registros_hoy)})")
+                        if registros_hoy:
+                            st.dataframe(pd.DataFrame(registros_hoy)[["Nombre", "Rol", "Hora de Entrada", "Hora de Salida", "Estado", "RUT"]], hide_index=True, use_container_width=True)
+                        else:
+                            st.caption("Aún no hay marcajes registrados para hoy.")
+
+                        if ausentes_o_pendientes:
+                            with st.expander(f"⚠️ Ver funcionarios sin registro hoy ({len(ausentes_o_pendientes)})", expanded=False):
+                                st.dataframe(pd.DataFrame(ausentes_o_pendientes), hide_index=True, use_container_width=True)
+
+                    with subtab_hist:
+                        st.markdown("#### 🔎 Consulta Histórica de Asistencia")
+                        col_hf1, col_hf2, col_hf3 = st.columns([2, 2, 2])
+                        with col_hf1:
+                            rango_hist = st.selectbox("Rango de consulta:", ["Hoy", "Esta semana", "Este mes", "Personalizado"], key="sel_rango_asist_func")
+                        with col_hf2:
+                            if rango_hist == "Esta semana":
+                                f_desde = hoy_date - datetime.timedelta(days=hoy_date.weekday())
+                                f_hasta = f_desde + datetime.timedelta(days=6)
+                            elif rango_hist == "Este mes":
+                                f_desde = datetime.date(hoy_date.year, hoy_date.month, 1)
+                                if hoy_date.month == 12:
+                                    f_hasta = datetime.date(hoy_date.year, 12, 31)
+                                else:
+                                    f_hasta = datetime.date(hoy_date.year, hoy_date.month + 1, 1) - datetime.timedelta(days=1)
+                            elif rango_hist == "Hoy":
+                                f_desde = f_hasta = hoy_date
+                            else:
+                                f_desde = st.date_input("Desde:", value=hoy_date - datetime.timedelta(days=7), key="dt_asist_desde")
+                                f_hasta = st.date_input("Hasta:", value=hoy_date, key="dt_asist_hasta")
+
+                            st.caption(f"Período: `{f_desde}` al `{f_hasta}`")
+
+                        with col_hf3:
+                            opc_roles = ["Todos los roles"] + sorted(list({info["rol"] for info in dict_func.values() if info.get("rol")}))
+                            rol_filtro_asist = st.selectbox("Filtrar por rol:", opc_roles, key="sel_rol_filtro_asist")
+
+                        evs_hist = listar_eventos_asistencia(fecha_desde=f_desde, fecha_hasta=f_hasta)
+                        plan_hist = construir_planilla_asistencia(evs_hist, dict_func)
+
+                        if rol_filtro_asist != "Todos los roles":
+                            plan_hist = [p for p in plan_hist if p.get("Rol") == rol_filtro_asist]
+
+                        st.write(f"Se encontraron **{len(plan_hist)}** registros de asistencia.")
+                        if plan_hist:
+                            df_hist_mostrar = pd.DataFrame(plan_hist)[["Fecha", "Nombre", "Rol", "Hora de Entrada", "Hora de Salida", "Estado", "RUT"]]
+                            st.dataframe(df_hist_mostrar, hide_index=True, use_container_width=True)
+
+                            buf_rep_excel = io.BytesIO()
+                            df_hist_mostrar.to_excel(buf_rep_excel, index=False)
+                            buf_rep_excel.seek(0)
+                            st.download_button(
+                                label="📥 Descargar Reporte en Excel (.xlsx)",
+                                data=buf_rep_excel.getvalue(),
+                                file_name=f"asistencia_funcionarios_{f_desde}_{f_hasta}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="btn_descarga_excel_asist_func"
+                            )
+                        else:
+                            st.info("No hay registros en el período seleccionado.")
+
+                    with subtab_accesos:
+                        st.markdown("#### 📷 Accesos del Punto de Control")
+                        col_ac1, col_ac2 = st.columns(2)
+                        with col_ac1:
+                            st.info(
+                                "📱 **Credencial Móvil para Profesores:**\n\n"
+                                "Cada docente abre la credencial en su teléfono, ingresa su RUT una sola vez y el sistema "
+                                "genera el código QR dinámico de hoy con firma digital anti-clonación."
+                            )
+                        with col_ac2:
+                            st.success(
+                                "📷 **Tablet Escáner (Portería / Entrada):**\n\n"
+                                "La tablet del colegio en portería escanea el código en tiempo real, emite sonido y registra "
+                                "la entrada o salida en Supabase con la regla de 1 marcaje diario."
+                            )
+
+                        st.markdown("---")
+                        st.markdown("##### 🧪 Generador de QR para pruebas")
+                        func_prueba = st.selectbox(
+                            "Seleccionar funcionario para ver su QR de hoy:",
+                            [f"{r} - {info['nombre']}" for r, info in dict_func.items() if r.lower() != 'admin'],
+                            key="sel_func_qr_test"
+                        )
+                        if func_prueba:
+                            rut_test_qr = func_prueba.split(" - ")[0].strip()
+                            qr_img_data = generar_qr_data_url(rut_test_qr)
+                            c_qr1, c_qr2 = st.columns([1, 2])
+                            with c_qr1:
+                                st.image(qr_img_data, width=220, caption=f"Válido hoy: {hoy_date}")
+                            with c_qr2:
+                                st.write(f"**Funcionario:** {func_prueba}")
+                                st.write(f"**RUT:** `{rut_test_qr}`")
+                                st.caption("Este código incluye firma digital HMAC-SHA256 vinculada a la fecha de hoy.")
 
         except Exception as e:
             st.error(f"Error al cargar módulo de funcionarios: {e}")

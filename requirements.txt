@@ -5,3 +5,8 @@ pandas
 tzdata
 pywebpush
 cryptography
+qrcode[pil]
+starlette
+uvicorn
+python-multipart
+toml

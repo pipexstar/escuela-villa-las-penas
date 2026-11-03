@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mi Asistencia - Credencial QR</title>
+  
+  <!-- PWA Manifest & Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mi Asistencia">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+
+  <script src="/static/qrcode.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 16px;
+    }
+    .container {
+      width: 100%;
+      max-width: 440px;
+      margin: auto 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .header {
+      text-align: center;
+      padding: 12px 0 4px;
+    }
+    .badge-icon {
+      width: 52px;
+      height: 52px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    /* Estilos Pantalla Login / Vinculación */
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      background: #0f172a;
+      border: 1.5px solid #334155;
+      border-radius: 12px;
+      color: #ffffff;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus {
+      border-color: #3b82f6;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      background: #334155;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      padding: 10px;
+      margin-top: 8px;
+    }
+    .btn-install {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+      margin-top: 10px;
+    }
+    /* Credencial QR */
+    .qr-container {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 16px 0;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+    }
+    #qrcode {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 250px;
+      height: 250px;
+    }
+    #qrcode img, #qrcode canvas {
+      border-radius: 8px;
+    }
+    .user-info {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .user-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .user-rut {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 4px 12px;
+      background: #0f172a;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #38bdf8;
+      border: 1px solid #334155;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #4ade80;
+      margin-top: 8px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #4ade80;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #4ade80;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .date-info {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 4px;
+    }
+    .alert {
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .alert-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+    }
+    .ios-guide {
+      background: #1e293b;
+      border: 1px dashed #475569;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      text-align: center;
+      display: none;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <div class="badge-icon">🛂</div>
+      <h1>Control de Asistencia</h1>
+      <p class="subtitle">Credencial Personal de Funcionario</p>
+    </div>
+
+    <div id="alertBox" class="alert alert-danger"></div>
+
+    <!-- PANTALLA 1: IDENTIFICACIÓN (Solo la primera vez) -->
+    <div id="loginView" class="card hidden">
+      <h2 style="font-size: 1.1rem; margin-bottom: 8px;">Vincular Teléfono</h2>
+      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 18px;">
+        Ingresa tu RUT para activar tu credencial en este teléfono. Solo tendrás que hacerlo una vez.
+      </p>
+
+      <div class="form-group">
+        <label for="rutInput">RUT del Funcionario</label>
+        <input type="text" id="rutInput" placeholder="Ej: 12345678-9" autocomplete="off" autocapitalize="none">
+      </div>
+
+      <button id="btnVincular" class="btn btn-primary" onclick="vincularRut()">
+        🔑 Activar Mi Credencial
+      </button>
+    </div>
+
+    <!-- PANTALLA 2: CREDENCIAL QR DIARIA -->
+    <div id="qrView" class="card hidden">
+      <div class="user-info">
+        <div class="user-name" id="displayNombre">Cargando...</div>
+        <div class="user-rut" id="displayRut">RUT: ...</div>
+      </div>
+
+      <div class="qr-container">
+        <div id="qrcode"></div>
+        <div class="status-badge">
+          <span class="pulse-dot"></span>
+          <span>QR Firmado y Válido Hoy</span>
+        </div>
+      </div>
+
+      <div class="date-info" id="displayFecha">📅 Hoy: ...</div>
+
+      <!-- Botón para instalar PWA en Android / Chrome / Edge -->
+      <button id="btnInstallPwa" class="btn btn-install hidden" onclick="instalarApp()">
+        📲 Instalar en Pantalla de Inicio
+      </button>
+
+      <!-- Guía para iPhone / Safari -->
+      <div id="iosInstallGuide" class="ios-guide">
+        💡 <b>Instalar en iPhone:</b> Toca el botón <b>Compartir</b> (icono cuadrado con flecha abajo) y selecciona <b>"Agregar a la pantalla de inicio"</b>.
+      </div>
+
+      <button class="btn btn-secondary" onclick="desvincular()">
+        🚪 Desvincular Teléfono / Cambiar RUT
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let deferredPrompt = null;
+
+    // Registrar Service Worker para PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW fail:', err));
+      });
+    }
+
+    // Capturar evento de instalación PWA
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // Mostrar botón de instalación si no está en modo standalone
+      if (!window.matchMedia('(display-mode: standalone)').matches) {
+        document.getElementById('btnInstallPwa').classList.remove('hidden');
+      }
+    });
+
+    // Detectar si es iOS para mostrar guía de instalación
+    const isIos = () => {
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      return /iphone|ipad|ipod/.test(userAgent);
+    };
+    const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.navigator.standalone);
+
+    if (isIos() && !isInStandaloneMode()) {
+      document.getElementById('iosInstallGuide').style.display = 'block';
+    }
+
+    function instalarApp() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            document.getElementById('btnInstallPwa').classList.add('hidden');
+          }
+          deferredPrompt = null;
+        });
+      }
+    }
+
+    function formatearRut(rut) {
+      rut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+      if (rut.length < 2) return rut;
+      const cuerpo = rut.slice(0, -1);
+      const dv = rut.slice(-1);
+      return cuerpo + '-' + dv;
+    }
+
+    document.getElementById('rutInput').addEventListener('input', function(e) {
+      e.target.value = formatearRut(e.target.value);
+    });
+
+    function mostrarAlerta(msg) {
+      const b = document.getElementById('alertBox');
+      b.innerText = msg;
+      b.style.display = 'block';
+      setTimeout(() => { b.style.display = 'none'; }, 5000);
+    }
+
+    async function vincularRut() {
+      const rutInput = document.getElementById('rutInput').value.trim();
+      if (!rutInput) {
+        mostrarAlerta('Por favor ingresa tu RUT.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/funcionario/${encodeURIComponent(rutInput)}`);
+        const data = await res.json();
+        if (data.ok && data.funcionario) {
+          localStorage.setItem('asistencia_rut', data.funcionario.id);
+          localStorage.setItem('asistencia_nombre', data.funcionario.nombre);
+          iniciarCredencial(data.funcionario.id, data.funcionario.nombre);
+        } else {
+          mostrarAlerta(data.mensaje || 'Funcionario no encontrado. Consulta con tu director.');
+        }
+      } catch (e) {
+        mostrarAlerta('Error conectando al servidor. Revisa tu conexión.');
+      }
+    }
+
+    async function iniciarCredencial(rut, nombre) {
+      document.getElementById('loginView').classList.add('hidden');
+      document.getElementById('qrView').classList.remove('hidden');
+
+      document.getElementById('displayNombre').innerText = nombre;
+      document.getElementById('displayRut').innerText = 'RUT: ' + rut;
+
+      const hoyStr = new Date().toLocaleDateString('es-CL', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+      document.getElementById('displayFecha').innerText = '📅 ' + hoyStr;
+
+      await cargarQr(rut);
+    }
+
+    async function cargarQr(rut) {
+      try {
+        const res = await fetch(`/api/qr-payload/${encodeURIComponent(rut)}`);
+        const data = await res.json();
+        if (data.ok && data.payload) {
+          renderizarQr(data.payload);
+        } else {
+          mostrarAlerta(data.mensaje || 'Error al generar código QR.');
+        }
+      } catch (e) {
+        mostrarAlerta('No se pudo generar el QR.');
+      }
+    }
+
+    function renderizarQr(payloadText) {
+      const container = document.getElementById('qrcode');
+      container.innerHTML = '';
+      new QRCode(container, {
+        text: payloadText,
+        width: 250,
+        height: 250,
+        colorDark: '#0f172a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    function desvincular() {
+      if (confirm('¿Deseas desvincular este teléfono? Tendrás que ingresar tu RUT nuevamente.')) {
+        localStorage.removeItem('asistencia_rut');
+        localStorage.removeItem('asistencia_nombre');
+        document.getElementById('qrView').classList.add('hidden');
+        document.getElementById('loginView').classList.remove('hidden');
+      }
+    }
+
+    // Inicialización al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+      const guardadoRut = localStorage.getItem('asistencia_rut');
+      const guardadoNombre = localStorage.getItem('asistencia_nombre');
+      if (guardadoRut && guardadoNombre) {
+        iniciarCredencial(guardadoRut, guardadoNombre);
+      } else {
+        document.getElementById('loginView').classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
+
