@@ -10,3 +10,4 @@ starlette
 uvicorn
 python-multipart
 toml
+openpyxl
