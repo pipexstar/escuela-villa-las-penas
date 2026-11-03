@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import datetime
 import base64
@@ -11,7 +11,6 @@ from utils.asistencia_funcionarios import (
     verificar_tabla_eventos_existe,
     listar_eventos_asistencia,
     construir_planilla_asistencia,
-    generar_qr_data_url,
     obtener_observaciones_asistencia,
     guardar_observaciones_asistencia,
 )

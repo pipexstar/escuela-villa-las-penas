@@ -10,9 +10,7 @@ import hashlib
 from datetime import datetime, date, timedelta
 import pandas as pd
 import streamlit as st
-import qrcode
 import base64
-import toml
 from supabase import create_client
 
 
@@ -42,9 +40,20 @@ def obtener_supabase_seguro():
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         sec_path = os.path.join(base_dir, ".streamlit", "secrets.toml")
         if os.path.exists(sec_path):
-            sec = toml.load(sec_path)
-            _supabase_cache = create_client(sec["SUPABASE_URL"], sec["SUPABASE_KEY"])
-            return _supabase_cache
+            sec = {}
+            try:
+                import tomllib
+                with open(sec_path, "rb") as f_sec:
+                    sec = tomllib.load(f_sec)
+            except Exception:
+                try:
+                    import toml
+                    sec = toml.load(sec_path)
+                except Exception:
+                    pass
+            if sec and "SUPABASE_URL" in sec:
+                _supabase_cache = create_client(sec["SUPABASE_URL"], sec["SUPABASE_KEY"])
+                return _supabase_cache
     except Exception as e:
         print(f"[asistencia] Fallback supabase error: {e}")
 
