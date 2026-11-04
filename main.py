@@ -3631,6 +3631,37 @@ elif st.session_state.current_module == 'alumnos':
                                                     sheet_alumnos.clear()
                                                     sheet_alumnos.update(values=[df_fresh.columns.tolist()] + df_fresh.values.tolist())
                                                     st.session_state.df_alumnos_cache = None
+
+                                                    # Guardar cambios del apoderado en la nómina oficial
+                                                    rut_est_save = val_rut.replace('.', '').strip().lower()
+                                                    if in_nom_apod or in_rut_apod:
+                                                        if "by_student_rut" not in mapa_apoderados_global:
+                                                            mapa_apoderados_global["by_student_rut"] = {}
+                                                        mapa_apoderados_global["by_student_rut"][rut_est_save] = {
+                                                            "nombre_apoderado": in_nom_apod.upper(),
+                                                            "rut_apoderado": in_rut_apod.upper(),
+                                                            "nombre_alumno": in_nom.upper(),
+                                                            "curso": str(in_curso_dest)
+                                                        }
+                                                        r_ap_clean = in_rut_apod.replace('.', '').strip().lower()
+                                                        if r_ap_clean:
+                                                            if "by_apoderado_rut" not in mapa_apoderados_global:
+                                                                mapa_apoderados_global["by_apoderado_rut"] = {}
+                                                            if r_ap_clean not in mapa_apoderados_global["by_apoderado_rut"]:
+                                                                mapa_apoderados_global["by_apoderado_rut"][r_ap_clean] = {
+                                                                    "nombre_apoderado": in_nom_apod.upper(),
+                                                                    "rut_apoderado": in_rut_apod.upper(),
+                                                                    "estudiantes": []
+                                                                }
+                                                            est_list = mapa_apoderados_global["by_apoderado_rut"][r_ap_clean]["estudiantes"]
+                                                            if not any(e["rut"].lower() == val_rut.lower() for e in est_list):
+                                                                est_list.append({
+                                                                    "rut": val_rut.upper(),
+                                                                    "nombre": in_nom.upper(),
+                                                                    "curso": str(in_curso_dest)
+                                                                })
+                                                        guardar_mapa_apoderados(mapa_apoderados_global, sheet_config_global)
+
                                                     st.success(f"✅ ¡Estudiante **{in_nom}** actualizado exitosamente!")
                                                     st.rerun()
                                             except Exception as e:
@@ -3680,11 +3711,15 @@ elif st.session_state.current_module == 'alumnos':
                     with col_n7:
                         new_fecha_nac = st.date_input("Fecha de Nacimiento:", value=datetime.date(2015, 1, 1), min_value=datetime.date(1990, 1, 1), max_value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_nac")
 
-                    col_n8, col_n9 = st.columns(2)
+                    col_n8, col_n8b, col_n9 = st.columns([1.5, 1.2, 1.3])
                     with col_n8:
-                        new_telefono = st.text_input("Teléfono del Apoderado:", placeholder="ej: +56912345678", key="new_al_tel").strip()
+                        new_nom_apod = st.text_input("Nombre Completo Apoderado:", placeholder="Ej: María González Pérez", key="new_al_nom_apod").strip()
+                    with col_n8b:
+                        new_rut_apod = st.text_input("RUT Apoderado:", placeholder="Ej: 15.798.671-6", key="new_al_rut_apod").strip()
                     with col_n9:
-                        new_fecha_alta = st.date_input("Fecha de Incorporación / Alta:", value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_alta", help="Fecha en que ingresa a clases.")
+                        new_telefono = st.text_input("Teléfono del Apoderado:", placeholder="ej: +56912345678", key="new_al_tel").strip()
+
+                    new_fecha_alta = st.date_input("Fecha de Incorporación / Alta:", value=datetime.date.today(), format="DD/MM/YYYY", key="new_al_f_alta", help="Fecha en que ingresa a clases.")
 
                     st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
 
@@ -3734,6 +3769,20 @@ elif st.session_state.current_module == 'alumnos':
                                         sheet_alumnos.clear()
                                         sheet_alumnos.update(values=[df_fresh.columns.tolist()] + df_fresh.values.tolist())
                                         st.session_state.df_alumnos_cache = None
+
+                                        # Guardar apoderado si fue ingresado
+                                        if new_nom_apod or new_rut_apod:
+                                            r_new_clean = new_rut.replace('.', '').strip().lower()
+                                            if "by_student_rut" not in mapa_apoderados_global:
+                                                mapa_apoderados_global["by_student_rut"] = {}
+                                            mapa_apoderados_global["by_student_rut"][r_new_clean] = {
+                                                "nombre_apoderado": new_nom_apod.upper(),
+                                                "rut_apoderado": new_rut_apod.upper(),
+                                                "nombre_alumno": new_nombre.upper(),
+                                                "curso": new_curso
+                                            }
+                                            guardar_mapa_apoderados(mapa_apoderados_global, sheet_config_global)
+
                                         st.success(f"🎉 ¡Estudiante **{new_nombre.upper()}** (Matrícula N° {new_matricula}) inscrito exitosamente!")
                                         st.rerun()
                                 except Exception as e:
