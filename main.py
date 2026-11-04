@@ -5092,8 +5092,9 @@ elif st.session_state.current_module == 'funcionarios':
                 unsafe_allow_html=True
             )
 
-            tab_gestion_f, tab_asistencia_f, tab_carga_f = st.tabs([
+            tab_gestion_f, tab_nuevo_f, tab_asistencia_f, tab_carga_f = st.tabs([
                 "📋 Nómina de Funcionarios y Claves",
+                "➕ Inscribir Nuevo Funcionario",
                 "🛂 Control de Asistencia Diaria",
                 "📤 Carga Masiva (Excel / CSV)",
             ])
@@ -5142,248 +5143,228 @@ elif st.session_state.current_module == 'funcionarios':
                     unsafe_allow_html=True
                 )
 
-                modo_func = st.session_state.get('modo_func_actual', 'VER_EDITAR')
+                # ==================== VISTA: LISTADO Y EDICIÓN DIRECTA ====================
+                col_tabla_f, col_ficha_f = st.columns([3.2, 2.8], gap="large")
 
-                # Barra de acción superior clara
-                col_b_f1, col_b_f2, col_sp_f = st.columns([2.2, 2.2, 2.6])
-                with col_b_f1:
-                    t_btn_lf = "primary" if modo_func == 'VER_EDITAR' else "secondary"
-                    if st.button("📋 Nómina y Edición de Personal", type=t_btn_lf, use_container_width=True, key="btn_modo_ver_f"):
-                        st.session_state.modo_func_actual = 'VER_EDITAR'
-                        st.rerun()
-                with col_b_f2:
-                    t_btn_nf = "primary" if modo_func == 'CREAR_NUEVO' else "secondary"
-                    if st.button("➕ Inscribir Nuevo Funcionario", type=t_btn_nf, use_container_width=True, key="btn_modo_crear_f"):
-                        st.session_state.modo_func_actual = 'CREAR_NUEVO'
-                        st.session_state.func_sel_rut = None
-                        st.rerun()
-
-                st.markdown("<hr style='margin:10px 0 16px 0;border-color:#e2e8f0;'>", unsafe_allow_html=True)
-
-                if modo_func == 'CREAR_NUEVO':
-                    # ==================== VISTA: INSCRIBIR NUEVO FUNCIONARIO ====================
+                with col_tabla_f:
                     st.markdown(
-                        "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;margin-bottom:16px;'>"
-                        "<h3 style='margin:0 0 4px 0;color:#166534;font-size:1.1rem;'>➕ Formulario de Nuevo Funcionario</h3>"
-                        "<span style='color:#15803d;font-size:0.85rem;'>Ingresa los datos para otorgar acceso al sistema institucional.</span>"
+                        "<div style='font-weight:700;font-size:0.88rem;color:#1e293b;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;'>"
+                        "<span>📋 Nómina de Personal</span>"
+                        "<span style='font-size:0.75rem;font-weight:400;color:#64748b;'>Selecciona una fila para cargar su ficha 👉</span>"
                         "</div>",
                         unsafe_allow_html=True
                     )
 
-                    with st.container(border=True):
-                        c_fn1, c_fn2 = st.columns([1.5, 2.5])
-                        with c_fn1:
-                            in_n_rut_f = st.text_input("RUT (Sin puntos, con guión):", placeholder="Ej: 12345678-9", key="in_new_rut_func").strip()
-                        with c_fn2:
-                            in_n_nom_f = st.text_input("Nombre Completo:", placeholder="Ej: Carlos Silva Castro", key="in_new_nom_func").strip()
+                    if not df_filtrado_f.empty:
+                        df_vista_f = pd.DataFrame()
+                        df_vista_f['RUT'] = df_filtrado_f[col_r].astype(str).str.replace('.', '', regex=False).str.strip()
+                        df_vista_f['Nombre'] = df_filtrado_f[col_n].astype(str)
+                        df_vista_f['Rol'] = df_filtrado_f[col_rol].astype(str)
+                        df_vista_f['Estado'] = df_filtrado_f[col_est].astype(str)
 
-                        c_fn3, c_fn4, c_fn5 = st.columns([1.5, 1.2, 1.3])
-                        with c_fn3:
-                            in_n_rol_f = st.selectbox("Rol Institucional:", ROLES_TODOS, key="in_new_rol_func")
-                        with c_fn4:
-                            in_n_pin_f = st.text_input("Clave PIN (4 dígitos):", value="1234", max_chars=4, key="in_new_pin_func").strip()
-                        with c_fn5:
-                            in_n_est_f = st.selectbox("Estado de Acceso:", ["Activo", "Inactivo"], index=0, key="in_new_est_func")
+                        event_f = st.dataframe(
+                            df_vista_f,
+                            use_container_width=True,
+                            hide_index=True,
+                            height=380,
+                            selection_mode="single-row",
+                            on_select="rerun",
+                            key="tabla_interactiva_funcionarios"
+                        )
 
-                        st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
-                        col_save_fn, col_cancel_fn = st.columns([2, 1])
-                        with col_save_fn:
-                            if st.button("🚀 Guardar e Inscribir Funcionario", type="primary", use_container_width=True, key="btn_save_new_func"):
-                                if not in_n_rut_f or not in_n_nom_f:
-                                    st.error("⚠️ El RUT y el Nombre Completo son obligatorios.")
-                                elif len(in_n_pin_f) != 4 or not in_n_pin_f.isdigit():
-                                    st.error("⚠️ La clave PIN debe tener 4 dígitos numéricos.")
-                                else:
-                                    with st.spinner("Guardando en Google Sheets..."):
-                                        try:
-                                            rut_clean_fn = in_n_rut_f.replace('.', '').strip()
-                                            recs_ff = sheet_funcionarios.get_all_records()
-                                            df_ff = pd.DataFrame(recs_ff) if recs_ff else pd.DataFrame(columns=['RUT', 'Nombre', 'Rol', 'PIN', 'Estado'])
-                                            df_ff.columns = [str(c).strip() for c in df_ff.columns]
-
-                                            df_ff['RUT_NORM'] = df_ff['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
-                                            if not df_ff[df_ff['RUT_NORM'] == rut_clean_fn.lower()].empty:
-                                                st.error(f"⚠️ Ya existe un funcionario registrado con el RUT {rut_clean_fn}.")
-                                            else:
-                                                nueva_fila_fn = {
-                                                    "RUT": rut_clean_fn,
-                                                    "Nombre": in_n_nom_f,
-                                                    "Rol": in_n_rol_f,
-                                                    "PIN": in_n_pin_f,
-                                                    "Estado": in_n_est_f
-                                                }
-                                                df_ff = pd.concat([df_ff, pd.DataFrame([nueva_fila_fn])], ignore_index=True)
-                                                cols_s_fn = ['RUT', 'Nombre', 'Rol', 'PIN', 'Estado']
-                                                for c in df_ff.columns:
-                                                    if c not in cols_s_fn and c != 'RUT_NORM':
-                                                        cols_s_fn.append(c)
-
-                                                df_ff = df_ff[cols_s_fn].fillna("")
-                                                sheet_funcionarios.clear()
-                                                sheet_funcionarios.update(values=[df_ff.columns.tolist()] + df_ff.values.tolist())
-                                                st.success(f"✅ ¡Funcionario **{in_n_nom_f}** registrado exitosamente!")
-                                                st.session_state.func_sel_rut = rut_clean_fn
-                                                st.session_state.modo_func_actual = 'VER_EDITAR'
-                                                st.rerun()
-                                        except Exception as e:
-                                            st.error(f"Error al guardar: {e}")
-                        with col_cancel_fn:
-                            if st.button("Cancelar", use_container_width=True, key="btn_cancel_new_func"):
-                                st.session_state.modo_func_actual = 'VER_EDITAR'
+                        if event_f and event_f.selection and event_f.selection.rows:
+                            idx_sel_f = event_f.selection.rows[0]
+                            rut_click_f = str(df_vista_f.iloc[idx_sel_f]['RUT']).strip()
+                            if st.session_state.get('func_sel_rut') != rut_click_f:
+                                st.session_state.func_sel_rut = rut_click_f
                                 st.rerun()
+                    else:
+                        st.info("💡 No se encontraron funcionarios con los filtros actuales.")
 
-                else:
-                    # ==================== VISTA: LISTADO Y EDICIÓN DIRECTA ====================
-                    col_tabla_f, col_ficha_f = st.columns([3.2, 2.8], gap="large")
+                with col_ficha_f:
+                    rut_actual_f = st.session_state.get('func_sel_rut')
 
-                    with col_tabla_f:
+                    if not rut_actual_f:
                         st.markdown(
-                            "<div style='font-weight:700;font-size:0.88rem;color:#1e293b;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;'>"
-                            "<span>📋 Nómina de Personal</span>"
-                            "<span style='font-size:0.75rem;font-weight:400;color:#64748b;'>Selecciona una fila para cargar su ficha 👉</span>"
+                            "<div style='border:2px dashed #cbd5e1;border-radius:8px;padding:36px 20px;text-align:center;background:#f8fafc;color:#64748b;margin-top:10px;'>"
+                            "<div style='font-size:2rem;margin-bottom:8px;'>👈</div>"
+                            "<div style='font-weight:600;font-size:0.95rem;color:#334155;'>Ningún Funcionario Seleccionado</div>"
+                            "<div style='font-size:0.8rem;margin-top:4px;'>Haz clic en cualquier fila de la lista a la izquierda para cargar y editar aquí los datos y clave del funcionario.</div>"
                             "</div>",
                             unsafe_allow_html=True
                         )
-
-                        if not df_filtrado_f.empty:
-                            df_vista_f = pd.DataFrame()
-                            df_vista_f['RUT'] = df_filtrado_f[col_r].astype(str).str.replace('.', '', regex=False).str.strip()
-                            df_vista_f['Nombre'] = df_filtrado_f[col_n].astype(str)
-                            df_vista_f['Rol'] = df_filtrado_f[col_rol].astype(str)
-                            df_vista_f['Estado'] = df_filtrado_f[col_est].astype(str)
-
-                            event_f = st.dataframe(
-                                df_vista_f,
-                                use_container_width=True,
-                                hide_index=True,
-                                height=380,
-                                selection_mode="single-row",
-                                on_select="rerun",
-                                key="tabla_interactiva_funcionarios"
-                            )
-
-                            if event_f and event_f.selection and event_f.selection.rows:
-                                idx_sel_f = event_f.selection.rows[0]
-                                rut_click_f = str(df_vista_f.iloc[idx_sel_f]['RUT']).strip()
-                                if st.session_state.get('func_sel_rut') != rut_click_f:
-                                    st.session_state.func_sel_rut = rut_click_f
-                                    st.rerun()
+                    else:
+                        func_row = df_func_all[df_func_all[col_r].astype(str).str.replace('.','', regex=False).str.strip().str.lower() == rut_actual_f.replace('.','').strip().lower()]
+                        if func_row.empty:
+                            st.warning("No se encontraron los datos del funcionario seleccionado.")
                         else:
-                            st.info("💡 No se encontraron funcionarios con los filtros actuales.")
+                            r_dat_f = func_row.iloc[0]
+                            val_rut_f = str(r_dat_f.get(col_r, '')).strip()
+                            val_nom_f = str(r_dat_f.get(col_n, '')).strip()
+                            val_rol_f = str(r_dat_f.get(col_rol, 'Profesor')).strip()
+                            val_pin_f = str(r_dat_f.get(col_pin, '1234')).strip()
+                            val_est_f = str(r_dat_f.get(col_est, 'Activo')).strip()
 
-                    with col_ficha_f:
-                        rut_actual_f = st.session_state.get('func_sel_rut')
-
-                        if not rut_actual_f:
                             st.markdown(
-                                "<div style='border:2px dashed #cbd5e1;border-radius:8px;padding:36px 20px;text-align:center;background:#f8fafc;color:#64748b;margin-top:10px;'>"
-                                "<div style='font-size:2rem;margin-bottom:8px;'>👈</div>"
-                                "<div style='font-weight:600;font-size:0.95rem;color:#334155;'>Ningún Funcionario Seleccionado</div>"
-                                "<div style='font-size:0.8rem;margin-top:4px;'>Haz clic en cualquier fila de la lista a la izquierda para cargar y editar aquí los datos y clave del funcionario.</div>"
-                                "</div>",
+                                f"<div style='background:#f1f5f9;border-left:4px solid #166534;border-radius:4px;padding:8px 12px;margin-bottom:10px;'>"
+                                f"<div style='font-weight:700;font-size:0.95rem;color:#0f172a;'>✏️ {val_nom_f}</div>"
+                                f"<div style='font-size:0.78rem;color:#475569;'>RUT: <b>{val_rut_f}</b> &nbsp;|&nbsp; Rol: <b>{val_rol_f}</b></div>"
+                                f"</div>",
                                 unsafe_allow_html=True
                             )
-                        else:
-                            func_row = df_func_all[df_func_all[col_r].astype(str).str.replace('.','', regex=False).str.strip().str.lower() == rut_actual_f.replace('.','').strip().lower()]
-                            if func_row.empty:
-                                st.warning("No se encontraron los datos del funcionario seleccionado.")
-                            else:
-                                r_dat_f = func_row.iloc[0]
-                                val_rut_f = str(r_dat_f.get(col_r, '')).strip()
-                                val_nom_f = str(r_dat_f.get(col_n, '')).strip()
-                                val_rol_f = str(r_dat_f.get(col_rol, 'Profesor')).strip()
-                                val_pin_f = str(r_dat_f.get(col_pin, '1234')).strip()
-                                val_est_f = str(r_dat_f.get(col_est, 'Activo')).strip()
 
-                                st.markdown(
-                                    f"<div style='background:#f1f5f9;border-left:4px solid #166534;border-radius:4px;padding:8px 12px;margin-bottom:10px;'>"
-                                    f"<div style='font-weight:700;font-size:0.95rem;color:#0f172a;'>✏️ {val_nom_f}</div>"
-                                    f"<div style='font-size:0.78rem;color:#475569;'>RUT: <b>{val_rut_f}</b> &nbsp;|&nbsp; Rol: <b>{val_rol_f}</b></div>"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
+                            rut_f_slug = re.sub(r'[^a-zA-Z0-9]', '', str(val_rut_f))
+                            with st.container(border=True):
+                                c1_f, c2_f = st.columns([1.5, 2.5])
+                                with c1_f:
+                                    # RUT BLOQUEADO EN EDICIÓN
+                                    st.text_input("RUT (Protegido / No editable):", value=val_rut_f, disabled=True, key=f"ed_rut_bloqueado_{rut_f_slug}")
+                                with c2_f:
+                                    in_nom_f = st.text_input("Nombre Completo:", value=val_nom_f, key=f"ed_nom_{rut_f_slug}").strip()
 
-                                rut_f_slug = re.sub(r'[^a-zA-Z0-9]', '', str(val_rut_f))
-                                with st.container(border=True):
-                                    c1_f, c2_f = st.columns([1.5, 2.5])
-                                    with c1_f:
-                                        # RUT BLOQUEADO EN EDICIÓN
-                                        st.text_input("RUT (Protegido / No editable):", value=val_rut_f, disabled=True, key=f"ed_rut_bloqueado_{rut_f_slug}")
-                                    with c2_f:
-                                        in_nom_f = st.text_input("Nombre Completo:", value=val_nom_f, key=f"ed_nom_{rut_f_slug}").strip()
+                                c3_f, c4_f, c5_f = st.columns([1.5, 1.2, 1.3])
+                                roles_validos = ROLES_TODOS
+                                idx_rol = roles_validos.index(val_rol_f) if val_rol_f in roles_validos else 0
+                                with c3_f:
+                                    in_rol_f = st.selectbox("Rol:", roles_validos, index=idx_rol, key=f"ed_rol_{rut_f_slug}")
+                                with c4_f:
+                                    in_pin_f = st.text_input("Clave PIN:", value=val_pin_f if val_pin_f else "1234", max_chars=4, key=f"ed_pin_{rut_f_slug}").strip()
+                                with c5_f:
+                                    idx_est_f = 0 if val_est_f.lower() != 'inactivo' else 1
+                                    in_est_f = st.selectbox("Estado:", ["Activo", "Inactivo"], index=idx_est_f, key=f"ed_est_{rut_f_slug}")
 
-                                    c3_f, c4_f, c5_f = st.columns([1.5, 1.2, 1.3])
-                                    roles_validos = ROLES_TODOS
-                                    idx_rol = roles_validos.index(val_rol_f) if val_rol_f in roles_validos else 0
-                                    with c3_f:
-                                        in_rol_f = st.selectbox("Rol:", roles_validos, index=idx_rol, key=f"ed_rol_{rut_f_slug}")
-                                    with c4_f:
-                                        in_pin_f = st.text_input("Clave PIN:", value=val_pin_f if val_pin_f else "1234", max_chars=4, key=f"ed_pin_{rut_f_slug}").strip()
-                                    with c5_f:
-                                        idx_est_f = 0 if val_est_f.lower() != 'inactivo' else 1
-                                        in_est_f = st.selectbox("Estado:", ["Activo", "Inactivo"], index=idx_est_f, key=f"ed_est_{rut_f_slug}")
+                                st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
-                                    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+                                if st.button("💾 Guardar Cambios del Funcionario", type="primary", use_container_width=True, key=f"btn_save_ed_{rut_f_slug}"):
+                                    if not in_nom_f:
+                                        st.error("⚠️ El Nombre Completo es obligatorio.")
+                                    elif len(in_pin_f) != 4 or not in_pin_f.isdigit():
+                                        st.error("⚠️ La clave PIN debe tener exactamente 4 dígitos numéricos.")
+                                    else:
+                                        with st.spinner("Guardando en Google Sheets..."):
+                                            try:
+                                                rut_buscar_f = val_rut_f.replace('.', '').strip()
+                                                recs_fresh_f = sheet_funcionarios.get_all_records()
+                                                df_fresh_f = pd.DataFrame(recs_fresh_f) if recs_fresh_f else pd.DataFrame()
+                                                df_fresh_f.columns = [str(c).strip() for c in df_fresh_f.columns]
 
-                                    if st.button("💾 Guardar Cambios del Funcionario", type="primary", use_container_width=True, key=f"btn_save_ed_{rut_f_slug}"):
-                                        if not in_nom_f:
-                                            st.error("⚠️ El Nombre Completo es obligatorio.")
-                                        elif len(in_pin_f) != 4 or not in_pin_f.isdigit():
-                                            st.error("⚠️ La clave PIN debe tener exactamente 4 dígitos numéricos.")
-                                        else:
-                                            with st.spinner("Guardando en Google Sheets..."):
+                                                df_fresh_f['RUT_NORM'] = df_fresh_f['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
+                                                m_idx_f = df_fresh_f[df_fresh_f['RUT_NORM'] == rut_buscar_f.lower()]
+
+                                                if not m_idx_f.empty:
+                                                    idx_target_f = m_idx_f.index[0]
+                                                    df_fresh_f.at[idx_target_f, 'Nombre'] = in_nom_f
+                                                    df_fresh_f.at[idx_target_f, 'Rol'] = in_rol_f
+                                                    df_fresh_f.at[idx_target_f, 'PIN'] = in_pin_f
+                                                    df_fresh_f.at[idx_target_f, 'Estado'] = in_est_f
+
+                                                    cols_save_f = ['RUT', 'Nombre', 'Rol', 'PIN', 'Estado']
+                                                    for c in df_fresh_f.columns:
+                                                        if c not in cols_save_f and c != 'RUT_NORM':
+                                                            cols_save_f.append(c)
+
+                                                    df_fresh_f = df_fresh_f[cols_save_f].fillna("")
+                                                    sheet_funcionarios.clear()
+                                                    sheet_funcionarios.update(values=[df_fresh_f.columns.tolist()] + df_fresh_f.values.tolist())
+                                                    st.success(f"✅ ¡Funcionario **{in_nom_f}** actualizado con éxito!")
+                                                    st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error al actualizar: {e}")
+
+                                st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+                                with st.expander("🗑️ Zona de Peligro: Eliminar este Funcionario"):
+                                    if val_rut_f.lower() == 'admin':
+                                        st.info("🔒 La cuenta 'admin' principal del sistema no puede ser eliminada.")
+                                    else:
+                                        st.warning(f"¿Estás seguro de eliminar a **{val_nom_f}** ({val_rut_f})?")
+                                        if st.button("Confirmar Eliminación Permanente", type="primary", key=f"btn_del_func_{rut_f_slug}"):
+                                            with st.spinner("Eliminando..."):
                                                 try:
-                                                    rut_buscar_f = val_rut_f.replace('.', '').strip()
                                                     recs_fresh_f = sheet_funcionarios.get_all_records()
-                                                    df_fresh_f = pd.DataFrame(recs_fresh_f) if recs_fresh_f else pd.DataFrame()
+                                                    df_fresh_f = pd.DataFrame(recs_fresh_f)
                                                     df_fresh_f.columns = [str(c).strip() for c in df_fresh_f.columns]
+                                                    col_r_del_f = next((c for c in df_fresh_f.columns if 'rut' in c.lower()), 'RUT')
+                                                    rut_clean_del_f = val_rut_f.replace('.', '').strip().lower()
+                                                    df_fresh_f = df_fresh_f[df_fresh_f[col_r_del_f].astype(str).str.replace('.', '', regex=False).str.strip().str.lower() != rut_clean_del_f]
 
-                                                    df_fresh_f['RUT_NORM'] = df_fresh_f['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
-                                                    m_idx_f = df_fresh_f[df_fresh_f['RUT_NORM'] == rut_buscar_f.lower()]
-
-                                                    if not m_idx_f.empty:
-                                                        idx_target_f = m_idx_f.index[0]
-                                                        df_fresh_f.at[idx_target_f, 'Nombre'] = in_nom_f
-                                                        df_fresh_f.at[idx_target_f, 'Rol'] = in_rol_f
-                                                        df_fresh_f.at[idx_target_f, 'PIN'] = in_pin_f
-                                                        df_fresh_f.at[idx_target_f, 'Estado'] = in_est_f
-
-                                                        cols_save_f = ['RUT', 'Nombre', 'Rol', 'PIN', 'Estado']
-                                                        for c in df_fresh_f.columns:
-                                                            if c not in cols_save_f and c != 'RUT_NORM':
-                                                                cols_save_f.append(c)
-
-                                                        df_fresh_f = df_fresh_f[cols_save_f].fillna("")
-                                                        sheet_funcionarios.clear()
-                                                        sheet_funcionarios.update(values=[df_fresh_f.columns.tolist()] + df_fresh_f.values.tolist())
-                                                        st.success(f"✅ ¡Funcionario **{in_nom_f}** actualizado con éxito!")
-                                                        st.rerun()
+                                                    sheet_funcionarios.clear()
+                                                    sheet_funcionarios.update(values=[df_fresh_f.columns.tolist()] + df_fresh_f.values.tolist())
+                                                    st.success("Funcionario eliminado.")
+                                                    st.session_state.func_sel_rut = None
+                                                    st.rerun()
                                                 except Exception as e:
-                                                    st.error(f"Error al actualizar: {e}")
+                                                    st.error(f"Error al eliminar: {e}")
 
-                                    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-                                    with st.expander("🗑️ Zona de Peligro: Eliminar este Funcionario"):
-                                        if val_rut_f.lower() == 'admin':
-                                            st.info("🔒 La cuenta 'admin' principal del sistema no puede ser eliminada.")
+
+            with tab_nuevo_f:
+                # ==================== VISTA: INSCRIBIR NUEVO FUNCIONARIO ====================
+                st.markdown(
+                    "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;margin-bottom:16px;'>"
+                    "<h3 style='margin:0 0 4px 0;color:#166534;font-size:1.1rem;'>➕ Formulario de Nuevo Funcionario</h3>"
+                    "<span style='color:#15803d;font-size:0.85rem;'>Ingresa los datos para otorgar acceso al sistema institucional.</span>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+
+                with st.container(border=True):
+                    c_fn1, c_fn2 = st.columns([1.5, 2.5])
+                    with c_fn1:
+                        in_n_rut_f = st.text_input("RUT (Sin puntos, con guión):", placeholder="Ej: 12345678-9", key="in_new_rut_func").strip()
+                    with c_fn2:
+                        in_n_nom_f = st.text_input("Nombre Completo:", placeholder="Ej: Carlos Silva Castro", key="in_new_nom_func").strip()
+
+                    c_fn3, c_fn4, c_fn5 = st.columns([1.5, 1.2, 1.3])
+                    with c_fn3:
+                        in_n_rol_f = st.selectbox("Rol Institucional:", ROLES_TODOS, key="in_new_rol_func")
+                    with c_fn4:
+                        in_n_pin_f = st.text_input("Clave PIN (4 dígitos):", value="1234", max_chars=4, key="in_new_pin_func").strip()
+                    with c_fn5:
+                        in_n_est_f = st.selectbox("Estado de Acceso:", ["Activo", "Inactivo"], index=0, key="in_new_est_func")
+
+                    st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
+                    col_save_fn, col_cancel_fn = st.columns([2, 1])
+                    with col_save_fn:
+                        if st.button("🚀 Guardar e Inscribir Funcionario", type="primary", use_container_width=True, key="btn_save_new_func"):
+                            if not in_n_rut_f or not in_n_nom_f:
+                                st.error("⚠️ El RUT y el Nombre Completo son obligatorios.")
+                            elif len(in_n_pin_f) != 4 or not in_n_pin_f.isdigit():
+                                st.error("⚠️ La clave PIN debe tener 4 dígitos numéricos.")
+                            else:
+                                with st.spinner("Guardando en Google Sheets..."):
+                                    try:
+                                        rut_clean_fn = in_n_rut_f.replace('.', '').strip()
+                                        recs_ff = sheet_funcionarios.get_all_records()
+                                        df_ff = pd.DataFrame(recs_ff) if recs_ff else pd.DataFrame(columns=['RUT', 'Nombre', 'Rol', 'PIN', 'Estado'])
+                                        df_ff.columns = [str(c).strip() for c in df_ff.columns]
+
+                                        df_ff['RUT_NORM'] = df_ff['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
+                                        if not df_ff[df_ff['RUT_NORM'] == rut_clean_fn.lower()].empty:
+                                            st.error(f"⚠️ Ya existe un funcionario registrado con el RUT {rut_clean_fn}.")
                                         else:
-                                            st.warning(f"¿Estás seguro de eliminar a **{val_nom_f}** ({val_rut_f})?")
-                                            if st.button("Confirmar Eliminación Permanente", type="primary", key=f"btn_del_func_{rut_f_slug}"):
-                                                with st.spinner("Eliminando..."):
-                                                    try:
-                                                        recs_fresh_f = sheet_funcionarios.get_all_records()
-                                                        df_fresh_f = pd.DataFrame(recs_fresh_f)
-                                                        df_fresh_f.columns = [str(c).strip() for c in df_fresh_f.columns]
-                                                        col_r_del_f = next((c for c in df_fresh_f.columns if 'rut' in c.lower()), 'RUT')
-                                                        rut_clean_del_f = val_rut_f.replace('.', '').strip().lower()
-                                                        df_fresh_f = df_fresh_f[df_fresh_f[col_r_del_f].astype(str).str.replace('.', '', regex=False).str.strip().str.lower() != rut_clean_del_f]
+                                            nueva_fila_fn = {
+                                                "RUT": rut_clean_fn,
+                                                "Nombre": in_n_nom_f,
+                                                "Rol": in_n_rol_f,
+                                                "PIN": in_n_pin_f,
+                                                "Estado": in_n_est_f
+                                            }
+                                            df_ff = pd.concat([df_ff, pd.DataFrame([nueva_fila_fn])], ignore_index=True)
+                                            cols_s_fn = ['RUT', 'Nombre', 'Rol', 'PIN', 'Estado']
+                                            for c in df_ff.columns:
+                                                if c not in cols_s_fn and c != 'RUT_NORM':
+                                                    cols_s_fn.append(c)
 
-                                                        sheet_funcionarios.clear()
-                                                        sheet_funcionarios.update(values=[df_fresh_f.columns.tolist()] + df_fresh_f.values.tolist())
-                                                        st.success("Funcionario eliminado.")
-                                                        st.session_state.func_sel_rut = None
-                                                        st.rerun()
-                                                    except Exception as e:
-                                                        st.error(f"Error al eliminar: {e}")
+                                            df_ff = df_ff[cols_s_fn].fillna("")
+                                            sheet_funcionarios.clear()
+                                            sheet_funcionarios.update(values=[df_ff.columns.tolist()] + df_ff.values.tolist())
+                                            st.success(f"✅ ¡Funcionario **{in_n_nom_f}** registrado exitosamente!")
+                                            st.session_state.func_sel_rut = rut_clean_fn
+                                            st.session_state.modo_func_actual = 'VER_EDITAR'
+                                            st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error al guardar: {e}")
+                            st.session_state.modo_func_actual = 'VER_EDITAR'
+                            st.rerun()
 
             with tab_asistencia_f:
                 st.markdown("### 🛂 Control de Asistencia del Personal (Código QR)")
