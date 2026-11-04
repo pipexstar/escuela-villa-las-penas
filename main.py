@@ -904,81 +904,290 @@ def render_sidebar_auth():
             st.session_state.user = None
             st.rerun()
 
-# Inyectar barra lateral de autenticación
-render_sidebar_auth()
+# Inyectar barra lateral de autenticación (solo visible cuando hay sesión)
+if st.session_state.user is not None:
+    render_sidebar_auth()
 
 # ---------------------------------------------------------
-# PORTAL DE LOGIN CENTRALIZADO (SI NO HAY SESIÓN ACTIVA)
+# PORTAL DE LOGIN SPLIT-SCREEN INSTITUCIONAL
 # ---------------------------------------------------------
 if st.session_state.user is None:
-    # No hay usuario autenticado: se renderizará el portal de login abajo y se detendrá la ejecución
-    pass
+    # 1. Cargar imagen de fondo e insignia en Base64
+    import base64
+    import os
 
-    st.markdown("<div style='height:1.5rem;'></div>", unsafe_allow_html=True)
-    col_l1, col_login, col_l3 = st.columns([1.5, 2.8, 1.5])
-    
-    with col_login:
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div style='text-align:center;padding:10px 0 6px 0;'>
-                    <h2 style='color:#1a5c32;margin-bottom:2px;font-size:1.35rem;'>🏫 Escuela Villa Las Peñas</h2>
-                    <p style='color:#666;font-size:0.84rem;margin-top:0;'>Portal de Acceso Institucional</p>
-                </div>
-                """,
-                unsafe_allow_html=True
+    bg_img_b64 = ""
+    for bg_path in ["fachada_escuela.jpg", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fachada_escuela.jpg")]:
+        if os.path.exists(bg_path):
+            try:
+                with open(bg_path, "rb") as f_bg:
+                    bg_img_b64 = base64.b64encode(f_bg.read()).decode("utf-8")
+                break
+            except Exception:
+                pass
+
+    insignia_login_b64 = ""
+    for ins_path in ["insignia.png", os.path.join(os.path.dirname(os.path.abspath(__file__)), "insignia.png"), "C:/SistemaEscolar/insignia.png"]:
+        if os.path.exists(ins_path):
+            try:
+                with open(ins_path, "rb") as f_ins:
+                    insignia_login_b64 = base64.b64encode(f_ins.read()).decode("utf-8")
+                break
+            except Exception:
+                pass
+
+    # 2. Inyectar estilos CSS exclusivos para la pantalla de login split-screen
+    bg_style_rule = f"background: linear-gradient(rgba(10, 20, 15, 0.45), rgba(10, 20, 15, 0.70)), url('data:image/jpeg;base64,{bg_img_b64}') center center / cover no-repeat fixed !important;" if bg_img_b64 else "background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%) !important;"
+
+    st.markdown(
+        f"""
+        <style>
+        /* Ocultar barra lateral y controles de Streamlit solo en la pantalla de login */
+        [data-testid="stSidebar"], [data-testid="collapsedControl"] {{
+            display: none !important;
+        }}
+        header[data-testid="stHeader"] {{
+            background: transparent !important;
+            z-index: 1 !important;
+        }}
+        .stApp {{
+            {bg_style_rule}
+            min-height: 100vh !important;
+        }}
+        .main .block-container {{
+            max-width: 1250px !important;
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 1.5rem !important;
+            padding-right: 1.5rem !important;
+        }}
+        /* Tarjeta de Login */
+        .login-card-container {{
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 38px 34px 34px 34px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            margin: 0 auto;
+            max-width: 440px;
+        }}
+        .login-card-container input {{
+            border-radius: 10px !important;
+            border: 1.5px solid #e2e8f0 !important;
+            padding: 10px 14px !important;
+            font-size: 0.95rem !important;
+            transition: all 0.2s ease !important;
+        }}
+        .login-card-container input:focus {{
+            border-color: #15803d !important;
+            box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15) !important;
+        }}
+        .login-card-container label p {{
+            font-size: 0.88rem !important;
+            font-weight: 600 !important;
+            color: #334155 !important;
+            margin-bottom: 2px !important;
+        }}
+        .login-card-container button[kind="primary"] {{
+            background: #166534 !important;
+            border-color: #166534 !important;
+            border-radius: 10px !important;
+            padding: 11px 18px !important;
+            font-weight: 700 !important;
+            font-size: 1rem !important;
+            letter-spacing: 0.3px !important;
+            box-shadow: 0 4px 12px rgba(22, 101, 52, 0.35) !important;
+            transition: all 0.2s ease !important;
+        }}
+        .login-card-container button[kind="primary"]:hover {{
+            background: #14532d !important;
+            border-color: #14532d !important;
+            box-shadow: 0 6px 16px rgba(22, 101, 52, 0.5) !important;
+            transform: translateY(-1px) !important;
+        }}
+        /* Panel Izquierdo con Frases */
+        .login-hero-text {{
+            color: #ffffff;
+            padding-right: 25px;
+            padding-top: 40px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+        }}
+        .login-hero-title {{
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.18;
+            margin-bottom: 16px;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }}
+        .login-hero-subtitle {{
+            font-size: 1.22rem;
+            font-weight: 400;
+            color: #e2e8f0;
+            line-height: 1.45;
+            max-width: 520px;
+        }}
+        @media (max-width: 900px) {{
+            .login-hero-text {{
+                text-align: center;
+                padding-right: 0;
+                padding-top: 10px;
+                margin-bottom: 25px;
+            }}
+            .login-hero-title {{
+                font-size: 1.9rem;
+            }}
+            .login-hero-subtitle {{
+                font-size: 1.05rem;
+                margin: 0 auto;
+            }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 3. Disposición en dos columnas: Izquierda (Lema e Imagen) y Derecha (Tarjeta de Acceso)
+    col_hero, col_card = st.columns([1.25, 1.0], gap="large")
+
+    with col_hero:
+        st.markdown(
+            """
+            <div class="login-hero-text">
+                <div class="login-hero-title">Escuela Villa Las Peñas</div>
+                <div class="login-hero-subtitle">Donde la educación inspira el cambio.</div>
+                <div style="margin-top: 28px; width: 60px; height: 4px; background: #fbbf24; border-radius: 2px;"></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with col_card:
+        # Envoltorio visual de la tarjeta blanca
+        insignia_tag_html = (
+            f'<img src="data:image/png;base64,{insignia_login_b64}" alt="Insignia" style="height:88px; width:auto; object-fit:contain; margin-bottom:12px;">'
+            if insignia_login_b64
+            else '<div style="font-size:3rem; margin-bottom:8px;">🏫</div>'
+        )
+
+        st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div style="text-align: center; margin-bottom: 16px;">
+                {insignia_tag_html}
+                <h2 style="font-size: 1.35rem; font-weight: 700; color: #0f172a; margin: 0 0 4px 0; letter-spacing: -0.3px;">
+                    Sistema Gestión Escolar
+                </h2>
+                <p style="font-size: 0.85rem; color: #64748b; margin: 0;">
+                    Ingresa tus credenciales para continuar
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.form("form_login_central", clear_on_submit=False):
+            rut_in = st.text_input(
+                "Ingrese su RUT:",
+                placeholder="Ej: 12345678-9",
+                key="login_input_rut_val",
+            ).strip()
+
+            pin_in = st.text_input(
+                "Contraseña:",
+                type="password",
+                placeholder="••••",
+                key="login_input_pin_val",
+            ).strip()
+
+            st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+            btn_ingresar = st.form_submit_button(
+                "Ingresar",
+                type="primary",
+                use_container_width=True,
             )
-            st.markdown("<hr style='margin:4px 0 14px 0;border-color:#edf2f7;'>", unsafe_allow_html=True)
-            
-            with st.form("form_login_central"):
-                rut_in = st.text_input("RUT o Nombre de Usuario:", placeholder="Ej: 12345678-9 o admin").strip()
-                pin_in = st.text_input("Clave de Acceso (PIN 4 dígitos):", type="password", max_chars=4, placeholder="••••").strip()
-                st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-                btn_ingresar = st.form_submit_button("🔐 Ingresar al Sistema", type="primary", use_container_width=True)
 
-                if btn_ingresar:
-                    if not rut_in or not pin_in:
-                        st.error("⚠️ Por favor ingresa tu RUT / Usuario y Clave.")
-                    else:
-                        with st.spinner("Validando credenciales..."):
-                            _, _, _, sheet_funcionarios, _ = get_sheets()
-                            if sheet_funcionarios:
-                                try:
-                                    recs = sheet_funcionarios.get_all_records()
-                                    df_f = pd.DataFrame(recs)
-                                    if not df_f.empty:
-                                        df_f['RUT_NORM'] = df_f['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
-                                        search_rut = rut_in.replace('.', '').strip().lower()
-                                        match = df_f[(df_f['RUT_NORM'] == search_rut) & (df_f['PIN'].astype(str).str.strip() == pin_in)]
-                                        
-                                        if not match.empty:
-                                            row = match.iloc[0]
-                                            if str(row.get('Estado', 'Activo')).strip().lower() == 'inactivo':
-                                                st.error("⚠️ Usuario inactivo. Consulta con el Administrador.")
-                                            else:
-                                                st.session_state.user = {
-                                                    "rut": str(row['RUT']).strip(),
-                                                    "nombre": str(row['Nombre']).strip(),
-                                                    "rol": str(row['Rol']).strip(),
-                                                    "pin": str(row['PIN']).strip(),
-                                                    "estado": str(row.get('Estado', 'Activo')).strip()
-                                                }
-                                                try:
-                                                    st.query_params["u"] = _generar_token_sesion(st.session_state.user)
-                                                except Exception:
-                                                    pass
-                                                st.success(f"¡Bienvenido/a {row['Nombre']}!")
-                                                st.rerun()
-                                        else:
-                                            st.error("❌ RUT o Clave incorrectos.")
+            if btn_ingresar:
+                if not rut_in or not pin_in:
+                    st.error("⚠️ Por favor ingresa tu RUT y Contraseña.")
+                else:
+                    with st.spinner("Validando credenciales..."):
+                        _, _, _, sheet_funcionarios, _ = get_sheets()
+                        if sheet_funcionarios:
+                            try:
+                                recs = sheet_funcionarios.get_all_records()
+                                df_f = pd.DataFrame(recs)
+                                if not df_f.empty:
+                                    df_f['RUT_NORM'] = df_f['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
+                                    # Normalizar RUT de búsqueda (auto-guion antes de verificar si el usuario no lo puso)
+                                    raw_rut = rut_in.replace('.', '').replace('-', '').strip().lower()
+                                    if raw_rut == 'admin':
+                                        search_rut = 'admin'
+                                    elif len(raw_rut) >= 2 and not '-' in rut_in:
+                                        search_rut = f"{raw_rut[:-1]}-{raw_rut[-1]}"
                                     else:
-                                        st.error("No hay base de funcionarios registrada.")
-                                except Exception as e:
-                                    st.error(f"Error al verificar credenciales: {e}")
-                            else:
-                                st.error("❌ No hay conexión con la base de datos.")
+                                        search_rut = rut_in.replace('.', '').strip().lower()
 
-            pass
+                                    match = df_f[(df_f['RUT_NORM'] == search_rut) & (df_f['PIN'].astype(str).str.strip() == pin_in)]
+
+                                    if not match.empty:
+                                        row = match.iloc[0]
+                                        if str(row.get('Estado', 'Activo')).strip().lower() == 'inactivo':
+                                            st.error("⚠️ Usuario inactivo. Consulta con el Administrador.")
+                                        else:
+                                            st.session_state.user = {
+                                                "rut": str(row['RUT']).strip(),
+                                                "nombre": str(row['Nombre']).strip(),
+                                                "rol": str(row['Rol']).strip(),
+                                                "pin": str(row['PIN']).strip(),
+                                                "estado": str(row.get('Estado', 'Activo')).strip()
+                                            }
+                                            try:
+                                                st.query_params["u"] = _generar_token_sesion(st.session_state.user)
+                                            except Exception:
+                                                pass
+                                            st.success(f"¡Bienvenido/a {row['Nombre']}!")
+                                            st.rerun()
+                                    else:
+                                        st.error("❌ RUT o Contraseña incorrectos.")
+                                else:
+                                    st.error("No hay base de funcionarios registrada.")
+                            except Exception as e:
+                                st.error(f"Error al verificar credenciales: {e}")
+                        else:
+                            st.error("❌ No hay conexión con la base de datos.")
+
+        # Inyectar auto-formato con guion automático en tiempo real sobre el campo de RUT
+        st.markdown(
+            """
+            <script>
+            (function() {
+                function aplicarFormatoRut() {
+                    const inputs = window.parent.document.querySelectorAll('input[aria-label="Ingrese su RUT:"]');
+                    inputs.forEach(input => {
+                        if (input.dataset.rutMasked) return;
+                        input.dataset.rutMasked = "true";
+                        input.addEventListener('input', function(e) {
+                            let val = e.target.value.trim();
+                            if (val.toLowerCase() === 'admin') return;
+                            let clean = val.replace(/[^0-9kK]/g, '');
+                            if (clean.length > 1) {
+                                const dv = clean.slice(-1).toUpperCase();
+                                const cuerpo = clean.slice(0, -1);
+                                e.target.value = cuerpo + '-' + dv;
+                            }
+                        });
+                    });
+                }
+                aplicarFormatoRut();
+                setTimeout(aplicarFormatoRut, 500);
+                setTimeout(aplicarFormatoRut, 1500);
+            })();
+            </script>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
     st.stop()
 
 # ---------------------------------------------------------
