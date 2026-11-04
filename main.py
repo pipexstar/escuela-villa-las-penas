@@ -3143,6 +3143,9 @@ elif st.session_state.current_module == 'alumnos':
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
+
+    if st.session_state.get('msg_carga_alum_ok'):
+        st.success(st.session_state.pop('msg_carga_alum_ok'))
     
     sheet_alumnos, sheet_registros, sheet_notas, sheet_funcionarios, sheet_asignaciones = get_sheets()
     
@@ -3939,7 +3942,8 @@ elif st.session_state.current_module == 'alumnos':
                                     sheet_alumnos.clear()
                                     sheet_alumnos.update(values=[df_final.columns.values.tolist()] + df_final.values.tolist())
                                     st.session_state.df_alumnos_cache = None
-                                    st.success(f"✅ Se cargaron **{len(df_final)}** alumnos correctamente.")
+                                    cant_alums = len(df_final)
+                                    st.session_state['msg_carga_alum_ok'] = f"🎉 ¡Carga masiva completada con éxito! Se sincronizaron **{cant_alums}** alumnos en la nómina oficial."
                                     st.rerun()
                     except Exception as e:
                         st.error(f"Error al procesar: {e}")
@@ -5052,6 +5056,9 @@ elif st.session_state.current_module == 'funcionarios':
         st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
+    if st.session_state.get('msg_carga_func_ok'):
+        st.success(st.session_state.pop('msg_carga_func_ok'))
+
     _, _, _, sheet_funcionarios, _ = get_sheets()
 
     if not sheet_funcionarios:
@@ -5658,7 +5665,8 @@ elif st.session_state.current_module == 'funcionarios':
                                     df_final_f = df_final_f.fillna("")
                                     sheet_funcionarios.clear()
                                     sheet_funcionarios.update(values=[df_final_f.columns.values.tolist()] + df_final_f.values.tolist())
-                                    st.success("✅ ¡Nómina de funcionarios actualizada exitosamente!")
+                                    cant_cargados = len(df_final_f)
+                                    st.session_state['msg_carga_func_ok'] = f"🎉 ¡Carga masiva completada con éxito! Se sincronizaron **{cant_cargados}** funcionarios en la nómina oficial."
                                     st.rerun()
                     except Exception as e:
                         st.error(f"Error al procesar archivo de funcionarios: {e}")
