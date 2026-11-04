@@ -466,6 +466,22 @@ def obtener_matriz_permisos(sheet_config=None):
             pass
     return {k: v.copy() for k, v in DEFAULT_PERMISOS_ROLES.items()}
 
+def obtener_mapa_apoderados(sheet_config=None):
+    """Carga la nómina oficial de apoderados vinculados por estudiante."""
+    import json
+    if sheet_config:
+        try:
+            records = sheet_config.get_all_records()
+            for r in records:
+                k = str(r.get("Clave", "")).strip()
+                if k == "nomina_apoderados":
+                    val = str(r.get("Valor", "")).strip()
+                    if val:
+                        return json.loads(val)
+        except Exception:
+            pass
+    return {"by_student_rut": {}, "by_apoderado_rut": {}}
+
 def rol_tiene_permiso(rol_usuario, modulo_id, matriz_permisos=None):
     """Evalúa si un rol tiene acceso a un módulo determinado."""
     if not rol_usuario:
@@ -2401,6 +2417,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
 sheet_config_global = get_config_sheet()
 matriz_permisos_global = obtener_matriz_permisos(sheet_config_global)
+mapa_apoderados_global = obtener_mapa_apoderados(sheet_config_global)
 rol_user_actual = str(st.session_state.user.get('rol', '') if st.session_state.get('user') else '').strip()
 es_admin_total  = normalizar_nombre_rol(rol_user_actual) == "Administrador Total"
 
@@ -2997,8 +3014,24 @@ elif st.session_state.current_module == 'retiro':
                                 elif motivo_seleccionado != "Seleccione un motivo...":
                                     motivo_final = motivo_seleccionado
 
-                                # Campo de nombre de apoderado con validación segura
-                                nombre_apoderado = st.text_input("Nombre Completo del Apoderado:", key="txt_nombre_apoderado").strip()
+                                # Apoderado titular legal registrado
+                                rut_alum_key = str(alumno.get('rut', '')).replace('.', '').strip().lower()
+                                info_apod_titular = mapa_apoderados_global.get("by_student_rut", {}).get(rut_alum_key, {})
+                                nom_titular_apod = info_apod_titular.get("nombre_apoderado", "")
+                                rut_titular_apod = info_apod_titular.get("rut_apoderado", "")
+
+                                if nom_titular_apod:
+                                    st.markdown(
+                                        f"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;padding:8px 12px;border-radius:4px;margin-bottom:12px;font-size:0.85rem;color:#166534;'>"
+                                        f"👤 <b>Apoderado Titular Legal:</b> {nom_titular_apod} &nbsp;|&nbsp; RUN: <b>{rut_titular_apod}</b>"
+                                        f"</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                    if "txt_nombre_apoderado" not in st.session_state or not st.session_state.txt_nombre_apoderado:
+                                        st.session_state.txt_nombre_apoderado = nom_titular_apod
+
+                                # Campo de nombre de quien retira (pre-cargado con el titular)
+                                nombre_apoderado = st.text_input("Nombre Completo de quien Retira (Apoderado o Autorizado):", key="txt_nombre_apoderado").strip()
                                 nombre_tiene_digitos = any(char.isdigit() for char in nombre_apoderado)
                                 if nombre_tiene_digitos:
                                     st.error("⚠️ Solo se permiten letras en el nombre del apoderado.")
@@ -3489,6 +3522,17 @@ elif st.session_state.current_module == 'alumnos':
                                     f"<div style='background:#f8fafc;border-left:4px solid #166534;border-radius:4px;padding:8px 12px;margin-bottom:10px;'>"
                                     f"<div style='font-weight:700;font-size:0.95rem;color:#0f172a;'>{val_nom}</div>"
                                     f"<div style='font-size:0.78rem;color:#475569;'>RUT: <b>{val_rut}</b> &nbsp;|&nbsp; Matrícula: <b>N° {val_mat}</b> &nbsp;|&nbsp; Curso: <b>{val_curso_f}</b> &nbsp;|&nbsp; Estado: <b>Activo</b></div>"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+
+                            # Mostrar apoderado titular en la cabecera de la ficha
+                            rut_est_clean = str(val_rut).replace('.', '').strip().lower()
+                            info_ap_est = mapa_apoderados_global.get("by_student_rut", {}).get(rut_est_clean, {})
+                            if info_ap_est.get("nombre_apoderado"):
+                                st.markdown(
+                                    f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;margin:4px 0 10px 0;font-size:0.82rem;color:#334155;'>"
+                                    f"👤 <b>Apoderado Titular:</b> {info_ap_est['nombre_apoderado']} &nbsp;|&nbsp; RUN: <b>{info_ap_est['rut_apoderado']}</b>"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
