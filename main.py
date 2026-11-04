@@ -978,20 +978,31 @@ if st.session_state.user is None:
             color: #1e293b !important;
             margin-bottom: 4px !important;
         }}
-        /* Cajas de texto (inputs) */
-        [data-testid="stForm"] input {{
+        /* Cajas de texto (inputs) - Erradicar halo rojo de Streamlit/BaseWeb */
+        [data-testid="stForm"] input,
+        [data-testid="stForm"] [data-baseweb="input"],
+        [data-testid="stForm"] [data-baseweb="base-input"] {{
             font-size: 1.08rem !important;
             font-weight: 500 !important;
-            padding: 12px 14px !important;
             border-radius: 10px !important;
-            border: 1.5px solid #cbd5e1 !important;
+            border-color: #cbd5e1 !important;
             color: #0f172a !important;
             background: #f8fafc !important;
+            outline: none !important;
         }}
-        [data-testid="stForm"] input:focus {{
+        [data-testid="stForm"] [data-baseweb="input"]:focus-within,
+        [data-testid="stForm"] [data-baseweb="base-input"]:focus-within,
+        [data-testid="stForm"] div[data-baseweb="input"]:has(input:focus),
+        [data-testid="stForm"] input:focus,
+        [data-testid="stForm"] input:focus-visible {{
             border-color: #166534 !important;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.22) !important;
+            outline: none !important;
             background: #ffffff !important;
-            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.18) !important;
+        }}
+        [data-testid="stForm"] *:focus,
+        [data-testid="stForm"] *:focus-visible {{
+            outline-color: #166534 !important;
         }}
         /* Botón de Ingresar institucional */
         [data-testid="stForm"] button[kind="primary"], [data-testid="stForm"] button {{
@@ -1146,7 +1157,8 @@ if st.session_state.user is None:
                                     raw_rut = rut_in.replace('.', '').replace('-', '').strip().lower()
                                     if raw_rut == 'admin':
                                         search_rut = 'admin'
-                                    elif len(raw_rut) >= 2 and not '-' in rut_in:
+                                    elif len(raw_rut) >= 2:
+                                        # Auto-formato con guion estricto para asegurar coincidencia exacta
                                         search_rut = f"{raw_rut[:-1]}-{raw_rut[-1]}"
                                     else:
                                         search_rut = rut_in.replace('.', '').strip().lower()
@@ -1180,52 +1192,71 @@ if st.session_state.user is None:
                         else:
                             st.error("❌ No hay conexión con la base de datos.")
 
-        # Script robusto para autoguion en tiempo real (tanto en frame actual como parent)
-        st.markdown(
+        # Script con MutationObserver y acceso cross-frame para aplicar máscara de RUT
+        st.components.v1.html(
             """
             <script>
             (function() {
-                function enlazarMascaraRut() {
-                    const docList = [document];
-                    try { if (window.parent && window.parent.document) docList.push(window.parent.document); } catch(e){}
-                    
-                    docList.forEach(doc => {
-                        const inputs = doc.querySelectorAll('input');
-                        inputs.forEach(input => {
-                            // Detectar el input de RUT por placeholder o aria-label
-                            const ph = (input.placeholder || '').toLowerCase();
-                            const al = (input.getAttribute('aria-label') || '').toLowerCase();
+                function formatRut(val) {
+                    if (!val) return "";
+                    var s = val.trim();
+                    if (s.toLowerCase() === "admin") return s;
+                    var clean = s.replace(/[^0-9kK]/g, "");
+                    if (clean.length > 1) {
+                        var dv = clean.slice(-1).toUpperCase();
+                        var cuerpo = clean.slice(0, -1);
+                        return cuerpo + "-" + dv;
+                    }
+                    return clean;
+                }
+
+                function attachMask() {
+                    try {
+                        var parentDoc = window.parent.document;
+                        var inputs = parentDoc.querySelectorAll('input');
+                        inputs.forEach(function(inp) {
+                            var ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                            var al = (inp.getAttribute('aria-label') || '').toLowerCase();
                             if (ph.includes('12345678') || al.includes('rut')) {
-                                if (input.dataset.maskedRutActive === 'true') return;
-                                input.dataset.maskedRutActive = 'true';
-                                
-                                input.addEventListener('input', function(e) {
-                                    let v = e.target.value;
-                                    if (v.trim().toLowerCase() === 'admin') return;
-                                    // Limpiar puntos y guiones intermedios erróneos
-                                    let limpio = v.replace(/[^0-9kK]/g, '');
-                                    if (limpio.length > 1) {
-                                        let dv = limpio.slice(-1).toUpperCase();
-                                        let cuerpo = limpio.slice(0, -1);
-                                        let formateado = cuerpo + '-' + dv;
-                                        if (e.target.value !== formateado) {
-                                            e.target.value = formateado;
-                                            // Disparar evento para que Streamlit detecte el nuevo valor
-                                            e.target.dispatchEvent(new Event('change', { bubbles: true }));
+                                if (inp._rutMaskAttached) return;
+                                inp._rutMaskAttached = true;
+
+                                // Al desenfocar o al escribir
+                                inp.addEventListener('blur', function(e) {
+                                    var f = formatRut(e.target.value);
+                                    if (f && f !== e.target.value) {
+                                        var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                                        nativeInputValueSetter.call(e.target, f);
+                                        e.target.dispatchEvent(new Event('input', { bubbles: true }));
+                                    }
+                                });
+
+                                inp.addEventListener('input', function(e) {
+                                    var v = e.target.value;
+                                    if (v.trim().toLowerCase() === "admin") return;
+                                    var clean = v.replace(/[^0-9kK]/g, "");
+                                    if (clean.length >= 8) {
+                                        var f = formatRut(clean);
+                                        if (f !== v) {
+                                            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                                            nativeInputValueSetter.call(e.target, f);
+                                            e.target.dispatchEvent(new Event('input', { bubbles: true }));
                                         }
                                     }
                                 });
                             }
                         });
-                    });
+                    } catch(err) {}
                 }
-                enlazarMascaraRut();
-                const timerId = setInterval(enlazarMascaraRut, 400);
-                setTimeout(() => clearInterval(timerId), 6000);
+
+                attachMask();
+                var interval = setInterval(attachMask, 300);
+                setTimeout(function() { clearInterval(interval); }, 10000);
             })();
             </script>
             """,
-            unsafe_allow_html=True,
+            height=0,
+            width=0,
         )
 
     st.stop()
