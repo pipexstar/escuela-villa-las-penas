@@ -937,7 +937,7 @@ if st.session_state.user is None:
                 pass
 
     # 2. Inyectar estilos CSS exclusivos para la pantalla de login split-screen
-    bg_style_rule = f"background: linear-gradient(rgba(10, 20, 15, 0.45), rgba(10, 20, 15, 0.70)), url('data:image/jpeg;base64,{bg_img_b64}') center center / cover no-repeat fixed !important;" if bg_img_b64 else "background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%) !important;"
+    bg_style_rule = f"background: linear-gradient(rgba(10, 20, 15, 0.40), rgba(10, 20, 15, 0.65)), url('data:image/jpeg;base64,{bg_img_b64}') center center / cover no-repeat fixed !important;" if bg_img_b64 else "background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%) !important;"
 
     st.markdown(
         f"""
@@ -956,89 +956,115 @@ if st.session_state.user is None:
         }}
         .main .block-container {{
             max-width: 1250px !important;
-            padding-top: 2rem !important;
+            padding-top: 3.5rem !important;
             padding-bottom: 2rem !important;
-            padding-left: 1.5rem !important;
-            padding-right: 1.5rem !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
         }}
-        /* Tarjeta de Login */
-        .login-card-container {{
-            background: #ffffff;
-            border-radius: 20px;
-            padding: 38px 34px 34px 34px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            margin: 0 auto;
-            max-width: 440px;
+        /* Tarjeta de Login BLANCA SÓLIDA garantizada sobre [data-testid="stForm"] */
+        [data-testid="stForm"] {{
+            background: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.6) !important;
+            border-radius: 22px !important;
+            padding: 36px 36px 32px 36px !important;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45) !important;
+            margin: 0 auto !important;
+            max-width: 440px !important;
         }}
-        .login-card-container input {{
-            border-radius: 10px !important;
-            border: 1.5px solid #e2e8f0 !important;
-            padding: 10px 14px !important;
-            font-size: 0.95rem !important;
-            transition: all 0.2s ease !important;
-        }}
-        .login-card-container input:focus {{
-            border-color: #15803d !important;
-            box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15) !important;
-        }}
-        .login-card-container label p {{
-            font-size: 0.88rem !important;
-            font-weight: 600 !important;
-            color: #334155 !important;
-            margin-bottom: 2px !important;
-        }}
-        .login-card-container button[kind="primary"] {{
-            background: #166534 !important;
-            border-color: #166534 !important;
-            border-radius: 10px !important;
-            padding: 11px 18px !important;
+        /* Etiquetas de los campos más grandes y legibles */
+        [data-testid="stForm"] label p {{
+            font-size: 1.05rem !important;
             font-weight: 700 !important;
-            font-size: 1rem !important;
-            letter-spacing: 0.3px !important;
-            box-shadow: 0 4px 12px rgba(22, 101, 52, 0.35) !important;
-            transition: all 0.2s ease !important;
+            color: #1e293b !important;
+            margin-bottom: 4px !important;
         }}
-        .login-card-container button[kind="primary"]:hover {{
+        /* Cajas de texto (inputs) */
+        [data-testid="stForm"] input {{
+            font-size: 1.08rem !important;
+            font-weight: 500 !important;
+            padding: 12px 14px !important;
+            border-radius: 10px !important;
+            border: 1.5px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            background: #f8fafc !important;
+        }}
+        [data-testid="stForm"] input:focus {{
+            border-color: #166534 !important;
+            background: #ffffff !important;
+            box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.18) !important;
+        }}
+        /* Botón de Ingresar institucional */
+        [data-testid="stForm"] button[kind="primary"], [data-testid="stForm"] button {{
+            background: #166534 !important;
+            background-color: #166534 !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 12px !important;
+            padding: 12px 20px !important;
+            font-size: 1.12rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.4px !important;
+            box-shadow: 0 4px 14px rgba(22, 101, 52, 0.4) !important;
+            transition: all 0.2s ease !important;
+            margin-top: 8px !important;
+        }}
+        [data-testid="stForm"] button[kind="primary"]:hover, [data-testid="stForm"] button:hover {{
             background: #14532d !important;
-            border-color: #14532d !important;
-            box-shadow: 0 6px 16px rgba(22, 101, 52, 0.5) !important;
+            background-color: #14532d !important;
+            box-shadow: 0 6px 18px rgba(22, 101, 52, 0.6) !important;
             transform: translateY(-1px) !important;
         }}
-        /* Panel Izquierdo con Frases */
+        /* Panel Izquierdo con Frases GRANDES */
         .login-hero-text {{
             color: #ffffff;
-            padding-right: 25px;
-            padding-top: 40px;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+            padding-right: 30px;
+            padding-top: 45px;
+            text-shadow: 0 3px 12px rgba(0, 0, 0, 0.85);
         }}
         .login-hero-title {{
-            font-size: 2.5rem;
-            font-weight: 800;
-            line-height: 1.18;
-            margin-bottom: 16px;
+            font-size: 3.1rem;
+            font-weight: 900;
+            line-height: 1.15;
+            margin-bottom: 20px;
             color: #ffffff;
             letter-spacing: -0.5px;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.9);
         }}
         .login-hero-subtitle {{
-            font-size: 1.22rem;
-            font-weight: 400;
-            color: #e2e8f0;
-            line-height: 1.45;
-            max-width: 520px;
+            font-size: 1.45rem;
+            font-weight: 500;
+            color: #f1f5f9;
+            line-height: 1.4;
+            max-width: 540px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+        }}
+        .login-hero-bar {{
+            margin-top: 30px;
+            width: 70px;
+            height: 5px;
+            background: #fbbf24;
+            border-radius: 3px;
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.5);
         }}
         @media (max-width: 900px) {{
+            .main .block-container {{
+                padding-top: 1.5rem !important;
+            }}
             .login-hero-text {{
                 text-align: center;
                 padding-right: 0;
-                padding-top: 10px;
+                padding-top: 5px;
                 margin-bottom: 25px;
             }}
             .login-hero-title {{
-                font-size: 1.9rem;
+                font-size: 2.2rem;
             }}
             .login-hero-subtitle {{
-                font-size: 1.05rem;
+                font-size: 1.15rem;
                 margin: 0 auto;
+            }}
+            .login-hero-bar {{
+                margin: 20px auto 0 auto;
             }}
         }}
         </style>
@@ -1046,7 +1072,7 @@ if st.session_state.user is None:
         unsafe_allow_html=True,
     )
 
-    # 3. Disposición en dos columnas: Izquierda (Lema e Imagen) y Derecha (Tarjeta de Acceso)
+    # 3. Disposición en dos columnas: Izquierda (Lema) y Derecha (Tarjeta de Acceso)
     col_hero, col_card = st.columns([1.25, 1.0], gap="large")
 
     with col_hero:
@@ -1055,37 +1081,36 @@ if st.session_state.user is None:
             <div class="login-hero-text">
                 <div class="login-hero-title">Escuela Villa Las Peñas</div>
                 <div class="login-hero-subtitle">Donde la educación inspira el cambio.</div>
-                <div style="margin-top: 28px; width: 60px; height: 4px; background: #fbbf24; border-radius: 2px;"></div>
+                <div class="login-hero-bar"></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
     with col_card:
-        # Envoltorio visual de la tarjeta blanca
         insignia_tag_html = (
-            f'<img src="data:image/png;base64,{insignia_login_b64}" alt="Insignia" style="height:88px; width:auto; object-fit:contain; margin-bottom:12px;">'
+            f'<img src="data:image/png;base64,{insignia_login_b64}" alt="Insignia" style="height:105px; width:auto; object-fit:contain; margin-bottom:12px;">'
             if insignia_login_b64
-            else '<div style="font-size:3rem; margin-bottom:8px;">🏫</div>'
-        )
-
-        st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
-        st.markdown(
-            f"""
-            <div style="text-align: center; margin-bottom: 16px;">
-                {insignia_tag_html}
-                <h2 style="font-size: 1.35rem; font-weight: 700; color: #0f172a; margin: 0 0 4px 0; letter-spacing: -0.3px;">
-                    Sistema Gestión Escolar
-                </h2>
-                <p style="font-size: 0.85rem; color: #64748b; margin: 0;">
-                    Ingresa tus credenciales para continuar
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
+            else '<div style="font-size:3.5rem; margin-bottom:8px;">🏫</div>'
         )
 
         with st.form("form_login_central", clear_on_submit=False):
+            # Encabezado dentro de la tarjeta blanca
+            st.markdown(
+                f"""
+                <div style="text-align: center; margin-bottom: 22px;">
+                    {insignia_tag_html}
+                    <h2 style="font-size: 1.65rem; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; letter-spacing: -0.5px;">
+                        Sistema Gestión Escolar
+                    </h2>
+                    <p style="font-size: 0.98rem; font-weight: 500; color: #475569; margin: 0;">
+                        Ingresa tus credenciales para continuar
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
             rut_in = st.text_input(
                 "Ingrese su RUT:",
                 placeholder="Ej: 12345678-9",
@@ -1099,7 +1124,7 @@ if st.session_state.user is None:
                 key="login_input_pin_val",
             ).strip()
 
-            st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
             btn_ingresar = st.form_submit_button(
                 "Ingresar",
                 type="primary",
@@ -1118,7 +1143,6 @@ if st.session_state.user is None:
                                 df_f = pd.DataFrame(recs)
                                 if not df_f.empty:
                                     df_f['RUT_NORM'] = df_f['RUT'].astype(str).str.replace('.', '', regex=False).str.strip().str.lower()
-                                    # Normalizar RUT de búsqueda (auto-guion antes de verificar si el usuario no lo puso)
                                     raw_rut = rut_in.replace('.', '').replace('-', '').strip().lower()
                                     if raw_rut == 'admin':
                                         search_rut = 'admin'
@@ -1156,37 +1180,53 @@ if st.session_state.user is None:
                         else:
                             st.error("❌ No hay conexión con la base de datos.")
 
-        # Inyectar auto-formato con guion automático en tiempo real sobre el campo de RUT
+        # Script robusto para autoguion en tiempo real (tanto en frame actual como parent)
         st.markdown(
             """
             <script>
             (function() {
-                function aplicarFormatoRut() {
-                    const inputs = window.parent.document.querySelectorAll('input[aria-label="Ingrese su RUT:"]');
-                    inputs.forEach(input => {
-                        if (input.dataset.rutMasked) return;
-                        input.dataset.rutMasked = "true";
-                        input.addEventListener('input', function(e) {
-                            let val = e.target.value.trim();
-                            if (val.toLowerCase() === 'admin') return;
-                            let clean = val.replace(/[^0-9kK]/g, '');
-                            if (clean.length > 1) {
-                                const dv = clean.slice(-1).toUpperCase();
-                                const cuerpo = clean.slice(0, -1);
-                                e.target.value = cuerpo + '-' + dv;
+                function enlazarMascaraRut() {
+                    const docList = [document];
+                    try { if (window.parent && window.parent.document) docList.push(window.parent.document); } catch(e){}
+                    
+                    docList.forEach(doc => {
+                        const inputs = doc.querySelectorAll('input');
+                        inputs.forEach(input => {
+                            // Detectar el input de RUT por placeholder o aria-label
+                            const ph = (input.placeholder || '').toLowerCase();
+                            const al = (input.getAttribute('aria-label') || '').toLowerCase();
+                            if (ph.includes('12345678') || al.includes('rut')) {
+                                if (input.dataset.maskedRutActive === 'true') return;
+                                input.dataset.maskedRutActive = 'true';
+                                
+                                input.addEventListener('input', function(e) {
+                                    let v = e.target.value;
+                                    if (v.trim().toLowerCase() === 'admin') return;
+                                    // Limpiar puntos y guiones intermedios erróneos
+                                    let limpio = v.replace(/[^0-9kK]/g, '');
+                                    if (limpio.length > 1) {
+                                        let dv = limpio.slice(-1).toUpperCase();
+                                        let cuerpo = limpio.slice(0, -1);
+                                        let formateado = cuerpo + '-' + dv;
+                                        if (e.target.value !== formateado) {
+                                            e.target.value = formateado;
+                                            // Disparar evento para que Streamlit detecte el nuevo valor
+                                            e.target.dispatchEvent(new Event('change', { bubbles: true }));
+                                        }
+                                    }
+                                });
                             }
                         });
                     });
                 }
-                aplicarFormatoRut();
-                setTimeout(aplicarFormatoRut, 500);
-                setTimeout(aplicarFormatoRut, 1500);
+                enlazarMascaraRut();
+                const timerId = setInterval(enlazarMascaraRut, 400);
+                setTimeout(() => clearInterval(timerId), 6000);
             })();
             </script>
             """,
             unsafe_allow_html=True,
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.stop()
 
