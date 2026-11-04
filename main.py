@@ -5267,9 +5267,6 @@ elif st.session_state.current_module == 'funcionarios':
                                 rut_click_f = str(df_vista_f.iloc[idx_sel_f]['RUT']).strip()
                                 if st.session_state.get('func_sel_rut') != rut_click_f:
                                     st.session_state.func_sel_rut = rut_click_f
-                                    # Limpiar widgets viejos
-                                    for wk in ['ed_nom_func', 'ed_rol_func', 'ed_pin_func', 'ed_est_func']:
-                                        st.session_state.pop(wk, None)
                                     st.rerun()
                         else:
                             st.info("💡 No se encontraron funcionarios con los filtros actuales.")
@@ -5306,28 +5303,29 @@ elif st.session_state.current_module == 'funcionarios':
                                     unsafe_allow_html=True
                                 )
 
+                                rut_f_slug = re.sub(r'[^a-zA-Z0-9]', '', str(val_rut_f))
                                 with st.container(border=True):
                                     c1_f, c2_f = st.columns([1.5, 2.5])
                                     with c1_f:
                                         # RUT BLOQUEADO EN EDICIÓN
-                                        st.text_input("RUT (Protegido / No editable):", value=val_rut_f, disabled=True, key="ed_rut_bloqueado_func")
+                                        st.text_input("RUT (Protegido / No editable):", value=val_rut_f, disabled=True, key=f"ed_rut_bloqueado_{rut_f_slug}")
                                     with c2_f:
-                                        in_nom_f = st.text_input("Nombre Completo:", value=val_nom_f, key="ed_nom_func").strip()
+                                        in_nom_f = st.text_input("Nombre Completo:", value=val_nom_f, key=f"ed_nom_{rut_f_slug}").strip()
 
                                     c3_f, c4_f, c5_f = st.columns([1.5, 1.2, 1.3])
                                     roles_validos = ROLES_TODOS
                                     idx_rol = roles_validos.index(val_rol_f) if val_rol_f in roles_validos else 0
                                     with c3_f:
-                                        in_rol_f = st.selectbox("Rol:", roles_validos, index=idx_rol, key="ed_rol_func")
+                                        in_rol_f = st.selectbox("Rol:", roles_validos, index=idx_rol, key=f"ed_rol_{rut_f_slug}")
                                     with c4_f:
-                                        in_pin_f = st.text_input("Clave PIN:", value=val_pin_f if val_pin_f else "1234", max_chars=4, key="ed_pin_func").strip()
+                                        in_pin_f = st.text_input("Clave PIN:", value=val_pin_f if val_pin_f else "1234", max_chars=4, key=f"ed_pin_{rut_f_slug}").strip()
                                     with c5_f:
                                         idx_est_f = 0 if val_est_f.lower() != 'inactivo' else 1
-                                        in_est_f = st.selectbox("Estado:", ["Activo", "Inactivo"], index=idx_est_f, key="ed_est_func")
+                                        in_est_f = st.selectbox("Estado:", ["Activo", "Inactivo"], index=idx_est_f, key=f"ed_est_{rut_f_slug}")
 
                                     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
-                                    if st.button("💾 Guardar Cambios del Funcionario", type="primary", use_container_width=True, key="btn_save_ed_func"):
+                                    if st.button("💾 Guardar Cambios del Funcionario", type="primary", use_container_width=True, key=f"btn_save_ed_{rut_f_slug}"):
                                         if not in_nom_f:
                                             st.error("⚠️ El Nombre Completo es obligatorio.")
                                         elif len(in_pin_f) != 4 or not in_pin_f.isdigit():
@@ -5369,7 +5367,7 @@ elif st.session_state.current_module == 'funcionarios':
                                             st.info("🔒 La cuenta 'admin' principal del sistema no puede ser eliminada.")
                                         else:
                                             st.warning(f"¿Estás seguro de eliminar a **{val_nom_f}** ({val_rut_f})?")
-                                            if st.button("Confirmar Eliminación Permanente", type="primary", key="btn_del_func_ficha_act"):
+                                            if st.button("Confirmar Eliminación Permanente", type="primary", key=f"btn_del_func_{rut_f_slug}"):
                                                 with st.spinner("Eliminando..."):
                                                     try:
                                                         recs_fresh_f = sheet_funcionarios.get_all_records()
