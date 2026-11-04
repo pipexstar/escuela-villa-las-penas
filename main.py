@@ -3526,16 +3526,11 @@ elif st.session_state.current_module == 'alumnos':
                                     unsafe_allow_html=True
                                 )
 
-                            # Mostrar apoderado titular en la cabecera de la ficha
+                            # Valores apoderado para campos editables
                             rut_est_clean = str(val_rut).replace('.', '').strip().lower()
                             info_ap_est = mapa_apoderados_global.get("by_student_rut", {}).get(rut_est_clean, {})
-                            if info_ap_est.get("nombre_apoderado"):
-                                st.markdown(
-                                    f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;margin:4px 0 10px 0;font-size:0.82rem;color:#334155;'>"
-                                    f"👤 <b>Apoderado Titular:</b> {info_ap_est['nombre_apoderado']} &nbsp;|&nbsp; RUN: <b>{info_ap_est['rut_apoderado']}</b>"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
+                            val_nom_apod = info_ap_est.get("nombre_apoderado", "")
+                            val_rut_apod = info_ap_est.get("rut_apoderado", "")
 
                             with st.container(border=True):
                                 f1, f_mat_col, f2 = st.columns([1, 1.2, 1.8])
@@ -3571,7 +3566,13 @@ elif st.session_state.current_module == 'alumnos':
                                 if in_estado == "Retirado":
                                     in_fecha_retiro = st.date_input("Fecha de Retiro:", value=date_baja_obj, format="DD/MM/YYYY", key=f"ed_f_baja_{rut_slug}", help="Fecha legal en que se hace efectiva la baja/retiro del estudiante.")
 
-                                in_tel = st.text_input("Teléfono Apoderado:", value=val_tel, key=f"ed_tel_{rut_slug}").strip()
+                                col_ap1, col_ap2, col_ap3 = st.columns([2, 1.5, 1.5])
+                                with col_ap1:
+                                    in_nom_apod = st.text_input("Nombre Apoderado:", value=val_nom_apod, key=f"ed_nom_apod_{rut_slug}").strip()
+                                with col_ap2:
+                                    in_rut_apod = st.text_input("RUT Apoderado:", value=val_rut_apod, key=f"ed_rut_apod_{rut_slug}").strip()
+                                with col_ap3:
+                                    in_tel = st.text_input("Teléfono Apoderado:", value=val_tel, key=f"ed_tel_{rut_slug}").strip()
 
                                 st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
@@ -3610,6 +3611,15 @@ elif st.session_state.current_module == 'alumnos':
                                                     df_fresh.at[idx_target, 'Fecha Baja'] = baja_val
                                                     df_fresh.at[idx_target, 'Estado'] = in_estado
                                                     df_fresh.at[idx_target, 'Teléfono Apoderado'] = in_tel
+
+                                                    # Guardar apoderado en el mapa global
+                                                    if in_nom_apod or in_rut_apod:
+                                                        mapa_ap = mapa_apoderados_global
+                                                        mapa_ap.setdefault("by_student_rut", {})[rut_est_clean] = {
+                                                            "nombre_apoderado": in_nom_apod,
+                                                            "rut_apoderado": in_rut_apod,
+                                                        }
+                                                        guardar_mapa_apoderados(mapa_ap)
 
                                                     for col_k in df_fresh.columns:
                                                         col_kl = str(col_k).lower().strip()
