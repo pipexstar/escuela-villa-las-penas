@@ -525,6 +525,38 @@ def obtener_mapa_apoderados(sheet_config=None):
         pass
     return {"by_student_rut": {}, "by_apoderado_rut": {}}
 
+def guardar_mapa_apoderados(mapa_dict, sheet_config=None):
+    """Guarda la nómina oficial de apoderados en la base de datos y refresca la caché."""
+    import json
+    if not sheet_config:
+        sheet_config = get_config_sheet()
+    if not sheet_config:
+        return False
+    try:
+        v_json = json.dumps(mapa_dict, ensure_ascii=False)
+        recs_raw = sheet_config.get_all_records()
+        df_cfg = pd.DataFrame(recs_raw) if recs_raw else pd.DataFrame(columns=["Clave", "Valor"])
+        df_cfg.columns = [str(c).strip() for c in df_cfg.columns]
+        if '_id' in df_cfg.columns:
+            df_cfg = df_cfg.drop(columns=['_id'])
+        if "Clave" not in df_cfg.columns: df_cfg["Clave"] = []
+        if "Valor" not in df_cfg.columns: df_cfg["Valor"] = []
+
+        m_ap = df_cfg["Clave"].astype(str).str.strip() == "nomina_apoderados"
+        if m_ap.any():
+            df_cfg.loc[m_ap, "Valor"] = v_json
+        else:
+            nueva_f = pd.DataFrame([{"Clave": "nomina_apoderados", "Valor": v_json}])
+            df_cfg = pd.concat([df_cfg, nueva_f], ignore_index=True)
+
+        sheet_config.clear()
+        sheet_config.update(values=[df_cfg.columns.tolist()] + df_cfg.values.tolist())
+        _cargar_registros_config_cached.clear()
+        return True
+    except Exception as e:
+        print(f"[guardar_mapa_apoderados] Error: {e}")
+        return False
+
 def rol_tiene_permiso(rol_usuario, modulo_id, matriz_permisos=None):
     """Evalúa si un rol tiene acceso a un módulo determinado."""
     if not rol_usuario:
@@ -3924,15 +3956,6 @@ elif st.session_state.current_module == 'alumnos':
                                                     df_fresh.at[idx_target, 'Estado'] = in_estado
                                                     df_fresh.at[idx_target, 'Teléfono Apoderado'] = in_tel
 
-                                                    # Guardar apoderado en el mapa global
-                                                    if in_nom_apod or in_rut_apod:
-                                                        mapa_ap = mapa_apoderados_global
-                                                        mapa_ap.setdefault("by_student_rut", {})[rut_est_clean] = {
-                                                            "nombre_apoderado": in_nom_apod,
-                                                            "rut_apoderado": in_rut_apod,
-                                                        }
-                                                        guardar_mapa_apoderados(mapa_ap)
-
                                                     for col_k in df_fresh.columns:
                                                         col_kl = str(col_k).lower().strip()
                                                         if 'est' in col_kl and col_k != 'Estado':
@@ -3985,7 +4008,9 @@ elif st.session_state.current_module == 'alumnos':
                                                                 })
                                                         guardar_mapa_apoderados(mapa_apoderados_global, sheet_config_global)
 
-                                                    st.success(f"✅ ¡Estudiante **{in_nom}** actualizado exitosamente!")
+                                                    st.toast(f"✅ ¡Estudiante {in_nom} actualizado con éxito!", icon="💾")
+                                                    st.success(f"✅ ¡Estudiante **{in_nom}** actualizado exitosamente en el sistema!")
+                                                    time.sleep(1.2)
                                                     st.rerun()
                                             except Exception as e:
                                                 st.error(f"Error al actualizar: {e}")
