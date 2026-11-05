@@ -380,6 +380,15 @@ def apply_clean_theme():
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.5rem !important;
     }
+
+    /* Suavizado de transiciones para eliminar sensación de pantalla pegada */
+    [data-testid="stMainBlockContainer"], [data-testid="block-container"] {
+        animation: fadeInFast 0.18s ease-in-out !important;
+    }
+    @keyframes fadeInFast {
+        from { opacity: 0.65; transform: translateY(2px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -875,7 +884,7 @@ if tok and (st.session_state.user is None):
         st.session_state.user = u_recup
 
 def navigate(module_name):
-    """Navega a un módulo y actualiza la URL del navegador manteniendo la sesión."""
+    """Navega a un módulo de forma instantánea actualizando el estado y la URL."""
     _NOTAS_KEYS = [
         'notas_curso_sel', 'notas_asig_sel', 'notas_sem_seg',
         'notas_grilla_cargada', 'notas_curso_activo', 'notas_asig_activa', 'notas_sem_activo'
@@ -887,9 +896,8 @@ def navigate(module_name):
     st.session_state['_previous_module'] = st.session_state.get('current_module')
     st.session_state.current_module = module_name
     try:
-        st.query_params["m"] = module_name
-        if st.session_state.get('user'):
-            st.query_params["u"] = _generar_token_sesion(st.session_state.user)
+        if st.query_params.get("m") != module_name:
+            st.query_params["m"] = module_name
     except Exception:
         pass
 
@@ -2818,7 +2826,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Ingreso y comprobantes</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'atraso', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_atraso", use_container_width=True):
-                    navigate('atraso'); st.rerun()
+                    navigate('atraso')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2828,7 +2836,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Salidas anticipadas</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'retiro', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_retiro", use_container_width=True):
-                    navigate('retiro'); st.rerun()
+                    navigate('retiro')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2838,7 +2846,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Control diario escolar</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'asistencia', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_asistencia", use_container_width=True):
-                    navigate('asistencia'); st.rerun()
+                    navigate('asistencia')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2848,7 +2856,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Registro y promedios</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'notas', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_notas", use_container_width=True):
-                    navigate('notas'); st.rerun()
+                    navigate('notas')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2858,7 +2866,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Informe y observaciones</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'desarrollo_personal', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_desarrollo_personal", use_container_width=True):
-                    navigate('desarrollo_personal'); st.rerun()
+                    navigate('desarrollo_personal')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2868,7 +2876,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Asignaturas y docentes</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'asignaciones', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_asignaciones", use_container_width=True):
-                    navigate('asignaciones'); st.rerun()
+                    navigate('asignaciones')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2882,7 +2890,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Promoción Decreto 67</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'preacta', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_preacta", use_container_width=True):
-                    navigate('preacta'); st.rerun()
+                    navigate('preacta')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2892,7 +2900,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Notas y certificados</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'informes', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_informes_notas", use_container_width=True):
-                    navigate('informes'); st.rerun()
+                    navigate('informes')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2902,7 +2910,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Fichas y nómina escolar</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'alumnos', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_alumnos", use_container_width=True):
-                    navigate('alumnos'); st.rerun()
+                    navigate('alumnos')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2912,7 +2920,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Catálogo y jefaturas</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'cursos', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_cursos", use_container_width=True):
-                    navigate('cursos'); st.rerun()
+                    navigate('cursos')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2922,7 +2930,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Personal y accesos</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'funcionarios', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_funcionarios", use_container_width=True):
-                    navigate('funcionarios'); st.rerun()
+                    navigate('funcionarios')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -2932,7 +2940,7 @@ if st.session_state.current_module == 'home':
             st.markdown("<div class='modulo-card-sub'>Colegio, firmas y fechas</div>", unsafe_allow_html=True)
             if rol_tiene_permiso(rol_user_actual, 'configuracion', matriz_permisos_global):
                 if st.button("Abrir Módulo", key="btn_configuracion", use_container_width=True):
-                    navigate('configuracion'); st.rerun()
+                    navigate('configuracion')
             else:
                 st.markdown("<div class='modulo-card-locked'>🔒 Sin acceso</div>", unsafe_allow_html=True)
 
@@ -6374,7 +6382,7 @@ elif st.session_state.current_module == 'asistencia':
     if not cursos_disp:
         st.warning("⚠️ No hay cursos disponibles. Carga primero la base de datos de alumnos.")
         if st.button("⬅️ Volver", key="btn_asist_nocursos"):
-            navigate('home'); st.rerun()
+            navigate('home')
         st.stop()
 
     # ── Inicializar state ────────────────────────────────────────────────────
