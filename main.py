@@ -423,6 +423,26 @@ try:
     import streamlit.components.v1 as _comp_v1
     _comp_v1.html("""
     <script>
+// Script de respuesta inmediata al hacer clic en Cerrar Sesion o Modulos
+    if (!window._stInstantLogoutAttached) {
+        window._stInstantLogoutAttached = true;
+        document.addEventListener('click', function(e) {
+            try {
+                var btn = e.target.closest('button');
+                if (btn) {
+                    var txt = (btn.innerText || '').toLowerCase();
+                    if (txt.includes('cerrar sesi')) {
+                        var pDoc = window.parent.document;
+                        var mainEl = pDoc.querySelector('[data-testid="stMainBlockContainer"]') || pDoc.querySelector('.main .block-container');
+                        var sideEl = pDoc.querySelector('[data-testid="stSidebar"]');
+                        if (mainEl) { mainEl.style.opacity = '0'; mainEl.style.pointerEvents = 'none'; }
+                        if (sideEl) { sideEl.style.opacity = '0'; sideEl.style.pointerEvents = 'none'; }
+                    }
+                }
+            } catch(err) {}
+        }, true);
+    }
+
     if (!window._stKeepAliveRunning) {
         window._stKeepAliveRunning = true;
         setInterval(function() {
@@ -975,6 +995,21 @@ def render_sidebar_auth():
                 if k not in ['app_version', 'current_module']:
                     del st.session_state[k]
             st.session_state.user = None
+            # Inyección de ocultamiento instantáneo en cliente al presionar salir
+            st.markdown(
+                """
+                <style>
+                [data-testid="stSidebar"], [data-testid="stMainBlockContainer"], [data-testid="block-container"] {
+                    display: none !important;
+                    opacity: 0 !important;
+                }
+                .stApp {
+                    background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%) !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
             st.rerun()
 
 # Inyectar barra lateral de autenticación (solo visible cuando hay sesión)
