@@ -103,9 +103,28 @@ class SupabaseSheet:
 
     # ── Métodos principales ────────────────────────────────────────────────
 
-    def get_all_records(self, **kwargs) -> list:
-        """Devuelve todos los registros como lista de dicts con nombres de UI (paginado para superar límites de PostgREST)."""
+    def get_all_records(self, filters: dict = None, in_filters: dict = None, **kwargs) -> list:
+        """Devuelve todos los registros como lista de dicts con nombres de UI (soporta filtros puntuales o paginación completa)."""
         try:
+            q = self._client.table(self._table).select("*")
+            has_filters = False
+            if filters:
+                for col, val in filters.items():
+                    if val is not None:
+                        db_col = self._to_db(col)
+                        q = q.eq(db_col, val)
+                        has_filters = True
+            if in_filters:
+                for col, vals in in_filters.items():
+                    if vals:
+                        db_col = self._to_db(col)
+                        q = q.in_(db_col, list(vals))
+                        has_filters = True
+
+            if has_filters:
+                resp = q.execute()
+                return [self._row_to_display(r) for r in (resp.data or [])]
+
             PAGE_SIZE = 1000
             offset = 0
             all_rows = []

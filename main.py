@@ -95,6 +95,51 @@ def concepto_a_numero_db(val):
     except Exception:
         return None
 
+# ── Cachés de alto rendimiento en memoria para fluidez instantánea ──────────
+@st.cache_data(ttl=300)
+def _cargar_registros_config_cached():
+    try:
+        sc = get_config_sheet()
+        return sc.get_all_records() if sc else []
+    except Exception:
+        return []
+
+@st.cache_data(ttl=180)
+def _get_cached_alumnos_records():
+    try:
+        sheet_alumnos, _, _, _, _ = get_sheets()
+        return sheet_alumnos.get_all_records() if sheet_alumnos else []
+    except Exception:
+        return []
+
+@st.cache_data(ttl=60)
+def _get_cached_registros_records():
+    try:
+        _, sheet_registros, _, _, _ = get_sheets()
+        return sheet_registros.get_all_records() if sheet_registros else []
+    except Exception:
+        return []
+
+@st.cache_data(ttl=300)
+def _get_cached_cursos_records():
+    try:
+        sheet_c = get_cursos_sheet()
+        return sheet_c.get_all_records() if sheet_c else []
+    except Exception:
+        return []
+
+@st.cache_data(ttl=3600)
+def _obtener_imagen_b64_cached(rutas_tupla):
+    import os, base64
+    for r in rutas_tupla:
+        if os.path.exists(r):
+            try:
+                with open(r, "rb") as f:
+                    return base64.b64encode(f.read()).decode("utf-8")
+            except Exception:
+                pass
+    return ""
+
 def apply_clean_theme():
     """
     Aplica el diseño limpio y minimalista solicitado:
@@ -444,42 +489,40 @@ def normalizar_nombre_rol(rol_raw):
     return str(rol_raw or "").strip().title()
 
 def obtener_matriz_permisos(sheet_config=None):
-    """Carga la matriz de permisos desde sheet_config o usa DEFAULT_PERMISOS_ROLES."""
+    """Carga la matriz de permisos desde caché o sheet_config, o usa DEFAULT_PERMISOS_ROLES."""
     import json
-    if sheet_config:
-        try:
-            records = sheet_config.get_all_records()
-            for r in records:
-                k = str(r.get("Clave", "")).strip()
-                if k == "matriz_permisos_roles":
-                    val = str(r.get("Valor", "")).strip()
-                    if val:
-                        matriz_guardada = json.loads(val)
-                        matriz_completa = {}
-                        for r_cfg in ROLES_CONFIGURABLES:
-                            if r_cfg in matriz_guardada:
-                                matriz_completa[r_cfg] = matriz_guardada[r_cfg]
-                            else:
-                                matriz_completa[r_cfg] = DEFAULT_PERMISOS_ROLES.get(r_cfg, []).copy()
-                        return matriz_completa
-        except Exception:
-            pass
+    try:
+        records = _cargar_registros_config_cached() if not sheet_config else sheet_config.get_all_records()
+        for r in records:
+            k = str(r.get("Clave", "")).strip()
+            if k == "matriz_permisos_roles":
+                val = str(r.get("Valor", "")).strip()
+                if val:
+                    matriz_guardada = json.loads(val)
+                    matriz_completa = {}
+                    for r_cfg in ROLES_CONFIGURABLES:
+                        if r_cfg in matriz_guardada:
+                            matriz_completa[r_cfg] = matriz_guardada[r_cfg]
+                        else:
+                            matriz_completa[r_cfg] = DEFAULT_PERMISOS_ROLES.get(r_cfg, []).copy()
+                    return matriz_completa
+    except Exception:
+        pass
     return {k: v.copy() for k, v in DEFAULT_PERMISOS_ROLES.items()}
 
 def obtener_mapa_apoderados(sheet_config=None):
     """Carga la nómina oficial de apoderados vinculados por estudiante."""
     import json
-    if sheet_config:
-        try:
-            records = sheet_config.get_all_records()
-            for r in records:
-                k = str(r.get("Clave", "")).strip()
-                if k == "nomina_apoderados":
-                    val = str(r.get("Valor", "")).strip()
-                    if val:
-                        return json.loads(val)
-        except Exception:
-            pass
+    try:
+        records = _cargar_registros_config_cached() if not sheet_config else sheet_config.get_all_records()
+        for r in records:
+            k = str(r.get("Clave", "")).strip()
+            if k == "nomina_apoderados":
+                val = str(r.get("Valor", "")).strip()
+                if val:
+                    return json.loads(val)
+    except Exception:
+        pass
     return {"by_student_rut": {}, "by_apoderado_rut": {}}
 
 def rol_tiene_permiso(rol_usuario, modulo_id, matriz_permisos=None):
@@ -657,33 +700,31 @@ def obtener_cursos_oficiales_sistema():
 
     cursos_encontrados = []
     try:
-        sheet_c = get_cursos_sheet()
-        if sheet_c:
-            recs = sheet_c.get_all_records()
-            if recs:
-                df_c = pd.DataFrame(recs)
-                if not df_c.empty:
-                    df_c.columns = [str(c).strip() for c in df_c.columns]
-                    col_n = next((c for c in df_c.columns if 'nomb' in c.lower() or 'curs' in c.lower()), 'Nombre')
-                    col_l = next((c for c in df_c.columns if 'let' in c.lower()), 'Letra')
-                    col_est = next((c for c in df_c.columns if 'est' in c.lower()), None)
-                    if col_est:
-                        df_c = df_c[df_c[col_est].astype(str).str.lower() != 'inactivo']
+        recs = _get_cached_cursos_records()
+        if recs:
+            df_c = pd.DataFrame(recs)
+            if not df_c.empty:
+                df_c.columns = [str(c).strip() for c in df_c.columns]
+                col_n = next((c for c in df_c.columns if 'nomb' in c.lower() or 'curs' in c.lower()), 'Nombre')
+                col_l = next((c for c in df_c.columns if 'let' in c.lower()), 'Letra')
+                col_est = next((c for c in df_c.columns if 'est' in c.lower()), None)
+                if col_est:
+                    df_c = df_c[df_c[col_est].astype(str).str.lower() != 'inactivo']
 
-                    for _, r in df_c.iterrows():
-                        nom = str(r.get(col_n, '')).strip()
-                        let = str(r.get(col_l, 'A')).strip() or 'A'
-                        if nom:
-                            k = extraer_clave_curso(nom)
-                            if k[0] == 'nt1':
-                                nom_final = f"NT1 {let.upper()}"
-                            elif k[0] == 'nt2':
-                                nom_final = f"NT2 {let.upper()}"
-                            elif not nom.endswith(let):
-                                nom_final = f"{nom} {let.upper()}".strip()
-                            else:
-                                nom_final = nom
-                            cursos_encontrados.append(nom_final)
+                for _, r in df_c.iterrows():
+                    nom = str(r.get(col_n, '')).strip()
+                    let = str(r.get(col_l, 'A')).strip() or 'A'
+                    if nom:
+                        k = extraer_clave_curso(nom)
+                        if k[0] == 'nt1':
+                            nom_final = f"NT1 {let.upper()}"
+                        elif k[0] == 'nt2':
+                            nom_final = f"NT2 {let.upper()}"
+                        elif not nom.endswith(let):
+                            nom_final = f"{nom} {let.upper()}".strip()
+                        else:
+                            nom_final = nom
+                        cursos_encontrados.append(nom_final)
     except Exception:
         pass
 
@@ -714,15 +755,13 @@ def obtener_profesor_jefe_curso(nom_curso, sheet_asignaciones=None):
 
     # 1. Buscar en catálogo de Cursos (fuente principal y oficial)
     try:
-        sheet_c = get_cursos_sheet()
-        if sheet_c:
-            recs_c = sheet_c.get_all_records()
-            for rc in recs_c:
-                nom_c = str(rc.get("Nombre", "")).strip()
-                if calza_nombre_curso(nom_c, nom_curso):
-                    pj = str(rc.get("Profesor_Jefe", "")).strip()
-                    if pj and pj != "— Sin Asignar —":
-                        return pj
+        recs_c = _get_cached_cursos_records()
+        for rc in recs_c:
+            nom_c = str(rc.get("Nombre", "")).strip()
+            if calza_nombre_curso(nom_c, nom_curso):
+                pj = str(rc.get("Profesor_Jefe", "")).strip()
+                if pj and pj != "— Sin Asignar —":
+                    return pj
     except Exception:
         pass
 
@@ -824,29 +863,23 @@ def navigate(module_name):
 
 def render_sidebar_auth():
     import os
-    import base64
-    rutas = [
+    rutas = (
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "insignia.png"),
         "insignia.png",
         "C:/SistemaEscolar/insignia.png"
-    ]
-    ruta_directa = next((r for r in rutas if os.path.exists(r)), None)
-    if ruta_directa:
-        try:
-            with open(ruta_directa, "rb") as f:
-                img_b64 = base64.b64encode(f.read()).decode()
-            st.sidebar.markdown(
-                f"""
-                <div style="text-align: center; padding: 10px 0 6px 0;">
-                    <img src="data:image/png;base64,{img_b64}"
-                         alt="Escuela Villa Las Peñas"
-                         style="max-height: 90px; width: auto; object-fit: contain; display: inline-block;">
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        except Exception:
-            pass
+    )
+    img_b64 = _obtener_imagen_b64_cached(rutas)
+    if img_b64:
+        st.sidebar.markdown(
+            f"""
+            <div style="text-align: center; padding: 10px 0 6px 0;">
+                <img src="data:image/png;base64,{img_b64}"
+                     alt="Escuela Villa Las Peñas"
+                     style="max-height: 90px; width: auto; object-fit: contain; display: inline-block;">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     st.sidebar.markdown("<h3 style='text-align:center;color:#1a5c32;font-size:1.15rem;margin:2px 0 10px 0;'>Escuela Villa Las Peñas</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
@@ -912,29 +945,21 @@ if st.session_state.user is not None:
 # PORTAL DE LOGIN SPLIT-SCREEN INSTITUCIONAL
 # ---------------------------------------------------------
 if st.session_state.user is None:
-    # 1. Cargar imagen de fondo e insignia en Base64
-    import base64
+    # 1. Cargar imagen de fondo e insignia en Base64 (desde memoria caché)
     import os
 
-    bg_img_b64 = ""
-    for bg_path in ["fachada_escuela.jpg", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fachada_escuela.jpg")]:
-        if os.path.exists(bg_path):
-            try:
-                with open(bg_path, "rb") as f_bg:
-                    bg_img_b64 = base64.b64encode(f_bg.read()).decode("utf-8")
-                break
-            except Exception:
-                pass
+    rutas_bg = (
+        "fachada_escuela.jpg",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "fachada_escuela.jpg")
+    )
+    bg_img_b64 = _obtener_imagen_b64_cached(rutas_bg)
 
-    insignia_login_b64 = ""
-    for ins_path in ["insignia.png", os.path.join(os.path.dirname(os.path.abspath(__file__)), "insignia.png"), "C:/SistemaEscolar/insignia.png"]:
-        if os.path.exists(ins_path):
-            try:
-                with open(ins_path, "rb") as f_ins:
-                    insignia_login_b64 = base64.b64encode(f_ins.read()).decode("utf-8")
-                break
-            except Exception:
-                pass
+    rutas_ins = (
+        "insignia.png",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "insignia.png"),
+        "C:/SistemaEscolar/insignia.png"
+    )
+    insignia_login_b64 = _obtener_imagen_b64_cached(rutas_ins)
 
     # 2. Inyectar estilos CSS exclusivos para la pantalla de login split-screen
     bg_style_rule = f"background: linear-gradient(rgba(10, 20, 15, 0.40), rgba(10, 20, 15, 0.65)), url('data:image/jpeg;base64,{bg_img_b64}') center center / cover no-repeat fixed !important;" if bg_img_b64 else "background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%) !important;"
@@ -1408,16 +1433,14 @@ def extraer_fechas_alumno(r_alu, f_inicio_oficial=None):
     }
 
 def cargar_datos_configuracion_reportes():
-    """Carga los parámetros institucionales oficiales desde la tabla de Configuración."""
+    """Carga los parámetros institucionales oficiales desde la tabla de Configuración (con caché en memoria)."""
     conf_data = {}
     try:
-        sc_conf = get_config_sheet()
-        if sc_conf:
-            recs = sc_conf.get_all_records()
-            for rc in recs:
-                k = str(rc.get('clave', rc.get('Clave', ''))).strip().lower()
-                v = str(rc.get('valor', rc.get('Valor', ''))).strip()
-                if k: conf_data[k] = v
+        recs = _cargar_registros_config_cached()
+        for rc in recs:
+            k = str(rc.get('clave', rc.get('Clave', ''))).strip().lower()
+            v = str(rc.get('valor', rc.get('Valor', ''))).strip()
+            if k: conf_data[k] = v
     except Exception:
         pass
 
@@ -1671,11 +1694,12 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
 
     try:
         conf = cargar_datos_configuracion_reportes()
-        recs_reg = sheet_registros.get_all_records()
+        recs_reg = _get_cached_registros_records()
         df_reg_all = pd.DataFrame(recs_reg) if recs_reg else pd.DataFrame()
 
         # Mapa oficial de alumnos para cruzar curso y nombre real por RUT
-        df_alu_map = pd.DataFrame(sheet_alumnos.get_all_records()) if sheet_alumnos else pd.DataFrame()
+        recs_alu = _get_cached_alumnos_records()
+        df_alu_map = pd.DataFrame(recs_alu) if recs_alu else pd.DataFrame()
         alu_curso_map = {}
         alu_nom_map = {}
         if not df_alu_map.empty:
@@ -1929,6 +1953,7 @@ def renderizar_reporte_atrasos(sheet_alumnos, sheet_registros):
                                     'hora': r_a_borrar[col_h],
                                     'tipo': 'Atraso'
                                 })
+                            _get_cached_registros_records.clear()
                             st.toast(f"✅ Atraso de {r_a_borrar['Nombre_Final']} eliminado exitosamente.", icon="🗑️")
                             st.success(f"✅ Se ha eliminado correctamente el atraso de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
                             time.sleep(1.2)
@@ -2181,11 +2206,12 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 
     try:
         conf = cargar_datos_configuracion_reportes()
-        recs_reg = sheet_registros.get_all_records()
+        recs_reg = _get_cached_registros_records()
         df_reg_all = pd.DataFrame(recs_reg) if recs_reg else pd.DataFrame()
 
         # Mapa oficial de alumnos para cruzar curso y nombre real por RUT
-        df_alu_map = pd.DataFrame(sheet_alumnos.get_all_records()) if sheet_alumnos else pd.DataFrame()
+        recs_alu = _get_cached_alumnos_records()
+        df_alu_map = pd.DataFrame(recs_alu) if recs_alu else pd.DataFrame()
         alu_curso_map = {}
         alu_nom_map = {}
         if not df_alu_map.empty:
@@ -2446,6 +2472,7 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
                                     'hora': r_a_borrar[col_h],
                                     'tipo': 'Retiro'
                                 })
+                            _get_cached_registros_records.clear()
                             st.toast(f"✅ Salida anticipada de {r_a_borrar['Nombre_Final']} eliminada exitosamente.", icon="🗑️")
                             st.success(f"✅ Se ha eliminado correctamente el retiro de **{r_a_borrar['Nombre_Final']}** del **{r_a_borrar['Fecha_Chilena']}**.")
                             time.sleep(1.2)
@@ -2696,8 +2723,8 @@ def renderizar_reporte_retiros(sheet_alumnos, sheet_registros):
 # ---------------------------------------------------------
 
 sheet_config_global = get_config_sheet()
-matriz_permisos_global = obtener_matriz_permisos(sheet_config_global)
-mapa_apoderados_global = obtener_mapa_apoderados(sheet_config_global)
+matriz_permisos_global = obtener_matriz_permisos()
+mapa_apoderados_global = obtener_mapa_apoderados()
 rol_user_actual = str(st.session_state.user.get('rol', '') if st.session_state.get('user') else '').strip()
 es_admin_total  = normalizar_nombre_rol(rol_user_actual) == "Administrador Total"
 
@@ -2902,7 +2929,7 @@ elif st.session_state.current_module == 'atraso':
 
         if sheet_alumnos:
             try:
-                df_alumnos = pd.DataFrame(sheet_alumnos.get_all_records())
+                df_alumnos = pd.DataFrame(_get_cached_alumnos_records())
 
                 if not df_alumnos.empty:
                     import unicodedata
@@ -3062,6 +3089,7 @@ elif st.session_state.current_module == 'atraso':
                                         "",
                                         curso_alumno_final
                                     ])
+                                    _get_cached_registros_records.clear()
 
                                     # Notificar al teléfono del apoderado si está suscrito
                                     try:
@@ -3136,7 +3164,7 @@ elif st.session_state.current_module == 'retiro':
 
         if sheet_alumnos:
             try:
-                df_alumnos = pd.DataFrame(sheet_alumnos.get_all_records())
+                df_alumnos = pd.DataFrame(_get_cached_alumnos_records())
 
                 if not df_alumnos.empty:
                     import unicodedata
@@ -3368,6 +3396,7 @@ elif st.session_state.current_module == 'retiro':
                                             parentesco_final,
                                             alumno.get('curso', '')
                                         ])
+                                        _get_cached_registros_records.clear()
 
                                         # Notificar al teléfono del apoderado si está suscrito
                                         try:
@@ -3924,6 +3953,7 @@ elif st.session_state.current_module == 'alumnos':
                                                     sheet_alumnos.clear()
                                                     sheet_alumnos.update(values=[df_fresh.columns.tolist()] + df_fresh.values.tolist())
                                                     st.session_state.df_alumnos_cache = None
+                                                    _get_cached_alumnos_records.clear()
 
                                                     # Guardar cambios del apoderado en la nómina oficial
                                                     rut_est_save = val_rut.replace('.', '').strip().lower()
@@ -4062,6 +4092,7 @@ elif st.session_state.current_module == 'alumnos':
                                         sheet_alumnos.clear()
                                         sheet_alumnos.update(values=[df_fresh.columns.tolist()] + df_fresh.values.tolist())
                                         st.session_state.df_alumnos_cache = None
+                                        _get_cached_alumnos_records.clear()
 
                                         # Guardar apoderado si fue ingresado
                                         if new_nom_apod or new_rut_apod:
@@ -4222,6 +4253,7 @@ elif st.session_state.current_module == 'alumnos':
                                     sheet_alumnos.clear()
                                     sheet_alumnos.update(values=[df_final.columns.values.tolist()] + df_final.values.tolist())
                                     st.session_state.df_alumnos_cache = None
+                                    _get_cached_alumnos_records.clear()
                                     cant_alums = len(df_final)
                                     st.session_state['msg_carga_alum_ok'] = f"🎉 ¡Carga masiva completada con éxito! Se sincronizaron **{cant_alums}** alumnos en la nómina oficial."
                                     st.rerun()
@@ -4415,6 +4447,7 @@ elif st.session_state.current_module == 'cursos':
 
                                                 # La jefatura reside en la tabla Cursos, no en Asignaturas de clases
                                                 get_cursos_sheet.clear()
+                                                _get_cached_cursos_records.clear()
                                                 st.session_state.cursos_oficiales_cache = None
                                                 st.session_state.dict_cursos_cache = None
                                                 st.session_state.curso_sel_tag = val_nom_orig
@@ -4451,6 +4484,7 @@ elif st.session_state.current_module == 'cursos':
                                                     pass
 
                                             get_cursos_sheet.clear()
+                                            _get_cached_cursos_records.clear()
                                             st.session_state.cursos_oficiales_cache = None
                                             st.session_state.dict_cursos_cache = None
                                             st.session_state.pop('curso_sel_tag', None)
@@ -4503,6 +4537,7 @@ elif st.session_state.current_module == 'cursos':
                                     sheet_cursos.append_row([nombre_curso_oficial, in_letra_sel, in_pj_nuevo, rut_jefe])
 
                                     get_cursos_sheet.clear()
+                                    _get_cached_cursos_records.clear()
                                     st.session_state.cursos_oficiales_cache = None
                                     st.session_state.dict_cursos_cache = None
                                     st.session_state.curso_sel_tag = nombre_curso_oficial
@@ -4694,7 +4729,7 @@ elif st.session_state.current_module == 'notas':
             if not cursos_permitidos and sheet_alumnos:
                 try:
                     # Intentar leer registros
-                    ra = sheet_alumnos.get_all_records()
+                    ra = _get_cached_alumnos_records()
                     df_a_adm = pd.DataFrame(ra) if ra else pd.DataFrame()
                     if not df_a_adm.empty:
                         df_a_adm.columns = [str(c).strip() for c in df_a_adm.columns]
@@ -4810,7 +4845,7 @@ elif st.session_state.current_module == 'notas':
     with col_s4:
         st.write("")
         st.write("")
-        cargar = st.button("🔍 Cargar Grilla", type="primary", key="btn_cargar_notas", use_container_width=True)
+        cargar = st.button("🔍 Cargar Notas", type="primary", key="btn_cargar_notas", use_container_width=True)
 
     sem_num = "1" if "1" in semestre_sel else "2"
 
@@ -4834,7 +4869,7 @@ elif st.session_state.current_module == 'notas':
 
         try:
             # ── Cargar alumnos del curso ──────────────────────────────────
-            recs_al = sheet_alumnos.get_all_records()
+            recs_al = _get_cached_alumnos_records()
             df_al   = pd.DataFrame(recs_al) if recs_al else pd.DataFrame()
 
             if df_al.empty:
@@ -4879,7 +4914,8 @@ elif st.session_state.current_module == 'notas':
             df_ordenado = pd.concat([df_activos, df_retirados], ignore_index=True)
 
             # ── Cargar notas existentes ───────────────────────────────────
-            recs_notas = sheet_notas.get_all_records()
+            ruts_curso = [str(r).strip() for r in df_curso[col_rut_al].tolist() if str(r).strip()]
+            recs_notas = sheet_notas.get_all_records(filters={'semestre': str(sem_activo)}, in_filters={'rut': ruts_curso}) if ruts_curso else []
             df_notas   = pd.DataFrame(recs_notas) if recs_notas else pd.DataFrame()
 
             notas_existentes = {}  # {rut: {N1: val, N2: val, ...}}
@@ -5312,7 +5348,7 @@ elif st.session_state.current_module == 'notas':
         except Exception as e:
             st.error(f"Error al cargar la grilla de notas: {e}")
     else:
-        st.info("👆 Selecciona curso, asignatura y semestre, luego presiona **Cargar Grilla** para comenzar.")
+        st.info("👆 Selecciona curso, asignatura y semestre, luego presiona **Cargar Notas** para comenzar.")
 
     st.write("")
     if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_notas"):
@@ -6963,6 +6999,7 @@ elif st.session_state.current_module == 'configuracion':
 
                             sheet_config.clear()
                             sheet_config.update(values=filas_actualizadas)
+                            _cargar_registros_config_cached.clear()
                             st.session_state['conf_guardada_ok'] = True
                             st.toast("✅ ¡Configuración guardada exitosamente!", icon="🎉")
                             st.rerun()
@@ -7036,6 +7073,7 @@ elif st.session_state.current_module == 'configuracion':
 
                             sheet_config.clear()
                             sheet_config.update(values=[df_cfg_all.columns.tolist()] + df_cfg_all.values.tolist())
+                            _cargar_registros_config_cached.clear()
                             st.session_state['permisos_guardados_ok'] = True
                             st.toast("✅ ¡Permisos actualizados con éxito!", icon="🛡️")
                             st.rerun()
