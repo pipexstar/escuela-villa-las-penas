@@ -5921,7 +5921,9 @@ elif st.session_state.current_module == 'funcionarios':
                         else:
                             st.info("No hay registros en el período seleccionado.")
 
-                        if es_admin:
+                        _rol_act = str(st.session_state.user.get('rol', '') if st.session_state.get('user') else '').strip()
+                        _es_admin_func = any(r in _rol_act for r in ['Administrador Total', 'Director', 'Jefe UTP']) or not _rol_act
+                        if _es_admin_func:
                             st.markdown("---")
                             with st.expander("🛠️ Zona de Administración: Purgar Registros (Marcha Blanca)", expanded=False):
                                 st.warning("⚠️ Esta función permite vaciar los registros de prueba de asistencia (entradas y salidas de funcionarios) para iniciar la marcha blanca con la base de datos en limpio.")
