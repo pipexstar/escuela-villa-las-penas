@@ -14,12 +14,9 @@ from utils.asistencia_funcionarios import (
     construir_planilla_asistencia,
     obtener_observaciones_asistencia,
     guardar_observaciones_asistencia,
-)
-from utils.asistencia_funcionarios import (
-    verificar_tabla_eventos_existe,
-    listar_eventos_asistencia,
-    construir_planilla_asistencia,
     generar_qr_data_url,
+    obtener_supabase_seguro,
+    TABLA_EVENTOS,
 )
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -5923,6 +5920,22 @@ elif st.session_state.current_module == 'funcionarios':
                             )
                         else:
                             st.info("No hay registros en el período seleccionado.")
+
+                        if es_admin:
+                            st.markdown("---")
+                            with st.expander("🛠️ Zona de Administración: Purgar Registros (Marcha Blanca)", expanded=False):
+                                st.warning("⚠️ Esta función permite vaciar los registros de prueba de asistencia (entradas y salidas de funcionarios) para iniciar la marcha blanca con la base de datos en limpio.")
+                                conf_purgar = st.checkbox("Confirmo que deseo vaciar todos los registros de prueba de asistencia de funcionarios", key="chk_purgar_asist_func")
+                                if conf_purgar:
+                                    if st.button("🗑️ Eliminar Todos los Registros de Asistencia", type="primary", key="btn_purgar_asist_func_exec"):
+                                        try:
+                                            client_p = obtener_supabase_seguro()
+                                            client_p.table(TABLA_EVENTOS).delete().gte('id', 0).execute()
+                                            client_p.table('configuracion').delete().eq('clave', 'observaciones_asistencia_funcionarios').execute()
+                                            st.success("✅ Base de datos de asistencia de funcionarios reiniciada con éxito para la marcha blanca.")
+                                            st.rerun()
+                                        except Exception as _e_purgar:
+                                            st.error(f"Error al eliminar registros: {_e_purgar}")
 
 
             with tab_carga_f:
