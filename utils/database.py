@@ -306,9 +306,57 @@ class SupabaseSheet:
             raise e
 
     def append_rows(self, rows_values, **kwargs):
-        """Inserta o actualiza múltiples filas."""
+        """Inserta o actualiza múltiples filas de manera atómica y en lote."""
+        if not rows_values:
+            return
+        records = []
         for row in rows_values:
-            self.append_row(row)
+            record = {}
+            for i, display_col in enumerate(self._cols):
+                db_col = self._d2db.get(display_col, display_col.lower())
+                if db_col == 'id':
+                    continue
+                val = row[i] if i < len(row) else None
+                if val is None or str(val).strip() in ('', 'nan', 'None', 'NaT', 'NULL'):
+                    record[db_col] = None
+                else:
+                    if self._table == 'notas' and db_col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'promedio']:
+                        val_str = str(val).strip().upper()
+                        if val_str == 'MB':
+                            record[db_col] = 7.0
+                        elif val_str == 'B':
+                            record[db_col] = 5.5
+                        elif val_str == 'S':
+                            record[db_col] = 4.5
+                        elif val_str == 'I':
+                            record[db_col] = 3.0
+                        else:
+                            try:
+                                record[db_col] = float(val_str.replace(',', '.'))
+                            except ValueError:
+                                record[db_col] = None
+                    else:
+                        record[db_col] = val
+            records.append(record)
+
+        if records:
+            BATCH = 500
+            for i in range(0, len(records), BATCH):
+                batch_data = records[i:i+BATCH]
+                try:
+                    if self._table == 'notas':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='rut,asignatura,semestre').execute()
+                    elif self._table == 'asistencia':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='fecha,curso,tipo').execute()
+                    elif self._table == 'alumnos':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='rut').execute()
+                    elif self._table == 'funcionarios':
+                        self._client.table(self._table).upsert(batch_data, on_conflict='rut').execute()
+                    else:
+                        self._client.table(self._table).insert(batch_data).execute()
+                except Exception as e:
+                    print(f"[SupabaseSheet] append_rows batch '{self._table}': {e}")
+                    raise e
 
     def row_values(self, n: int) -> list:
         """Para n=1 devuelve los nombres de columnas UI; para n>1 devuelve []."""

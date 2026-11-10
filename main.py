@@ -684,7 +684,7 @@ def obtener_plan_estudio_curso(nom_curso):
         
     asigs = [
         (nom_lenguaje, abrev_lenguaje, sigla_lenguaje, False, 28),
-        ("Idioma Extranjero Inglés", "Inglés", "Ing", False, 6),
+        ("Inglés", "Inglés", "Ing", False, 6),
         ("Matemática", "Matemática", "Mat", False, 9845),
         ("Ciencias Naturales", "Ciencias", "Cien", False, 2280),
         ("Historia, Geografía y Ciencias Sociales", "Historia", "Hist", False, 19),
@@ -4840,7 +4840,7 @@ elif st.session_state.current_module == 'notas':
     ]
 
     ASIGNATURAS_DEFAULT = [
-        "Lenguaje y Comunicación", "Inglés", "Matemáticas",
+        "Lenguaje y Comunicación", "Inglés", "Matemática",
         "Ciencias Naturales", "Historia, Geografía y Ciencias Sociales",
         "Tecnología", "Artes Visuales", "Música", "Educación Física y Salud",
         "Orientación", "Religión Católica", "Religión Evangélica"
@@ -5012,12 +5012,20 @@ elif st.session_state.current_module == 'notas':
                         df_notas[col_asig_n].apply(lambda x: coincide_asig_bd(x, asig_activa)) &
                         df_notas[col_sem_n].apply(lambda x: _norm_sem(x) == sem_act_norm)
                     ]
+                    # Ordenar por id para procesar registros en orden cronológico
+                    id_cand = next((c for c in df_filtradas.columns if c in ['_id', 'id', 'ID']), None)
+                    if id_cand:
+                        df_filtradas = df_filtradas.sort_values(by=id_cand, ascending=True)
+
                     for _, row_n in df_filtradas.iterrows():
                         rut_key = str(row_n[col_rut_n]).strip()
-                        notas_existentes[rut_key] = {
-                            f"N{i}": str(row_n.get(f"N{i}", "")).strip()
-                            for i in range(1, 11)
-                        }
+                        if rut_key not in notas_existentes:
+                            notas_existentes[rut_key] = {f"N{i}": "" for i in range(1, 11)}
+                        for i in range(1, 11):
+                            raw_val = str(row_n.get(f"N{i}", "")).strip()
+                            # Blindaje estricto: un valor vacío o nulo NUNCA sobreescribe una nota existente
+                            if raw_val and raw_val not in ["", "None", "nan", "—", "null", "NULL"]:
+                                notas_existentes[rut_key][f"N{i}"] = raw_val
 
             es_asig_conceptual = any(k in asig_activa.lower() for k in ['religi', 'orientac'])
 
@@ -5213,8 +5221,12 @@ elif st.session_state.current_module == 'notas':
                     filas_actualizadas = 0
 
                     try:
-                        with st.spinner("Guardando notas en Google Sheets..."):
-                            recs_notas_fresh = sheet_notas.get_all_records()
+                        with st.spinner("Guardando notas en el sistema..."):
+                            ruts_activos_list = [str(r).strip() for r in df_activos[col_rut_al] if str(r).strip()]
+                            recs_notas_fresh = sheet_notas.get_all_records(
+                                filters={'semestre': str(sem_activo)},
+                                in_filters={'rut': ruts_activos_list}
+                            ) if ruts_activos_list else []
                             df_nf = pd.DataFrame(recs_notas_fresh) if recs_notas_fresh else pd.DataFrame()
 
                             def _norm_k(s):
@@ -5224,24 +5236,27 @@ elif st.session_state.current_module == 'notas':
                                 txt = str(s).strip()
                                 return "1" if "1" in txt else ("2" if "2" in txt else txt)
 
-                            fila_map = {}
+                            # Identificar RUTs existentes y limpiar posibles variantes de nombre de asignatura
+                            ruts_existentes = set()
                             if not df_nf.empty:
                                 df_nf.columns = [str(c).strip() for c in df_nf.columns]
                                 col_rn = next((c for c in df_nf.columns if 'rut'  in c.lower()), None)
                                 col_an = next((c for c in df_nf.columns if 'asig' in c.lower()), None)
                                 col_sn = next((c for c in df_nf.columns if 'sem'  in c.lower()), None)
-                                col_cn = next((c for c in df_nf.columns if 'curs' in c.lower()), None)
-                                if all([col_rn, col_an, col_sn, col_cn]):
-                                    for row_idx, row_nf in df_nf.iterrows():
-                                        key_nf = (
-                                            _norm_k(row_nf[col_rn]),
-                                            _norm_k(row_nf[col_cn]),
-                                            _norm_k(row_nf[col_an]),
-                                            _norm_sem(row_nf[col_sn])
-                                        )
-                                        fila_map[key_nf] = row_idx + 2
+                                col_id = next((c for c in df_nf.columns if c in ['_id', 'id', 'ID']), None)
 
-                            filas_nuevas_batch = []
+                                if col_rn and col_an and col_sn:
+                                    for _, r_nf in df_nf.iterrows():
+                                        if coincide_asig_bd(r_nf[col_an], asig_activa) and _norm_sem(r_nf[col_sn]) == _norm_sem(sem_activo):
+                                            ruts_existentes.add(_norm_k(r_nf[col_rn]))
+                                            # Si la fila en la BD tenía un nombre variante distinto al oficial, eliminar la obsoleta
+                                            if str(r_nf[col_an]).strip() != str(asig_activa).strip() and col_id and r_nf[col_id]:
+                                                try:
+                                                    sheet_notas.delete_by_id(r_nf[col_id])
+                                                except Exception:
+                                                    pass
+
+                            filas_a_guardar = []
                             for _, row_al in df_activos.iterrows():
                                 rut_k = str(row_al[col_rut_al]).strip()
                                 nom_k = str(row_al[col_nombre_al]).strip()
@@ -5256,6 +5271,7 @@ elif st.session_state.current_module == 'notas':
                                         num_val, str_f, ok = procesar_nota_chilena(val, es_conceptual=es_asig_conceptual)
                                         if ok:
                                             notas_fila.append(str_f)
+                                            st.session_state[sk] = str_f
                                             if num_val is not None:
                                                 vals_notas.append(num_val)
                                             elif str_f:
@@ -5278,40 +5294,23 @@ elif st.session_state.current_module == 'notas':
                                     *notas_fila,
                                     prom_calc
                                 ]
-
-                                # Buscar si ya existe la fila en la BD para este alumno, curso, asignatura y semestre
-                                fila_existente_idx = None
-                                if not df_nf.empty and all([col_rn, col_an, col_sn, col_cn]):
-                                    for row_idx, row_nf in df_nf.iterrows():
-                                        if (
-                                            _norm_k(row_nf[col_rn]) == _norm_k(rut_k) and
-                                            (calza_nombre_curso(row_nf[col_cn], curso_activo) or _norm_k(row_nf[col_cn]) == _norm_k(curso_activo)) and
-                                            coincide_asig_bd(row_nf[col_an], asig_activa) and
-                                            _norm_sem(row_nf[col_sn]) == _norm_sem(sem_activo)
-                                        ):
-                                            fila_existente_idx = row_idx + 2
-                                            break
-
-                                if fila_existente_idx is not None:
-                                    row_sheet = fila_existente_idx
-                                    sheet_notas.update(values=[fila_data], range_name=f"A{row_sheet}:P{row_sheet}")
+                                filas_a_guardar.append(fila_data)
+                                if _norm_k(rut_k) in ruts_existentes:
                                     filas_actualizadas += 1
                                 else:
-                                    filas_nuevas_batch.append(fila_data)
                                     filas_nuevas += 1
 
-                            if filas_nuevas_batch:
-                                sheet_notas.append_rows(filas_nuevas_batch)
+                            if filas_a_guardar:
+                                sheet_notas.append_rows(filas_a_guardar)
 
                         # ── Actualizar fila __RESUMEN__ de promedio general por alumno ──
-                        # Leer todas las notas del curso recién guardado para recalcular
-                        # promedios generales por semestre (misma lógica que main.py informes)
+                        # Leer solo las notas del curso activo para recalcular promedios generales
                         try:
                             _plan_res = obtener_plan_estudio_curso(curso_activo)
                             _asigs_computable = [
                                 a[0] for a in _plan_res["asignaturas"] if not a[3]  # excluye conceptuales
                             ]
-                            recs_all_notas = sheet_notas.get_all_records()
+                            recs_all_notas = sheet_notas.get_all_records(filters={'curso': str(curso_activo)})
                             df_all_n = pd.DataFrame(recs_all_notas) if recs_all_notas else pd.DataFrame()
                             if not df_all_n.empty:
                                 df_all_n.columns = [str(c).strip() for c in df_all_n.columns]
@@ -6129,7 +6128,7 @@ elif st.session_state.current_module == 'asignaciones':
     # 3. Asignaturas oficiales (lista estática base; se sobrescribirá dinámicamente por curso)
     asignaturas_list_base = [
         "Lenguaje y Comunicación",
-        "Idioma Extranjero Inglés",
+        "Inglés",
         "Matemática",
         "Ciencias Naturales",
         "Historia, Geografía y Ciencias Sociales",
