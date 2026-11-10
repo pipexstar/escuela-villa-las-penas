@@ -191,6 +191,8 @@ class SupabaseSheet:
                                 record[db_col] = float(val_str.replace(',', '.'))
                             except ValueError:
                                 record[db_col] = None
+                    elif db_col == 'semestre':
+                        record[db_col] = str(val).strip()
                     else:
                         record[db_col] = val
 
@@ -288,6 +290,8 @@ class SupabaseSheet:
                                 record[db_col] = float(val_str.replace(',', '.'))
                             except ValueError:
                                 record[db_col] = None
+                    elif db_col == 'semestre':
+                        record[db_col] = str(val).strip()
                     else:
                         record[db_col] = val
 
@@ -335,6 +339,8 @@ class SupabaseSheet:
                                 record[db_col] = float(val_str.replace(',', '.'))
                             except ValueError:
                                 record[db_col] = None
+                    elif db_col == 'semestre':
+                        record[db_col] = str(val).strip()
                     else:
                         record[db_col] = val
             records.append(record)
@@ -345,7 +351,13 @@ class SupabaseSheet:
                 batch_data = records[i:i+BATCH]
                 try:
                     if self._table == 'notas':
-                        self._client.table(self._table).upsert(batch_data, on_conflict='rut,asignatura,semestre').execute()
+                        # Deduplicar en memoria por clave (rut, asignatura, semestre) para evitar CardinalityViolation de PostgreSQL
+                        unique_map = {}
+                        for r in batch_data:
+                            k = (str(r.get('rut', '')).strip().lower(), str(r.get('asignatura', '')).strip().lower(), str(r.get('semestre', '')).strip())
+                            unique_map[k] = r
+                        deduped = list(unique_map.values())
+                        self._client.table(self._table).upsert(deduped, on_conflict='rut,asignatura,semestre').execute()
                     elif self._table == 'asistencia':
                         self._client.table(self._table).upsert(batch_data, on_conflict='fecha,curso,tipo').execute()
                     elif self._table == 'alumnos':
@@ -355,8 +367,26 @@ class SupabaseSheet:
                     else:
                         self._client.table(self._table).insert(batch_data).execute()
                 except Exception as e:
-                    print(f"[SupabaseSheet] append_rows batch '{self._table}': {e}")
-                    raise e
+                    print(f"[SupabaseSheet] append_rows batch '{self._table}' fallo ({e}), intentando fallback fila por fila...")
+                    # Fallback fila por fila para máxima resiliencia
+                    exitosos = 0
+                    for rec in batch_data:
+                        try:
+                            if self._table == 'notas':
+                                self._client.table(self._table).upsert(rec, on_conflict='rut,asignatura,semestre').execute()
+                            elif self._table == 'asistencia':
+                                self._client.table(self._table).upsert(rec, on_conflict='fecha,curso,tipo').execute()
+                            elif self._table == 'alumnos':
+                                self._client.table(self._table).upsert(rec, on_conflict='rut').execute()
+                            elif self._table == 'funcionarios':
+                                self._client.table(self._table).upsert(rec, on_conflict='rut').execute()
+                            else:
+                                self._client.table(self._table).insert(rec).execute()
+                            exitosos += 1
+                        except Exception as e_row:
+                            print(f"[SupabaseSheet] Error fila individual ({rec.get('rut', 'sin_rut')}): {e_row}")
+                    if exitosos == 0:
+                        raise e
 
     def row_values(self, n: int) -> list:
         """Para n=1 devuelve los nombres de columnas UI; para n>1 devuelve []."""

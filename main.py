@@ -6,6 +6,7 @@ import os
 import io
 import time
 import re
+import unicodedata
 from utils.database import get_sheets, get_asistencia_sheet, get_config_sheet, get_preacta_sheet, get_desarrollo_personal_sheet, get_cursos_sheet
 from utils.asistencia_funcionarios import (
     verificar_tabla_eventos_existe,
@@ -5224,10 +5225,14 @@ elif st.session_state.current_module == 'notas':
                     try:
                         with st.spinner("Guardando notas en el sistema..."):
                             ruts_activos_list = [str(r).strip() for r in df_activos[col_rut_al] if str(r).strip()]
-                            recs_notas_fresh = sheet_notas.get_all_records(
-                                filters={'semestre': str(sem_activo)},
-                                in_filters={'rut': ruts_activos_list}
-                            ) if ruts_activos_list else []
+                            try:
+                                recs_notas_fresh = sheet_notas.get_all_records(
+                                    filters={'semestre': str(sem_activo)},
+                                    in_filters={'rut': ruts_activos_list}
+                                ) if ruts_activos_list else []
+                            except Exception as _e_fresh:
+                                print(f"[warning recs_notas_fresh]: {_e_fresh}")
+                                recs_notas_fresh = []
                             df_nf = pd.DataFrame(recs_notas_fresh) if recs_notas_fresh else pd.DataFrame()
 
                             def _norm_k(s):
@@ -5402,7 +5407,9 @@ elif st.session_state.current_module == 'notas':
                         _save_ok = True
 
                     except Exception as e:
+                        import traceback
                         _save_error = str(e)
+                        print(f"[ERROR GUARDAR NOTAS]: {traceback.format_exc()}")
 
                     # st.rerun() FUERA del try/except
                     if _save_ok:
