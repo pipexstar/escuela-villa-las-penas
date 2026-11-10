@@ -5277,7 +5277,6 @@ elif st.session_state.current_module == 'notas':
                                         num_val, str_f, ok = procesar_nota_chilena(val, es_conceptual=es_asig_conceptual)
                                         if ok:
                                             notas_fila.append(str_f)
-                                            st.session_state[sk] = str_f
                                             if num_val is not None:
                                                 vals_notas.append(num_val)
                                             elif str_f:
@@ -5414,9 +5413,12 @@ elif st.session_state.current_module == 'notas':
                     # st.rerun() FUERA del try/except
                     if _save_ok:
                         st.session_state['_notas_guardadas_msg'] = (filas_nuevas, filas_actualizadas)
-                        # Limpiar keys de notas para que el siguiente render los lea frescos desde la DB
-                        for k in [k for k in st.session_state if k.startswith("nota_")]:
-                            del st.session_state[k]
+                        # Limpiar keys de notas de sesión de forma segura para refrescar desde la BD
+                        for k in [k for k in list(st.session_state.keys()) if k.startswith("nota_n")]:
+                            try:
+                                del st.session_state[k]
+                            except Exception:
+                                pass
                         st.rerun()
                     else:
                         st.error(f"❌ Error al guardar las notas: {_save_error}")
@@ -5427,8 +5429,11 @@ elif st.session_state.current_module == 'notas':
 
     st.write("")
     if st.button("⬅️ Volver al Dashboard Principal", key="btn_volver_notas"):
-        for k in [k for k in st.session_state if k.startswith("nota_")]:
-            del st.session_state[k]
+        for k in [k for k in list(st.session_state.keys()) if k.startswith("nota_")]:
+            try:
+                del st.session_state[k]
+            except Exception:
+                pass
         navigate('home')
         st.rerun()
 
