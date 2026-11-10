@@ -920,6 +920,7 @@ def navigate(module_name):
             st.query_params["m"] = module_name
     except Exception:
         pass
+    st.rerun()
 
 def render_sidebar_auth():
     import os
