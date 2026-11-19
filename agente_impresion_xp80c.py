@@ -20,36 +20,39 @@ import datetime
 import logging
 
 # ──────────────────────────────────────────────
-# CONFIGURACION DEL AGENTE
+# CONFIGURACION DEL AGENTE (VERCEL 2027)
 # ──────────────────────────────────────────────
-DEFAULT_SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-DEFAULT_SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+DEFAULT_SUPABASE_URL = "https://rbcruatrbknhaequrwbd.supabase.co"
+DEFAULT_SUPABASE_KEY = "sb_publishable_7AjxANayjSvkUIBk5SWPZA_IayjHk2B"
 
 def cargar_credenciales():
-    url = os.environ.get("SUPABASE_URL", DEFAULT_SUPABASE_URL)
-    key = os.environ.get("SUPABASE_KEY", DEFAULT_SUPABASE_KEY)
+    # 1. Variables de entorno (si se pasan desde el script de inicio)
+    env_url = os.environ.get("SUPABASE_URL")
+    env_key = os.environ.get("SUPABASE_KEY")
+    if env_url and env_key:
+        return env_url, env_key
     
-    # Buscar secrets.toml si existe localmente para sobrescribir
+    # 2. Archivo config_agente.json si existe localmente
     base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    secrets_paths = [
-        os.path.join(base_dir, ".streamlit", "secrets.toml"),
-        os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), ".streamlit", "secrets.toml"),
-        os.path.join(os.getcwd(), ".streamlit", "secrets.toml")
+    config_paths = [
+        os.path.join(base_dir, "config_agente.json"),
+        os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "config_agente.json"),
+        os.path.join(os.getcwd(), "config_agente.json")
     ]
-    for sp in secrets_paths:
-        if os.path.exists(sp):
+    for cp in config_paths:
+        if os.path.exists(cp):
             try:
-                with open(sp, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("SUPABASE_URL"):
-                            url = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        elif line.startswith("SUPABASE_KEY"):
-                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                break
+                with open(cp, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    url = cfg.get("SUPABASE_URL")
+                    key = cfg.get("SUPABASE_KEY")
+                    if url and key:
+                        return url, key
             except Exception as e:
-                log.error("Error al leer secrets.toml: " + str(e))
-    return url, key
+                log.error("Error al leer config_agente.json: " + str(e))
+
+    # 3. Predeterminado: Base de datos de Vercel
+    return DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY
 
 SUPABASE_URL, SUPABASE_KEY = cargar_credenciales()
 
