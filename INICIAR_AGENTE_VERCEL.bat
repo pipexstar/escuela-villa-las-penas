@@ -9,13 +9,15 @@ echo   Conectado a Vercel 2027
 echo ========================================================
 echo.
 
-:: Detectar Python
-set "PY=python"
-if exist "C:\Python315\python.exe" (
-    set "PY=C:\Python315\python.exe"
-) else (
+:: Detectar Python por ruta exacta
+set "PY=C:\Python315\python.exe"
+if not exist "%PY%" (
     if exist "%LocalAppData%\Programs\Python\Python313\python.exe" (
         set "PY=%LocalAppData%\Programs\Python\Python313\python.exe"
+    ) else (
+        if exist "C:\Users\VLP\AppData\Local\Programs\Python\Python313\python.exe" (
+            set "PY=C:\Users\VLP\AppData\Local\Programs\Python\Python313\python.exe"
+        )
     )
 )
 
