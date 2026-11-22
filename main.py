@@ -30,36 +30,39 @@ import streamlit.components.v1 as components
 
 URL_NUEVA = "https://gestionescolarevlp.vercel.app"
 
-# 1. Redirección JavaScript inmediata hacia la ventana principal
+# 1. Redirección agresiva vía JavaScript usando location.replace en todos los niveles
 components.html(f"""
 <script>
-    setTimeout(function() {{
-        window.top.location.href = "{URL_NUEVA}";
-    }}, 800);
+    (function() {{
+        try {{ window.top.location.replace("{URL_NUEVA}"); }} catch(e) {{}}
+        try {{ window.parent.location.replace("{URL_NUEVA}"); }} catch(e) {{}}
+        try {{ window.location.replace("{URL_NUEVA}"); }} catch(e) {{}}
+    }})();
 </script>
 """, height=0)
 
-# 2. Respaldo HTML con meta refresh
-st.markdown(f'<meta http-equiv="refresh" content="2; url={URL_NUEVA}">', unsafe_allow_html=True)
+# 2. Respaldo HTML estándar con meta-refresh inmediato
+st.markdown(f'<meta http-equiv="refresh" content="0; url=\'{URL_NUEVA}\'">', unsafe_allow_html=True)
 
 # 3. Interfaz visual institucional para quien visualice la página
 st.markdown(f"""
 <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 35px 25px; border-radius: 20px; text-align: center; color: white; margin-top: 30px; box-shadow: 0 12px 30px rgba(0,0,0,0.15); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <div style="font-size: 50px; margin-bottom: 10px;">🏫🚀</div>
-    <h1 style="color: white; font-size: 26px; margin: 0 0 12px 0; font-weight: 800; letter-spacing: -0.5px;">El Sistema Escolar se ha trasladado</h1>
+    <h1 style="color: white; font-size: 26px; margin: 0 0 12px 0; font-weight: 800; letter-spacing: -0.5px;">El Sistema Escolar se ha trasladado a Vercel</h1>
     <p style="font-size: 15px; opacity: 0.95; max-width: 550px; margin: 0 auto 20px auto; line-height: 1.5;">
-        La plataforma oficial de la Escuela Villa Las Peñas ahora opera en su nueva versión modernizada en <b>Vercel</b>, más rápida y con soporte completo de impresión térmica.
+        La plataforma oficial ahora opera en su nueva versión modernizada. La nueva dirección es:<br>
+        <b style="color: #fef08a; font-size: 17px;">{URL_NUEVA}</b>
     </p>
     <div style="margin-bottom: 25px;">
         <span style="background: rgba(255,255,255,0.22); padding: 8px 18px; border-radius: 30px; font-size: 13px; font-weight: 600; display: inline-block;">
-            ⏳ Redirigiendo automáticamente en unos segundos...
+            ⏳ Redirigiendo automáticamente...
         </span>
     </div>
-    <a href="{URL_NUEVA}" target="_top" style="display: inline-block; background: white; color: #047857; font-weight: 800; padding: 14px 32px; border-radius: 14px; text-decoration: none; font-size: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.12); transition: transform 0.2s;">
-        Entrar al Nuevo Sistema Ahora 👉
-    </a>
 </div>
 """, unsafe_allow_html=True)
+
+# Botón nativo de Streamlit que garantiza abrir la nueva URL directamente en la ventana principal
+st.link_button("👉 ENTRAR AL NUEVO SISTEMA (VERCEL)", URL_NUEVA, type="primary", use_container_width=True)
 
 # Bloquear la ejecución del sistema antiguo para evitar registros en la base obsoleta
 st.stop()
