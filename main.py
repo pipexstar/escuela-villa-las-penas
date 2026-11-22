@@ -21,50 +21,38 @@ from utils.asistencia_funcionarios import (
 from decimal import Decimal, ROUND_HALF_UP
 
 # Configuración inicial (Debe ser el primer comando de Streamlit)
-st.set_page_config(page_title="Sistema Escolar - Redireccionando a Vercel", page_icon="🏫", layout="centered")
+st.set_page_config(page_title="Sistema de Gestión Escolar", page_icon="🏫", layout="centered")
 
 # ==============================================================================
-# REDIRECCIÓN AUTOMÁTICA AL NUEVO SISTEMA ESCOLAR 2027 (VERCEL)
+# PANTALLA INFORMATIVA DE CAMBIO DE DIRECCIÓN
 # ==============================================================================
-import streamlit.components.v1 as components
-
 URL_NUEVA = "https://gestionescolarevlp.vercel.app"
 
-# 1. Redirección agresiva vía JavaScript usando location.replace en todos los niveles
-components.html(f"""
-<script>
-    (function() {{
-        try {{ window.top.location.replace("{URL_NUEVA}"); }} catch(e) {{}}
-        try {{ window.parent.location.replace("{URL_NUEVA}"); }} catch(e) {{}}
-        try {{ window.location.replace("{URL_NUEVA}"); }} catch(e) {{}}
-    }})();
-</script>
-""", height=0)
-
-# 2. Respaldo HTML estándar con meta-refresh inmediato
-st.markdown(f'<meta http-equiv="refresh" content="0; url=\'{URL_NUEVA}\'">', unsafe_allow_html=True)
-
-# 3. Interfaz visual institucional para quien visualice la página
 st.markdown(f"""
-<div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 35px 25px; border-radius: 20px; text-align: center; color: white; margin-top: 30px; box-shadow: 0 12px 30px rgba(0,0,0,0.15); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-    <div style="font-size: 50px; margin-bottom: 10px;">🏫🚀</div>
-    <h1 style="color: white; font-size: 26px; margin: 0 0 12px 0; font-weight: 800; letter-spacing: -0.5px;">El Sistema Escolar se ha trasladado a Vercel</h1>
-    <p style="font-size: 15px; opacity: 0.95; max-width: 550px; margin: 0 auto 20px auto; line-height: 1.5;">
-        La plataforma oficial ahora opera en su nueva versión modernizada. La nueva dirección es:<br>
-        <b style="color: #fef08a; font-size: 17px;">{URL_NUEVA}</b>
+<div style="background: white; border: 1px solid #e2e8f0; padding: 40px 30px; border-radius: 20px; text-align: center; margin-top: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="font-size: 56px; margin-bottom: 15px;">🏫</div>
+    <h1 style="color: #1e293b; font-size: 26px; margin: 0 0 12px 0; font-weight: 800; letter-spacing: -0.5px;">
+        Actualización de la Plataforma Escolar
+    </h1>
+    <h3 style="color: #059669; font-size: 16px; margin: 0 0 20px 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+        Escuela Villa Las Peñas
+    </h3>
+    <p style="color: #475569; font-size: 15px; max-width: 540px; margin: 0 auto 20px auto; line-height: 1.6;">
+        El Sistema de Gestión Escolar ha sido trasladado a su nueva plataforma oficial, con mejoras en velocidad, estabilidad y nuevas funciones para toda la comunidad.
     </p>
-    <div style="margin-bottom: 25px;">
-        <span style="background: rgba(255,255,255,0.22); padding: 8px 18px; border-radius: 30px; font-size: 13px; font-weight: 600; display: inline-block;">
-            ⏳ Redirigiendo automáticamente...
-        </span>
+    <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 12px 20px; max-width: 460px; margin: 0 auto 25px auto;">
+        <p style="color: #64748b; font-size: 13px; margin: 0;">
+            📌 <b>Importante:</b> Guarda la nueva dirección en tus favoritos para tus próximos ingresos.
+        </p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Botón nativo de Streamlit que garantiza abrir la nueva URL directamente en la ventana principal
-st.link_button("👉 ENTRAR AL NUEVO SISTEMA (VERCEL)", URL_NUEVA, type="primary", use_container_width=True)
+st.write("")
+# Botón que abre la nueva aplicación en una pestaña nueva
+st.link_button("👉 INGRESAR AL SISTEMA ESCOLAR", URL_NUEVA, type="primary", use_container_width=True)
 
-# Bloquear la ejecución del sistema antiguo para evitar registros en la base obsoleta
+# Bloquear la ejecución del sistema antiguo
 st.stop()
 
 def redondear_nota(valor, decimales=1):

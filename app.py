@@ -5,25 +5,27 @@ from oauth2client.service_account import ServiceAccountCredentials
 import datetime
 
 # --- Configuración de la Página ---
-st.set_page_config(page_title="Sistema Escolar - Redireccionando a Vercel", page_icon="🏫", layout="centered")
+st.set_page_config(page_title="Sistema de Gestión Escolar", page_icon="🏫", layout="centered")
 
-# Redirección automática a Vercel
-import streamlit.components.v1 as components
 URL_NUEVA = "https://gestionescolarevlp.vercel.app"
-components.html(f"<script>setTimeout(function() {{ window.top.location.href = '{URL_NUEVA}'; }}, 800);</script>", height=0)
-st.markdown(f'<meta http-equiv="refresh" content="2; url={URL_NUEVA}">', unsafe_allow_html=True)
+
 st.markdown(f"""
-<div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 35px 25px; border-radius: 20px; text-align: center; color: white; margin-top: 30px; box-shadow: 0 12px 30px rgba(0,0,0,0.15); font-family: sans-serif;">
-    <div style="font-size: 50px; margin-bottom: 10px;">🏫🚀</div>
-    <h1 style="color: white; font-size: 26px; margin: 0 0 12px 0; font-weight: 800;">El Sistema Escolar se ha trasladado</h1>
-    <p style="font-size: 15px; opacity: 0.95; max-width: 550px; margin: 0 auto 20px auto;">
-        La plataforma ahora opera en su nueva versión modernizada en <b>Vercel</b>.
+<div style="background: white; border: 1px solid #e2e8f0; padding: 40px 30px; border-radius: 20px; text-align: center; margin-top: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); font-family: sans-serif;">
+    <div style="font-size: 56px; margin-bottom: 15px;">🏫</div>
+    <h1 style="color: #1e293b; font-size: 26px; margin: 0 0 12px 0; font-weight: 800;">
+        Actualización de la Plataforma Escolar
+    </h1>
+    <h3 style="color: #059669; font-size: 16px; margin: 0 0 20px 0; font-weight: 700; text-transform: uppercase;">
+        Escuela Villa Las Peñas
+    </h3>
+    <p style="color: #475569; font-size: 15px; max-width: 540px; margin: 0 auto 20px auto; line-height: 1.6;">
+        El Sistema de Gestión Escolar ha sido trasladado a su nueva plataforma oficial.
     </p>
-    <a href="{URL_NUEVA}" target="_top" style="display: inline-block; background: white; color: #047857; font-weight: 800; padding: 14px 32px; border-radius: 14px; text-decoration: none; font-size: 16px;">
-        Entrar al Nuevo Sistema Ahora 👉
-    </a>
 </div>
 """, unsafe_allow_html=True)
+
+st.write("")
+st.link_button("👉 INGRESAR AL SISTEMA ESCOLAR", URL_NUEVA, type="primary", use_container_width=True)
 st.stop()
 
 def obtener_ahora_chile():
